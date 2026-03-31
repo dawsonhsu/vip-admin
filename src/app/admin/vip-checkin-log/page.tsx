@@ -60,7 +60,7 @@ export default function VipCheckinLogPage() {
         return <Tag color={colors[val] || 'default'}>{val}</Tag>;
       },
     },
-    { title: '簽到日 (Day)', dataIndex: 'checkinDay', width: 110 },
+    { title: '簽到日', dataIndex: 'checkinDay', width: 120, sorter: (a, b) => a.checkinDay.localeCompare(b.checkinDay) },
     { title: '簽到前連續天數', dataIndex: 'consecutiveBefore', width: 140 },
     { title: '簽到後連續天數', dataIndex: 'consecutiveAfter', width: 140 },
     {

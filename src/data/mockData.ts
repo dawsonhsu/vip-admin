@@ -42,7 +42,7 @@ export interface CheckinLogItem {
   uid: string;
   vipLevel: number;
   tierRange: string;
-  checkinDay: number;
+  checkinDay: string;
   consecutiveBefore: number;
   consecutiveAfter: number;
   checkinType: 'normal' | 'makeup';
@@ -68,7 +68,7 @@ export function generateCheckinLogs(count: number = 51): CheckinLogItem[] {
       uid: `${rand(100000, 999999)}`,
       vipLevel,
       tierRange: getTierRange(vipLevel),
-      checkinDay: after,
+      checkinDay: dayjs().subtract(daysAgo, 'day').format('YYYY-MM-DD'),
       consecutiveBefore: before,
       consecutiveAfter: after,
       checkinType: isMakeup ? 'makeup' : 'normal',
