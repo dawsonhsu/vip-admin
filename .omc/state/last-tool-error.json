@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"ls /Users/darren/Downloads/token* 2>/dev/null\",\"description\":\"Find token txt file in Downloads\"}",
+  "error": "Exit code 1\n(eval):1: no matches found: /Users/darren/Downloads/token*",
+  "timestamp": "2026-03-31T16:38:12.529Z",
+  "retry_count": 1
+}

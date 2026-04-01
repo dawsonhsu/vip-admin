@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import {
   Card, Table, Tag, Button, Typography, Modal, Form, InputNumber, Input, message, Space, Divider, Tabs, Checkbox, Alert,
 } from 'antd';
-import { EditOutlined, SettingOutlined } from '@ant-design/icons';
+import { EditOutlined, SettingOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { vipConfigData, type VipConfigItem } from '@/data/vipConfigData';
 
@@ -53,6 +54,13 @@ export default function VipConfigPage() {
     return { rowSpan: 0 };
   };
 
+  const titleWithTip = (label: string, tip: string) => (
+    <span style={{ whiteSpace: 'nowrap' }}>
+      {label}{' '}
+      <Tooltip title={tip}><QuestionCircleOutlined style={{ color: '#999', cursor: 'pointer' }} /></Tooltip>
+    </span>
+  );
+
   const columns: ColumnsType<VipConfigItem> = [
     { title: '序號', dataIndex: 'id', width: 60, fixed: 'left', align: 'center' },
     {
@@ -77,50 +85,70 @@ export default function VipConfigPage() {
       render: (val) => val === 0 ? '-' : `₱${val.toLocaleString()}`,
     },
     {
-      title: <span style={{ whiteSpace: 'normal', lineHeight: 1.3, display: 'inline-block' }}>半月禮金結算<br/>存款最低要求</span>,
+      title: titleWithTip('累計存款要求', '半月禮金結算存款最低要求\n半月：1~15 日 / 16~當月月底'),
       dataIndex: 'biweeklyDepositMin', width: 130, align: 'right',
       render: (val) => `₱${val.toLocaleString()}`,
     },
     {
-      title: '最低流水', dataIndex: 'minFlow', width: 100, align: 'right',
+      title: titleWithTip('Slot 最低有效流水', '半月禮金結算 Slot 最低有效流水要求\n半月：1~15 日 / 16~當月月底'),
+      dataIndex: 'minFlow', width: 140, align: 'right',
       render: (val) => `₱${val.toLocaleString()}`,
     },
     {
-      title: '達標獎勵', dataIndex: 'qualifyReward', width: 90, align: 'right',
+      title: titleWithTip('達標獎勵', '達標對應 VIP 等級的存款、最低有效流水要求時派發獎勵。'),
+      dataIndex: 'qualifyReward', width: 100, align: 'right',
       render: (val) => `₱${val.toLocaleString()}`,
     },
     {
-      title: '每日負盈利', dataIndex: 'dailyNegReturn', width: 100, align: 'center',
+      title: titleWithTip('越級獎勵', '半月存款、最低有效流水要求超過用戶當下 VIP 等級時，依對應層級 VIP 發放越級獎勵。'),
+      dataIndex: 'biweeklyUpgradeReward', width: 100, align: 'right',
+      render: (val) => val === 0 ? '-' : `₱${val.toLocaleString()}`,
     },
     {
-      title: '簽到補簽累存', dataIndex: 'makeupDeposit', width: 110, align: 'right',
+      title: titleWithTip('月保級積分', '於結算時需維持相同等級的對應 XP 值（結算期間累積）。'),
+      dataIndex: 'xpRequired', width: 120, align: 'right',
+      render: (val) => val.toLocaleString(),
+    },
+    {
+      title: titleWithTip('每日負盈利', '每日負盈利獎勵對應 VIP 等級返還比例。'),
+      dataIndex: 'dailyNegReturn', width: 110, align: 'center',
+    },
+    {
+      title: titleWithTip('補簽累存', '該 VIP 等級若需補簽到所需當日存款累計，每日至多補簽一次。'),
+      dataIndex: 'makeupDeposit', width: 120, align: 'right',
       render: (val) => `₱${val.toLocaleString()}`,
     },
     {
       title: '補簽上限', dataIndex: 'makeupLimit', width: 80, align: 'center',
     },
     {
-      title: '第6天', dataIndex: 'day6', width: 90, align: 'center',
+      title: titleWithTip('第6天', '該 VIP 等級連續簽到 6 天時，第 6 天時獲得的獎勵。'),
+      dataIndex: 'day6', width: 90, align: 'center',
       render: (val) => <Tag color="gold">₱{val}</Tag>,
     },
     {
-      title: '第7天', dataIndex: 'day7P', width: 130, align: 'center',
+      title: titleWithTip('第7天', '該 VIP 等級連續簽到 7 天時，第 7 天時獲得的獎勵。'),
+      dataIndex: 'day7P', width: 140, align: 'center',
       render: (val, record) => <Tag color="green">₱{val} + {record.day7FS}FS</Tag>,
     },
     {
-      title: '第16天', dataIndex: 'day16', width: 90, align: 'center',
+      title: titleWithTip('第16天', '該 VIP 等級連續簽到 16 天時，第 16 天時獲得的獎勵。'),
+      dataIndex: 'day16', width: 90, align: 'center',
       render: (val) => <Tag color="gold">₱{val}</Tag>,
     },
     {
-      title: '第17天', dataIndex: 'day17P', width: 130, align: 'center',
+      title: titleWithTip('第17天', '該 VIP 等級連續簽到 17 天時，第 17 天時獲得的獎勵。'),
+      dataIndex: 'day17P', width: 140, align: 'center',
       render: (val, record) => <Tag color="green">₱{val} + {record.day17FS}FS</Tag>,
     },
     {
-      title: '第26天', dataIndex: 'day26', width: 90, align: 'center',
+      title: titleWithTip('第26天', '該 VIP 等級連續簽到 26 天時，第 26 天時獲得的獎勵。'),
+      dataIndex: 'day26', width: 90, align: 'center',
       render: (val) => <Tag color="gold">₱{val}</Tag>,
     },
     {
-      title: '第27天', dataIndex: 'day27P', width: 130, align: 'center',
+      title: titleWithTip('第27天', '該 VIP 等級連續簽到 27 天時，第 27 天時獲得的獎勵。'),
+      dataIndex: 'day27P', width: 140, align: 'center',
       render: (val, record) => <Tag color="purple">₱{val} + {record.day27FS}FS</Tag>,
     },
     { title: '維護人', dataIndex: 'maintainer', width: 160 },
