@@ -33,10 +33,10 @@ export interface VipTaskRecord {
   updatedBy: string;
 }
 
-// 限时活动（有效）—— 15 笔（含新增 FreeBet）
+// 限时活动（有效）—— 15 笔（含新增 FreeBet，归类为附加类）
 export const activeActivities: ActivityRecord[] = [
   {
-    key: 29, id: 29, type: 'FreeBet 类', name: '世界杯冠军 FreeBet', status: '进行中',
+    key: 29, id: 29, type: '附加', name: '世界杯冠军 FreeBet', status: '进行中',
     introEN: '-', introTA: '-',
     startTime: '2026-05-01 00:00:00', endTime: '2026-06-10 23:59:59',
     cycle: '-', settleCycle: '即时',

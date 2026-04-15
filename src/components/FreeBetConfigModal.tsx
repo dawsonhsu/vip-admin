@@ -185,7 +185,7 @@ export default function FreeBetConfigModal({ open, onClose }: FreeBetConfigModal
         wrapperCol={{ span: 18 }}
         labelAlign="right"
         initialValues={{
-          activityType: 'freebet',
+          activityType: 'extra',
           activityId: 29,
           name: '世界杯冠军 FreeBet',
           ruleSource: 'code',
@@ -199,7 +199,7 @@ export default function FreeBetConfigModal({ open, onClose }: FreeBetConfigModal
           googleCode: undefined,
         }}
       >
-        {/* 活动类型：与 FAT 保持一致的 radio group（附加 FreeBet 类型）*/}
+        {/* 活动类型：与 FAT 保持一致；FreeBet 归类为附加类 */}
         <Form.Item label="活动类型" name="activityType" rules={[{ required: true }]}>
           <Radio.Group>
             <Radio value="blindbox">盲盒类</Radio>
@@ -207,7 +207,6 @@ export default function FreeBetConfigModal({ open, onClose }: FreeBetConfigModal
             <Radio value="deposit">首存类</Radio>
             <Radio value="leaderboard">排行榜类</Radio>
             <Radio value="extra">附加类</Radio>
-            <Radio value="freebet">FreeBet 类</Radio>
           </Radio.Group>
         </Form.Item>
 
