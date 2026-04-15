@@ -54,10 +54,27 @@ const menuItems: MenuItem[] = [
   { key: 'finance', icon: <DollarOutlined />, label: '財務管理' },
   { key: 'settlement', icon: <BankOutlined />, label: '結算管理' },
   { key: 'risk', icon: <AlertOutlined />, label: '風控管理' },
+  {
+    key: 'operations',
+    icon: <NotificationOutlined />,
+    label: '運營管理',
+    children: [
+      { key: '/admin/activity-list', icon: <NotificationOutlined />, label: '活動列表' },
+    ],
+  },
   { key: 'promotion', icon: <NotificationOutlined />, label: '推廣管理' },
   { key: 'site', icon: <GlobalOutlined />, label: '站點管理' },
   { key: 'game', icon: <PlayCircleOutlined />, label: '遊戲' },
-  { key: 'game-mgmt', icon: <AppstoreOutlined />, label: '遊戲管理' },
+  {
+    key: 'game-mgmt',
+    icon: <AppstoreOutlined />,
+    label: '遊戲管理',
+    children: [
+      { key: '/admin/freespin-grants', icon: <GiftOutlined />, label: 'Free Spin 派發記錄' },
+      { key: '/admin/freespin-usage', icon: <FileTextOutlined />, label: 'Free Spin 使用記錄' },
+      { key: '/admin/freebet-campaign', icon: <NotificationOutlined />, label: 'FreeBet 活動管理' },
+    ],
+  },
   { key: 'system', icon: <ToolOutlined />, label: '系統' },
   { key: 'logs', icon: <FileTextOutlined />, label: '日誌' },
   { key: 'integration', icon: <ApiOutlined />, label: '集成後台' },
@@ -69,6 +86,21 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/vip-rewards': 'VIP 獎勵表',
   '/admin/vip-checkin-log': 'VIP 簽到日誌',
   '/admin/vip-config': 'VIP 配置',
+  '/admin/freespin-grants': 'Free Spin 派發記錄',
+  '/admin/freespin-usage': 'Free Spin 使用記錄',
+  '/admin/freebet-campaign': 'FreeBet 活動管理',
+  '/admin/activity-list': '活動列表',
+};
+
+const parentBreadcrumbMap: Record<string, string> = {
+  '/admin/members': '會員管理',
+  '/admin/vip-rewards': '會員管理',
+  '/admin/vip-checkin-log': '會員管理',
+  '/admin/vip-config': '會員管理',
+  '/admin/freespin-grants': '遊戲管理',
+  '/admin/freespin-usage': '遊戲管理',
+  '/admin/freebet-campaign': '遊戲管理',
+  '/admin/activity-list': '運營管理',
 };
 
 interface AdminLayoutProps {
@@ -163,7 +195,9 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
           <Breadcrumb
             items={[
               { title: <HomeOutlined /> },
-              { title: '會員管理' },
+              ...(parentBreadcrumbMap[pathname]
+                ? [{ title: parentBreadcrumbMap[pathname] }]
+                : []),
               ...(breadcrumbMap[pathname] ? [{ title: breadcrumbMap[pathname] }] : []),
             ]}
           />

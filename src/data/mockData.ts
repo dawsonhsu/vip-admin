@@ -125,6 +125,209 @@ export function generateRewards(count: number = 35): RewardItem[] {
   return rewards.sort((a, b) => b.distributionDate.localeCompare(a.distributionDate));
 }
 
+// ==================== Free Spin Grant (派發記錄) ====================
+export interface FreeSpinGrantItem {
+  id: string;
+  name: string;
+  playerId: string;
+  sourceType: 'activity' | 'manual';
+  sourceActivityName: string | null;
+  grantType: 'open' | 'provider' | 'game';
+  providerCode: string | null;
+  providerName: string | null;
+  games: { code: string; name: string }[] | null;
+  totalSpins: number;
+  usedSpins: number;
+  betAmount: number;
+  totalWin: number;
+  claimStatus: 'claimed' | 'in_use' | 'completed' | 'expired';
+  dispatchStatus: 'pending' | 'dispatched' | 'settled' | 'failed';
+  vendorEventId: string | null;
+  currency: string;
+  minWithdraw: number | null;
+  maxWithdraw: number | null;
+  expireAt: string;
+  usedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  remark: string | null;
+}
+
+// ==================== Free Spin Usage (使用記錄) ====================
+export interface FreeSpinUsageItem {
+  id: string;
+  grantId: string;
+  grantName: string;
+  playerId: string;
+  providerCode: string;
+  providerName: string;
+  gameCode: string;
+  gameName: string;
+  vendorRoundId: string;
+  betAmount: number;
+  winAmount: number;
+  netWin: number;
+  roundTime: string;
+}
+
+const providers = [
+  {
+    code: 'FC', name: 'FC Game',
+    games: [
+      { code: 'FC_SWEET', name: 'Sweet Bonanza' },
+      { code: 'FC_NIGHT', name: 'Night Market' },
+      { code: 'FC_LUCKY', name: 'Lucky Fortune' },
+    ],
+  },
+  {
+    code: 'JDB', name: 'JDB',
+    games: [
+      { code: 'JDB_ZEUS', name: 'Zeus' },
+      { code: 'JDB_COW', name: 'Cowboys' },
+      { code: 'JDB_FISH', name: 'Fishing God' },
+    ],
+  },
+  {
+    code: 'JILI', name: 'JILI',
+    games: [
+      { code: 'JILI_GOLD', name: 'Golden Empire' },
+      { code: 'JILI_CRAZY', name: 'Crazy777' },
+      { code: 'JILI_BOOM', name: 'Boom Legend' },
+    ],
+  },
+  {
+    code: 'PG', name: 'PG SOFT',
+    games: [
+      { code: 'PG_MAHJONG', name: 'Mahjong Ways' },
+      { code: 'PG_GEMS', name: 'Gems Bonanza' },
+      { code: 'PG_DRAGON', name: 'Dragon Hatch' },
+    ],
+  },
+  {
+    code: 'PP', name: 'Pragmatic Play',
+    games: [
+      { code: 'PP_GATES', name: 'Gates of Olympus' },
+      { code: 'PP_BIGBASS', name: 'Big Bass Bonanza' },
+      { code: 'PP_STARLIGHT', name: 'Starlight Princess' },
+    ],
+  },
+];
+
+const activities = ['春節首存活動', 'VIP月禮', '週年慶活動', '新遊戲推廣', null];
+const betAmounts = [0.20, 0.50, 1.00, 2.00, 5.00];
+const claimStatuses: FreeSpinGrantItem['claimStatus'][] = ['claimed', 'in_use', 'completed', 'expired'];
+const dispatchStatuses: FreeSpinGrantItem['dispatchStatus'][] = ['pending', 'dispatched', 'settled', 'failed'];
+const grantNames = ['春節幸運轉', 'VIP尊享轉', '週年大禮轉', '新遊嘗鮮轉', '手動補發轉', '活動回饋轉'];
+const createdBys = ['system', 'jack@filbetph.com', 'darren@filbetph.com', 'admin@filbetph.com'];
+
+export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] {
+  const grants: FreeSpinGrantItem[] = [];
+  for (let i = 0; i < count; i++) {
+    const grantType = pick<FreeSpinGrantItem['grantType']>(['open', 'provider', 'game']);
+    const provider = pick(providers);
+    const claimStatus = pick(claimStatuses);
+    const sourceType: FreeSpinGrantItem['sourceType'] = Math.random() < 0.7 ? 'activity' : 'manual';
+    const activityName = sourceType === 'activity' ? pick(activities.filter(a => a !== null) as string[]) : null;
+    const totalSpins = pick([10, 20, 30, 50, 100]);
+    const hasUsed = claimStatus === 'in_use' || claimStatus === 'completed';
+    const usedSpins = hasUsed ? (claimStatus === 'completed' ? totalSpins : rand(1, totalSpins - 1)) : 0;
+    const betAmount = pick(betAmounts);
+    const totalWin = hasUsed ? +(usedSpins * betAmount * randDec(0, 3)).toFixed(2) : 0;
+    const daysAgo = rand(0, 60);
+    const createdAt = dayjs().subtract(daysAgo, 'day').subtract(rand(0, 23), 'hour').format('YYYY-MM-DD HH:mm:ss');
+    const expireDays = rand(3, 30);
+    const expireAt = dayjs(createdAt).add(expireDays, 'day').format('YYYY-MM-DD HH:mm:ss');
+    const usedAt = hasUsed || usedSpins > 0
+      ? dayjs(createdAt).add(rand(0, expireDays - 1), 'day').format('YYYY-MM-DD HH:mm:ss')
+      : null;
+
+    let selectedGames: { code: string; name: string }[] | null = null;
+    let providerCode: string | null = null;
+    let providerName: string | null = null;
+
+    if (grantType === 'provider') {
+      providerCode = provider.code;
+      providerName = provider.name;
+    } else if (grantType === 'game') {
+      providerCode = provider.code;
+      providerName = provider.name;
+      const numGames = rand(1, provider.games.length);
+      selectedGames = provider.games.slice(0, numGames);
+    }
+
+    const dispatchStatus: FreeSpinGrantItem['dispatchStatus'] =
+      claimStatus === 'completed' ? 'settled'
+      : claimStatus === 'in_use' ? 'dispatched'
+      : claimStatus === 'claimed' ? pick(['dispatched', 'pending'] as const)
+      : pick(['failed', 'pending'] as const);
+
+    grants.push({
+      id: `FSG${String(i + 1).padStart(5, '0')}`,
+      name: pick(grantNames),
+      playerId: pick(accounts),
+      sourceType,
+      sourceActivityName: activityName,
+      grantType,
+      providerCode,
+      providerName,
+      games: selectedGames,
+      totalSpins,
+      usedSpins,
+      betAmount,
+      totalWin,
+      claimStatus,
+      dispatchStatus,
+      vendorEventId: dispatchStatus === 'dispatched' || dispatchStatus === 'settled'
+        ? `VE${rand(100000, 999999)}`
+        : null,
+      currency: 'PHP',
+      minWithdraw: Math.random() > 0.4 ? randDec(100, 500) : null,
+      maxWithdraw: Math.random() > 0.4 ? randDec(1000, 5000) : null,
+      expireAt,
+      usedAt,
+      createdBy: pick(createdBys),
+      createdAt,
+      remark: Math.random() > 0.7 ? '客服手動補發' : null,
+    });
+  }
+  return grants.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function generateFreeSpinUsage(count: number = 120, grants: FreeSpinGrantItem[]): FreeSpinUsageItem[] {
+  const usableGrants = grants.filter(g => g.usedSpins > 0);
+  if (usableGrants.length === 0) return [];
+
+  const usage: FreeSpinUsageItem[] = [];
+  for (let i = 0; i < count; i++) {
+    const grant = pick(usableGrants);
+    const provider = providers.find(p => p.code === grant.providerCode) || pick(providers);
+    const game = grant.games ? pick(grant.games) : pick(provider.games);
+    const betAmount = grant.betAmount;
+    const winAmount = +(betAmount * randDec(0, 4)).toFixed(2);
+    const netWin = +(winAmount - betAmount).toFixed(2);
+    const roundTime = grant.usedAt
+      ? dayjs(grant.usedAt).add(rand(0, 60), 'minute').format('YYYY-MM-DD HH:mm:ss')
+      : dayjs().subtract(rand(0, 30), 'day').format('YYYY-MM-DD HH:mm:ss');
+
+    usage.push({
+      id: `FSU${String(i + 1).padStart(6, '0')}`,
+      grantId: grant.id,
+      grantName: grant.name,
+      playerId: grant.playerId,
+      providerCode: provider.code,
+      providerName: provider.name,
+      gameCode: game.code,
+      gameName: game.name,
+      vendorRoundId: `VR${rand(1000000, 9999999)}`,
+      betAmount,
+      winAmount,
+      netWin,
+      roundTime,
+    });
+  }
+  return usage.sort((a, b) => b.roundTime.localeCompare(a.roundTime));
+}
+
 // ==================== VIP Config ====================
 export interface VipConfigItem {
   id: number;
