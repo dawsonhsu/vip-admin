@@ -139,6 +139,7 @@ export interface FreeSpinGrantItem {
   totalSpins: number;
   usedSpins: number;
   betAmount: number;
+  totalBet: number;
   totalWin: number;
   claimStatus: 'claimed' | 'in_use' | 'completed' | 'expired';
   dispatchStatus: 'pending' | 'dispatched' | 'settled' | 'failed';
@@ -148,6 +149,9 @@ export interface FreeSpinGrantItem {
   maxWithdraw: number | null;
   expireAt: string;
   usedAt: string | null;
+  settledAt: string | null;
+  failureReason: string | null;
+  retryCount: number;
   createdBy: string;
   createdAt: string;
   remark: string | null;
@@ -219,6 +223,14 @@ const claimStatuses: FreeSpinGrantItem['claimStatus'][] = ['claimed', 'in_use', 
 const dispatchStatuses: FreeSpinGrantItem['dispatchStatus'][] = ['pending', 'dispatched', 'settled', 'failed'];
 const grantNames = ['春節幸運轉', 'VIP尊享轉', '週年大禮轉', '新遊嘗鮮轉', '手動補發轉', '活動回饋轉'];
 const createdBys = ['system', 'jack@filbetph.com', 'darren@filbetph.com', 'admin@filbetph.com'];
+const failureReasons = [
+  '廠商 API 超時（Timeout）',
+  '玩家帳號不存在',
+  '重複的 vendor_event_id',
+  '遊戲維護中',
+  '廠商返回：invalid bet amount',
+  '參數驗證失敗',
+];
 
 export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] {
   const grants: FreeSpinGrantItem[] = [];
@@ -232,6 +244,7 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
     const hasUsed = claimStatus === 'in_use' || claimStatus === 'completed';
     const usedSpins = hasUsed ? (claimStatus === 'completed' ? totalSpins : rand(1, totalSpins - 1)) : 0;
     const betAmount = pick(betAmounts);
+    const totalBet = hasUsed ? +(usedSpins * betAmount).toFixed(2) : 0;
     const totalWin = hasUsed ? +(usedSpins * betAmount * randDec(0, 3)).toFixed(2) : 0;
     const daysAgo = rand(0, 60);
     const createdAt = dayjs().subtract(daysAgo, 'day').subtract(rand(0, 23), 'hour').format('YYYY-MM-DD HH:mm:ss');
@@ -274,6 +287,7 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
       totalSpins,
       usedSpins,
       betAmount,
+      totalBet,
       totalWin,
       claimStatus,
       dispatchStatus,
@@ -285,6 +299,11 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
       maxWithdraw: Math.random() > 0.4 ? randDec(1000, 5000) : null,
       expireAt,
       usedAt,
+      settledAt: dispatchStatus === 'settled'
+        ? dayjs(usedAt || createdAt).add(rand(1, 24), 'hour').format('YYYY-MM-DD HH:mm:ss')
+        : null,
+      failureReason: dispatchStatus === 'failed' ? pick(failureReasons) : null,
+      retryCount: dispatchStatus === 'failed' ? rand(1, 3) : 0,
       createdBy: pick(createdBys),
       createdAt,
       remark: Math.random() > 0.7 ? '客服手動補發' : null,

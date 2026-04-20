@@ -44,11 +44,19 @@ export default function FreeSpinUsagePage() {
     const totalBet = filteredData.reduce((s, i) => s + i.betAmount, 0);
     const totalWin = filteredData.reduce((s, i) => s + i.winAmount, 0);
     const totalNet = filteredData.reduce((s, i) => s + i.netWin, 0);
+    const winRounds = filteredData.filter(i => i.winAmount > 0).length;
+    const maxWin = filteredData.reduce((m, i) => Math.max(m, i.winAmount), 0);
+    const rtp = totalBet > 0 ? +(totalWin / totalBet * 100).toFixed(1) : 0;
+    const winRate = filteredData.length > 0 ? +(winRounds / filteredData.length * 100).toFixed(1) : 0;
     return {
       total: filteredData.length,
       totalBet: +totalBet.toFixed(2),
       totalWin: +totalWin.toFixed(2),
       totalNet: +totalNet.toFixed(2),
+      rtp,
+      winRate,
+      winRounds,
+      maxWin: +maxWin.toFixed(2),
     };
   }, [filteredData]);
 
@@ -68,8 +76,18 @@ export default function FreeSpinUsagePage() {
       sorter: (a, b) => a.betAmount - b.betAmount,
     },
     {
-      title: '派彩額', dataIndex: 'winAmount', width: 100,
-      render: (val) => formatCurrency(val),
+      title: '派彩額', dataIndex: 'winAmount', width: 120,
+      render: (val, r) => {
+        const ratio = r.betAmount > 0 ? val / r.betAmount : 0;
+        if (ratio > 100) {
+          return (
+            <span style={{ color: '#ff4d4f', fontWeight: 500 }}>
+              ⚠️ {formatCurrency(val)}
+            </span>
+          );
+        }
+        return formatCurrency(val);
+      },
       sorter: (a, b) => a.winAmount - b.winAmount,
     },
     {
@@ -142,6 +160,34 @@ export default function FreeSpinUsagePage() {
               precision={2}
               valueStyle={{ color: stats.totalNet >= 0 ? '#52c41a' : '#ff4d4f' }}
             />
+          </Card>
+        </Col>
+      </Row>
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={6}>
+          <Card>
+            <Statistic
+              title="整體 RTP"
+              value={stats.rtp}
+              suffix="%"
+              precision={1}
+              valueStyle={{ color: stats.rtp > 500 ? '#ff4d4f' : stats.rtp > 150 ? '#faad14' : '#52c41a' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="中獎率" value={stats.winRate} suffix="%" precision={1} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="中獎回合數" value={stats.winRounds} suffix={`/ ${stats.total}`} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="最大單筆派彩" value={stats.maxWin} prefix="₱" precision={2} valueStyle={{ color: '#1668dc' }} />
           </Card>
         </Col>
       </Row>
