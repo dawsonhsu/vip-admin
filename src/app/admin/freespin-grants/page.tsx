@@ -145,9 +145,8 @@ export default function FreeSpinGrantsPage() {
   }, [filters, allGrants]);
 
   const stats = useMemo(() => {
-    const totalBet = filteredData.reduce((s, i) => s + i.totalBet, 0);
     const totalWin = filteredData.reduce((s, i) => s + i.totalWin, 0);
-    const rtp = totalBet > 0 ? +(totalWin / totalBet * 100).toFixed(1) : 0;
+    const uniquePlayers = new Set(filteredData.map(i => i.playerId)).size;
     return {
       total: filteredData.length,
       inUse: filteredData.filter(i => i.claimStatus === 'in_use').length,
@@ -155,9 +154,8 @@ export default function FreeSpinGrantsPage() {
       expired: filteredData.filter(i => i.claimStatus === 'expired').length,
       failed: filteredData.filter(i => i.dispatchStatus === 'failed').length,
       pendingSettle: filteredData.filter(i => i.dispatchStatus === 'dispatched').length,
-      totalBet: +totalBet.toFixed(2),
       totalWin: +totalWin.toFixed(2),
-      rtp,
+      uniquePlayers,
     };
   }, [filteredData]);
 
@@ -214,9 +212,9 @@ export default function FreeSpinGrantsPage() {
       render: (val) => val || '—',
     },
     {
-      title: '遊戲', dataIndex: 'games', width: 140,
-      render: (games: FreeSpinGrantItem['games']) => {
-        if (!games || games.length === 0) return '—';
+      title: '贈送遊戲', dataIndex: 'grantedGames', width: 150,
+      render: (games: FreeSpinGrantItem['grantedGames']) => {
+        if (!games || games.length === 0) return <Text type="secondary">—</Text>;
         if (games.length === 1) return games[0].name;
         return (
           <Tooltip title={games.map(g => g.name).join(', ')}>
@@ -226,8 +224,19 @@ export default function FreeSpinGrantsPage() {
       },
     },
     {
-      title: '投注額', dataIndex: 'betAmount', width: 90,
-      render: (val) => formatCurrency(val),
+      title: '選定遊戲', dataIndex: 'selectedGame', width: 140,
+      render: (game: FreeSpinGrantItem['selectedGame']) => {
+        if (!game) return <Text type="secondary">—</Text>;
+        return <Tag color="cyan">{game.name}</Tag>;
+      },
+    },
+    {
+      title: '設定投注額', dataIndex: 'betAmount', width: 110,
+      render: (val) => (
+        <Tooltip title="平台端設置的單注金額，廠商實際扣款可能略有差異">
+          {formatCurrency(val)}
+        </Tooltip>
+      ),
     },
     {
       title: '進度', width: 160,
@@ -242,21 +251,8 @@ export default function FreeSpinGrantsPage() {
       },
     },
     {
-      title: '累計投注', dataIndex: 'totalBet', width: 110,
-      render: (val) => formatCurrency(val),
-    },
-    {
       title: '累計贏得', dataIndex: 'totalWin', width: 110,
       render: (val) => formatCurrency(val),
-    },
-    {
-      title: 'RTP', width: 90,
-      render: (_, r) => {
-        if (r.totalBet === 0) return <Text type="secondary">—</Text>;
-        const rtp = +(r.totalWin / r.totalBet * 100).toFixed(1);
-        const color = rtp > 500 ? '#ff4d4f' : rtp > 150 ? '#faad14' : '#52c41a';
-        return <span style={{ color, fontWeight: 500 }}>{rtp}%</span>;
-      },
     },
     {
       title: '領取狀態', dataIndex: 'claimStatus', width: 100,
@@ -460,19 +456,9 @@ export default function FreeSpinGrantsPage() {
       </Row>
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}><Card><Statistic title="已完成筆數" value={stats.completed} valueStyle={{ color: '#52c41a' }} /></Card></Col>
-        <Col span={6}><Card><Statistic title="總投注" value={stats.totalBet} prefix="₱" precision={2} /></Card></Col>
+        <Col span={6}><Card><Statistic title="已過期筆數" value={stats.expired} valueStyle={{ color: '#8c8c8c' }} /></Card></Col>
         <Col span={6}><Card><Statistic title="總派彩" value={stats.totalWin} prefix="₱" precision={2} valueStyle={{ color: '#52c41a' }} /></Card></Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="整體 RTP"
-              value={stats.rtp}
-              suffix="%"
-              precision={1}
-              valueStyle={{ color: stats.rtp > 500 ? '#ff4d4f' : stats.rtp > 150 ? '#faad14' : '#52c41a' }}
-            />
-          </Card>
-        </Col>
+        <Col span={6}><Card><Statistic title="涉及玩家數" value={stats.uniquePlayers} /></Card></Col>
       </Row>
 
       <Card>
@@ -545,13 +531,22 @@ export default function FreeSpinGrantsPage() {
                 {drawerGrant.grantType === 'open' ? '不限' : drawerGrant.grantType === 'provider' ? '廠商' : '遊戲'}
               </Descriptions.Item>
               <Descriptions.Item label="廠商">{drawerGrant.providerName || '—'}</Descriptions.Item>
-              <Descriptions.Item label="遊戲清單" span={2}>
-                {drawerGrant.games && drawerGrant.games.length > 0
-                  ? drawerGrant.games.map(g => <Tag key={g.code}>{g.name}</Tag>)
-                  : '—'}
+              <Descriptions.Item label="贈送遊戲" span={2}>
+                {drawerGrant.grantedGames && drawerGrant.grantedGames.length > 0
+                  ? drawerGrant.grantedGames.map(g => <Tag key={g.code}>{g.name}</Tag>)
+                  : <Text type="secondary">—（贈送類型為 {drawerGrant.grantType === 'open' ? '不限' : '廠商'}，玩家自選）</Text>}
+              </Descriptions.Item>
+              <Descriptions.Item label="選定遊戲" span={2}>
+                {drawerGrant.selectedGame
+                  ? <Tag color="cyan">{drawerGrant.selectedGame.name}</Tag>
+                  : <Text type="secondary">尚未選定</Text>}
               </Descriptions.Item>
               <Descriptions.Item label="總次數">{drawerGrant.totalSpins}</Descriptions.Item>
-              <Descriptions.Item label="單轉投注">{formatCurrency(drawerGrant.betAmount)}</Descriptions.Item>
+              <Descriptions.Item label="設定單轉投注">
+                <Tooltip title="平台端設置金額，廠商實際扣款可能略有差異">
+                  {formatCurrency(drawerGrant.betAmount)}
+                </Tooltip>
+              </Descriptions.Item>
               <Descriptions.Item label="最低提領">{drawerGrant.minWithdraw != null ? formatCurrency(drawerGrant.minWithdraw) : '不限'}</Descriptions.Item>
               <Descriptions.Item label="最高提領">{drawerGrant.maxWithdraw != null ? formatCurrency(drawerGrant.maxWithdraw) : '不限'}</Descriptions.Item>
               <Descriptions.Item label="到期時間" span={2}>{drawerGrant.expireAt}</Descriptions.Item>
@@ -564,23 +559,9 @@ export default function FreeSpinGrantsPage() {
                 已使用 <strong>{drawerGrant.usedSpins}</strong> / {drawerGrant.totalSpins} 次（剩餘 {drawerGrant.totalSpins - drawerGrant.usedSpins} 次）
               </div>
               <Row gutter={16}>
-                <Col span={6}><Statistic title="累計投注" value={drawerGrant.totalBet} prefix="₱" precision={2} /></Col>
-                <Col span={6}><Statistic title="累計派彩" value={drawerGrant.totalWin} prefix="₱" precision={2} valueStyle={{ color: '#52c41a' }} /></Col>
-                <Col span={6}>
-                  <Statistic
-                    title="RTP"
-                    value={drawerGrant.totalBet > 0 ? +(drawerGrant.totalWin / drawerGrant.totalBet * 100).toFixed(1) : 0}
-                    suffix="%"
-                    precision={1}
-                    valueStyle={{
-                      color: drawerGrant.totalBet > 0 && drawerGrant.totalWin / drawerGrant.totalBet > 5
-                        ? '#ff4d4f'
-                        : drawerGrant.totalBet > 0 && drawerGrant.totalWin / drawerGrant.totalBet > 1.5
-                          ? '#faad14' : '#52c41a',
-                    }}
-                  />
-                </Col>
-                <Col span={6}>
+                <Col span={8}><Statistic title="累計派彩" value={drawerGrant.totalWin} prefix="₱" precision={2} valueStyle={{ color: '#52c41a' }} /></Col>
+                <Col span={8}><Statistic title="剩餘次數" value={drawerGrant.totalSpins - drawerGrant.usedSpins} suffix={`/ ${drawerGrant.totalSpins}`} /></Col>
+                <Col span={8}>
                   <div style={{ fontSize: 14, color: '#8c8c8c' }}>狀態</div>
                   <div style={{ marginTop: 8 }}>
                     {renderClaimStatus(drawerGrant.claimStatus)}
@@ -685,7 +666,7 @@ export default function FreeSpinGrantsPage() {
               grantType: values.grantType,
               providerCode: values.grantType === 'open' ? null : (values.providerCodes?.[0] || null),
               providerName: values.grantType === 'open' ? null : providers.find(p => p.code === values.providerCodes?.[0])?.name || null,
-              games: values.grantType === 'game' && values.gameCodes
+              grantedGames: values.grantType === 'game' && values.gameCodes
                 ? values.gameCodes.map((gc: string) => {
                     for (const pCode of (values.providerCodes || [])) {
                       const found = providerGames[pCode]?.find(g => g.code === gc);
@@ -694,10 +675,10 @@ export default function FreeSpinGrantsPage() {
                     return { code: gc, name: gc };
                   })
                 : null,
+              selectedGame: null,
               totalSpins: values.totalSpins,
               usedSpins: 0,
               betAmount: values.betAmount || 0.20,
-              totalBet: 0,
               totalWin: 0,
               claimStatus: 'claimed',
               dispatchStatus: 'pending',
@@ -754,8 +735,8 @@ export default function FreeSpinGrantsPage() {
             </Form.Item>
           )}
           {selectedGrantType === 'game' && selectedProviders.length > 0 && (
-            <Form.Item name="gameCodes" label="遊戲" rules={[{ required: true, message: '請選擇遊戲' }]}>
-              <Select mode="multiple" placeholder="選擇遊戲（可複選）">
+            <Form.Item name="gameCodes" label="贈送遊戲" rules={[{ required: true, message: '請選擇贈送遊戲' }]} tooltip="玩家將在這些遊戲中選一款使用">
+              <Select mode="multiple" placeholder="選擇贈送遊戲（可複選，玩家選一款）">
                 {selectedProviders.flatMap(pCode =>
                   (providerGames[pCode] || []).map(g => (
                     <Select.Option key={g.code} value={g.code}>{providers.find(p => p.code === pCode)?.name} - {g.name}</Select.Option>

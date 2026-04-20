@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  Card, Table, Input, Select, DatePicker, Button, Row, Col, Space, Statistic, Typography, Form,
+  Card, Table, Input, Select, DatePicker, Button, Row, Col, Space, Statistic, Typography, Form, Tooltip,
 } from 'antd';
 import { SearchOutlined, ReloadOutlined, DownloadOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -41,22 +41,22 @@ export default function FreeSpinUsagePage() {
   }, [filters, allUsage]);
 
   const stats = useMemo(() => {
-    const totalBet = filteredData.reduce((s, i) => s + i.betAmount, 0);
     const totalWin = filteredData.reduce((s, i) => s + i.winAmount, 0);
     const totalNet = filteredData.reduce((s, i) => s + i.netWin, 0);
     const winRounds = filteredData.filter(i => i.winAmount > 0).length;
     const maxWin = filteredData.reduce((m, i) => Math.max(m, i.winAmount), 0);
-    const rtp = totalBet > 0 ? +(totalWin / totalBet * 100).toFixed(1) : 0;
     const winRate = filteredData.length > 0 ? +(winRounds / filteredData.length * 100).toFixed(1) : 0;
+    const uniquePlayers = new Set(filteredData.map(i => i.playerId)).size;
+    const uniqueGames = new Set(filteredData.map(i => i.gameCode)).size;
     return {
       total: filteredData.length,
-      totalBet: +totalBet.toFixed(2),
       totalWin: +totalWin.toFixed(2),
       totalNet: +totalNet.toFixed(2),
-      rtp,
       winRate,
       winRounds,
       maxWin: +maxWin.toFixed(2),
+      uniquePlayers,
+      uniqueGames,
     };
   }, [filteredData]);
 
@@ -71,7 +71,11 @@ export default function FreeSpinUsagePage() {
     { title: '遊戲', dataIndex: 'gameName', width: 140 },
     { title: '廠商回合 ID', dataIndex: 'vendorRoundId', width: 140 },
     {
-      title: '投注額', dataIndex: 'betAmount', width: 100,
+      title: (
+        <Tooltip title="廠商回傳的實際單注金額，部分廠商無法精準匹配平台設定值，僅供參考">
+          實際投注額 <span style={{ color: '#faad14' }}>ⓘ</span>
+        </Tooltip>
+      ), dataIndex: 'betAmount', width: 110,
       render: (val) => formatCurrency(val),
       sorter: (a, b) => a.betAmount - b.betAmount,
     },
@@ -149,8 +153,26 @@ export default function FreeSpinUsagePage() {
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}><Card><Statistic title="記錄總筆數" value={stats.total} /></Card></Col>
-        <Col span={6}><Card><Statistic title="總投注額" value={stats.totalBet} prefix="₱" precision={2} /></Card></Col>
         <Col span={6}><Card><Statistic title="總派彩額" value={stats.totalWin} prefix="₱" precision={2} valueStyle={{ color: '#52c41a' }} /></Card></Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="中獎率" value={stats.winRate} suffix="%" precision={1} />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card>
+            <Statistic title="最大單筆派彩" value={stats.maxWin} prefix="₱" precision={2} valueStyle={{ color: '#1668dc' }} />
+          </Card>
+        </Col>
+      </Row>
+      <Row gutter={16} style={{ marginBottom: 16 }}>
+        <Col span={6}>
+          <Card>
+            <Statistic title="中獎回合數" value={stats.winRounds} suffix={`/ ${stats.total}`} />
+          </Card>
+        </Col>
+        <Col span={6}><Card><Statistic title="涉及玩家數" value={stats.uniquePlayers} /></Card></Col>
+        <Col span={6}><Card><Statistic title="涉及遊戲數" value={stats.uniqueGames} /></Card></Col>
         <Col span={6}>
           <Card>
             <Statistic
@@ -160,34 +182,6 @@ export default function FreeSpinUsagePage() {
               precision={2}
               valueStyle={{ color: stats.totalNet >= 0 ? '#52c41a' : '#ff4d4f' }}
             />
-          </Card>
-        </Col>
-      </Row>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="整體 RTP"
-              value={stats.rtp}
-              suffix="%"
-              precision={1}
-              valueStyle={{ color: stats.rtp > 500 ? '#ff4d4f' : stats.rtp > 150 ? '#faad14' : '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic title="中獎率" value={stats.winRate} suffix="%" precision={1} />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic title="中獎回合數" value={stats.winRounds} suffix={`/ ${stats.total}`} />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic title="最大單筆派彩" value={stats.maxWin} prefix="₱" precision={2} valueStyle={{ color: '#1668dc' }} />
           </Card>
         </Col>
       </Row>

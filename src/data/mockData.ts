@@ -135,11 +135,11 @@ export interface FreeSpinGrantItem {
   grantType: 'open' | 'provider' | 'game';
   providerCode: string | null;
   providerName: string | null;
-  games: { code: string; name: string }[] | null;
+  grantedGames: { code: string; name: string }[] | null;
+  selectedGame: { code: string; name: string } | null;
   totalSpins: number;
   usedSpins: number;
   betAmount: number;
-  totalBet: number;
   totalWin: number;
   claimStatus: 'claimed' | 'in_use' | 'completed' | 'expired';
   dispatchStatus: 'pending' | 'dispatched' | 'settled' | 'failed';
@@ -244,7 +244,6 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
     const hasUsed = claimStatus === 'in_use' || claimStatus === 'completed';
     const usedSpins = hasUsed ? (claimStatus === 'completed' ? totalSpins : rand(1, totalSpins - 1)) : 0;
     const betAmount = pick(betAmounts);
-    const totalBet = hasUsed ? +(usedSpins * betAmount).toFixed(2) : 0;
     const totalWin = hasUsed ? +(usedSpins * betAmount * randDec(0, 3)).toFixed(2) : 0;
     const daysAgo = rand(0, 60);
     const createdAt = dayjs().subtract(daysAgo, 'day').subtract(rand(0, 23), 'hour').format('YYYY-MM-DD HH:mm:ss');
@@ -254,7 +253,7 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
       ? dayjs(createdAt).add(rand(0, expireDays - 1), 'day').format('YYYY-MM-DD HH:mm:ss')
       : null;
 
-    let selectedGames: { code: string; name: string }[] | null = null;
+    let grantedGames: { code: string; name: string }[] | null = null;
     let providerCode: string | null = null;
     let providerName: string | null = null;
 
@@ -265,7 +264,21 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
       providerCode = provider.code;
       providerName = provider.name;
       const numGames = rand(1, provider.games.length);
-      selectedGames = provider.games.slice(0, numGames);
+      grantedGames = provider.games.slice(0, numGames);
+    }
+
+    let selectedGame: { code: string; name: string } | null = null;
+    if (hasUsed) {
+      if (grantedGames && grantedGames.length > 0) {
+        selectedGame = pick(grantedGames);
+      } else {
+        const useProvider = provider;
+        selectedGame = pick(useProvider.games);
+        if (grantType === 'open') {
+          providerCode = useProvider.code;
+          providerName = useProvider.name;
+        }
+      }
     }
 
     const dispatchStatus: FreeSpinGrantItem['dispatchStatus'] =
@@ -283,11 +296,11 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
       grantType,
       providerCode,
       providerName,
-      games: selectedGames,
+      grantedGames,
+      selectedGame,
       totalSpins,
       usedSpins,
       betAmount,
-      totalBet,
       totalWin,
       claimStatus,
       dispatchStatus,
@@ -320,7 +333,7 @@ export function generateFreeSpinUsage(count: number = 120, grants: FreeSpinGrant
   for (let i = 0; i < count; i++) {
     const grant = pick(usableGrants);
     const provider = providers.find(p => p.code === grant.providerCode) || pick(providers);
-    const game = grant.games ? pick(grant.games) : pick(provider.games);
+    const game = grant.selectedGame || (grant.grantedGames ? pick(grant.grantedGames) : pick(provider.games));
     const betAmount = grant.betAmount;
     const winAmount = +(betAmount * randDec(0, 4)).toFixed(2);
     const netWin = +(winAmount - betAmount).toFixed(2);
