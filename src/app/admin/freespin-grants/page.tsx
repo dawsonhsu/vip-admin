@@ -1,15 +1,18 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Card, Table, Tag, Input, Select, DatePicker, Button, Row, Col, Space, Statistic, Typography, Form, Tooltip, Modal, InputNumber, message, Drawer, Descriptions, Progress, Switch, Timeline,
+  Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Drawer, Form, Image, Input, InputNumber, Modal, Progress, Radio, Row, Select, Space, Statistic, Steps, Table, Tag, Tooltip, Typography, Upload, message,
 } from 'antd';
 import {
-  SearchOutlined, ReloadOutlined, DownloadOutlined, PlusOutlined, CopyOutlined, EyeOutlined, RetweetOutlined, FieldTimeOutlined, StopOutlined, WarningOutlined,
+  CopyOutlined, DownloadOutlined, EyeOutlined, InfoCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, SyncOutlined, TeamOutlined, UploadOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { generateFreeSpinGrants, generateFreeSpinUsage, type FreeSpinGrantItem, type FreeSpinUsageItem } from '@/data/mockData';
+import type { FormInstance } from 'antd/es/form';
+import type { RcFile, UploadChangeParam, UploadFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
+import { freeSpinRestrictionCatalog, generateFreeSpinGrants, type FreeSpinGrantItem } from '@/data/mockData';
+import type { GameType } from '@/data/memberStatsData';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -23,6 +26,24 @@ const providers = [
 ];
 
 const activityOptions = ['春節首存活動', 'VIP月禮', '週年慶活動', '新遊戲推廣'];
+const coverImageMaxSize = 500 * 1024;
+const acceptedCoverImageExtensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+const defaultFsCoverImage = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="400" height="500" viewBox="0 0 400 500">
+    <defs>
+      <linearGradient id="placeholderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#dbeafe" />
+        <stop offset="100%" stop-color="#fef3c7" />
+      </linearGradient>
+    </defs>
+    <rect width="400" height="500" rx="28" fill="url(#placeholderGradient)" />
+    <path d="M0 355 C110 290 240 435 400 330 L400 500 L0 500 Z" fill="rgba(255,255,255,0.42)" />
+    <text x="40" y="138" fill="#1f2937" font-size="28" font-family="Arial, sans-serif" font-weight="700">FREE SPIN</text>
+    <text x="40" y="196" fill="#475569" font-size="20" font-family="Arial, sans-serif">FS Preview</text>
+    <text x="40" y="420" fill="#1e3a8a" font-size="96" font-family="Arial, sans-serif" font-weight="700">FS</text>
+  </svg>
+`)}`;
 
 const formatCurrency = (val: number) => `₱${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -54,7 +75,65 @@ const providerGames: Record<string, { code: string; name: string }[]> = {
   ],
 };
 
-type BatchAction = 'resend' | 'extend' | 'cancel' | null;
+type GameRestrictionPath = [GameType] | [GameType, string] | [GameType, string, string];
+type RestrictionCatalogEntry = [GameType, (typeof freeSpinRestrictionCatalog)[GameType]];
+type DispatchAttempt = FreeSpinGrantItem['dispatchSummary']['attempts'][number];
+type GrantTypeValue = FreeSpinGrantItem['grantType'];
+type BatchIdentifierType = 'phone' | 'uid' | 'account';
+type BatchParsedSource = {
+  rawCount: number;
+  identifiers: string[];
+};
+type BatchResultRow = {
+  key: string;
+  identifierRaw: string;
+  userId: string | null;
+  status: 'success' | 'failed';
+  failureReason: string | null;
+};
+type BatchResultData = {
+  totalCount: number;
+  successCount: number;
+  failedCount: number;
+  totalFsAmount: number;
+  successList: BatchResultRow[];
+  failedList: BatchResultRow[];
+};
+
+const providerNameMap = [
+  ...providers,
+  ...Object.values(freeSpinRestrictionCatalog).flatMap((restrictionProviders) =>
+    restrictionProviders.map((restrictionProvider) => ({
+      code: restrictionProvider.code,
+      name: restrictionProvider.name,
+    }))
+  ),
+].reduce<Record<string, string>>((acc, provider) => {
+  acc[provider.code] = provider.name;
+  return acc;
+}, {});
+
+const renderGameRestrictionSummary = (gameRestriction: FreeSpinGrantItem['gameRestriction']) => {
+  if (!gameRestriction) return '不限';
+
+  const gameTypeText = gameRestriction.gameTypes.join(' / ');
+  const providerText = gameRestriction.providers
+    .map((providerCode) => providerNameMap[providerCode] || providerCode)
+    .join('、');
+  const gameText = gameRestriction.games.map((game) => game.name).join('、');
+
+  return (
+    <Space direction="vertical" size={2}>
+      <Text>{gameTypeText || '不限'}</Text>
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        廠商：{providerText || '不限'}
+      </Text>
+      <Text type="secondary" style={{ fontSize: 12 }}>
+        遊戲：{gameText || '不限'}
+      </Text>
+    </Space>
+  );
+};
 
 const renderClaimStatus = (val: FreeSpinGrantItem['claimStatus']) => {
   const map: Record<string, { color: string; label: string }> = {
@@ -62,100 +141,213 @@ const renderClaimStatus = (val: FreeSpinGrantItem['claimStatus']) => {
     in_use: { color: 'processing', label: '使用中' },
     completed: { color: 'success', label: '已完成' },
     expired: { color: 'error', label: '已過期' },
+    voided: { color: 'default', label: '已作廢' },
   };
   const cfg = map[val] || { color: 'default', label: val };
   return <Tag color={cfg.color}>{cfg.label}</Tag>;
 };
 
-const renderDispatchStatus = (record: FreeSpinGrantItem) => {
-  const val = record.dispatchStatus;
-  const map: Record<string, { color: string; label: string }> = {
-    pending: { color: 'default', label: '待處理' },
-    dispatched: { color: 'blue', label: '已派發' },
-    settled: { color: 'success', label: '已結算' },
-    failed: { color: 'error', label: '失敗' },
-  };
-  const cfg = map[val] || { color: 'default', label: val };
+const formatRelativeTime = (value: string | null) => {
+  if (!value) return '—';
 
-  if (val === 'failed') {
-    return (
-      <Tooltip
-        title={
-          <div>
-            <div><strong>失敗原因：</strong>{record.failureReason || '未知'}</div>
-            <div><strong>已重試：</strong>{record.retryCount}/3</div>
-          </div>
-        }
-      >
-        <Tag color={cfg.color} icon={<WarningOutlined />} style={{ cursor: 'help' }}>
-          {cfg.label} ({record.retryCount}/3)
-        </Tag>
-      </Tooltip>
-    );
+  const target = dayjs(value);
+  const now = dayjs();
+  const minutes = now.diff(target, 'minute');
+  const hours = now.diff(target, 'hour');
+  const days = now.diff(target, 'day');
+
+  if (minutes < 1) return '剛剛';
+  if (minutes < 60) return `${minutes} 分鐘前`;
+  if (hours < 24) return `${hours} 小時前`;
+  if (days < 30) return `${days} 天前`;
+  return target.format('YYYY-MM-DD HH:mm:ss');
+};
+
+const canVoidGrant = (record: FreeSpinGrantItem) => record.claimStatus === 'claimed';
+
+const renderDispatchAnomaly = (record: FreeSpinGrantItem, onClick?: () => void) => {
+  const { dispatchSummary } = record;
+
+  if (dispatchSummary.failedAttemptCount === 0) {
+    return <Text type="secondary">—</Text>;
   }
-  return <Tag color={cfg.color}>{cfg.label}</Tag>;
+
+  return (
+    <Tooltip
+      title={
+        <div>
+          <div>最近失敗：{formatRelativeTime(dispatchSummary.lastAttemptResult === 'fail' ? dispatchSummary.lastAttemptAt : null)}</div>
+          <div>失敗次數：{dispatchSummary.failedAttemptCount} 次</div>
+          <div>失敗原因：{dispatchSummary.lastFailureReason || '—'}</div>
+          <div style={{ marginTop: 4, opacity: 0.8 }}>點擊查看詳情</div>
+        </div>
+      }
+    >
+      <span
+        style={{ cursor: 'pointer' }}
+        onClick={(event) => {
+          event.stopPropagation();
+          onClick?.();
+        }}
+      >
+        <WarningOutlined style={{ color: '#faad14', fontSize: 16 }} />
+      </span>
+    </Tooltip>
+  );
 };
+
+const fileToDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result));
+  reader.onerror = () => reject(new Error('read_cover_image_failed'));
+  reader.readAsDataURL(file);
+});
+
+const validateCoverImageFile = (file: RcFile) => {
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  if (!acceptedCoverImageExtensions.includes(extension)) {
+    message.error('封面圖僅支援 jpg / jpeg / png / webp');
+    return Upload.LIST_IGNORE;
+  }
+  if (file.size > coverImageMaxSize) {
+    message.error('封面圖大小不可超過 500KB');
+    return Upload.LIST_IGNORE;
+  }
+  return false;
+};
+
+const batchIdentifierHeaderSet = new Set(['identifier', 'phone', 'uid', 'account']);
+
+const normalizeBatchIdentifier = (value: string, identifierType: BatchIdentifierType) => {
+  const trimmed = value.trim();
+  return identifierType === 'phone' ? trimmed.replace(/\D/g, '') : trimmed;
+};
+
+const getNextGrantIdSeed = (grants: FreeSpinGrantItem[]) => grants.reduce((maxId, grant) => {
+  const numericId = Number.parseInt(grant.id.replace(/^FS/, ''), 10);
+  return Number.isNaN(numericId) ? maxId : Math.max(maxId, numericId);
+}, 0);
+
+const downloadTextFile = (filename: string, content: string) => {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(objectUrl);
+};
+
+const readTextFile = (file: File) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result || ''));
+  reader.onerror = () => reject(new Error('read_text_file_failed'));
+  reader.readAsText(file, 'utf-8');
+});
 
 export default function FreeSpinGrantsPage() {
   const [form] = Form.useForm();
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [allGrants, setAllGrants] = useState(() => generateFreeSpinGrants(60));
-  const [allUsage] = useState<FreeSpinUsageItem[]>(() => generateFreeSpinUsage(200, generateFreeSpinGrants(60)));
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm] = Form.useForm();
+  const [batchOpen, setBatchOpen] = useState(false);
+  const [batchForm] = Form.useForm();
   const [selectedGrantType, setSelectedGrantType] = useState<string | null>(null);
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
+  const [batchStep, setBatchStep] = useState(0);
+  const [batchIdentifierType, setBatchIdentifierType] = useState<BatchIdentifierType>('uid');
+  const [batchSourceFileName, setBatchSourceFileName] = useState<string | null>(null);
+  const [batchSourceRawCount, setBatchSourceRawCount] = useState(0);
+  const [batchSourceEntries, setBatchSourceEntries] = useState<string[]>([]);
+  const [batchSelectedGrantType, setBatchSelectedGrantType] = useState<GrantTypeValue | null>(null);
+  const [batchSelectedProviders, setBatchSelectedProviders] = useState<string[]>([]);
+  const [batchCoverFileList, setBatchCoverFileList] = useState<UploadFile[]>([]);
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
+  const [batchResultStatusFilter, setBatchResultStatusFilter] = useState<'all' | 'success' | 'failed'>('all');
+  const [batchResult, setBatchResult] = useState<BatchResultData | null>(null);
   const [drawerGrant, setDrawerGrant] = useState<FreeSpinGrantItem | null>(null);
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [batchAction, setBatchAction] = useState<BatchAction>(null);
-  const [batchForm] = Form.useForm();
+  const [createCoverFileList, setCreateCoverFileList] = useState<UploadFile[]>([]);
+
+  const playerPool = useMemo(() => Array.from(new Set(allGrants.map((grant) => grant.playerId))), [allGrants]);
+  const playerPhoneMap = useMemo(
+    () => playerPool.reduce<Record<string, string>>((acc, playerId) => {
+      let hash = 0;
+      for (let index = 0; index < playerId.length; index += 1) {
+        hash = (hash * 31 + playerId.charCodeAt(index)) % 100000000;
+      }
+      acc[playerId] = `09${String(hash).padStart(8, '0')}`;
+      return acc;
+    }, {}),
+    [playerPool]
+  );
+
+  useEffect(() => {
+    document.title = 'Freespin 派發管理 - Filbet Admin';
+  }, []);
+
+  const gameRestrictionOptions = useMemo(
+    () => (Object.entries(freeSpinRestrictionCatalog) as RestrictionCatalogEntry[]).map(([gameType, restrictionProviders]) => ({
+      value: gameType,
+      label: gameType,
+      children: restrictionProviders.map((restrictionProvider) => ({
+        value: restrictionProvider.code,
+        label: restrictionProvider.name,
+        children: restrictionProvider.games.map((game) => ({
+          value: game.code,
+          label: game.name,
+        })),
+      })),
+    })),
+    []
+  );
 
   const filteredData = useMemo(() => {
-    const now = dayjs();
-    return allGrants.filter((item) => {
+    const filtered = allGrants.filter((item) => {
       if (filters.playerId && !item.playerId.toLowerCase().includes(filters.playerId.toLowerCase())) return false;
-      if (filters.name && !item.name.toLowerCase().includes(filters.name.toLowerCase())) return false;
       if (filters.vendorEventId && !(item.vendorEventId || '').toLowerCase().includes(filters.vendorEventId.toLowerCase())) return false;
       if (filters.sourceType && item.sourceType !== filters.sourceType) return false;
       if (filters.activityName && item.sourceActivityName !== filters.activityName) return false;
       if (filters.grantType && item.grantType !== filters.grantType) return false;
       if (filters.providerCode && item.providerCode !== filters.providerCode) return false;
       if (filters.claimStatus && item.claimStatus !== filters.claimStatus) return false;
-      if (filters.dispatchStatus && item.dispatchStatus !== filters.dispatchStatus) return false;
-      if (filters.settlementStatus === 'settled' && !item.settledAt) return false;
-      if (filters.settlementStatus === 'unsettled' && item.settledAt) return false;
-      if (filters.expireSoon) {
-        const hoursLeft = dayjs(item.expireAt).diff(now, 'hour');
-        const hourThreshold = filters.expireSoon === '24h' ? 24 : 24 * 7;
-        if (hoursLeft < 0 || hoursLeft > hourThreshold) return false;
-        if (item.claimStatus === 'completed' || item.claimStatus === 'expired') return false;
-      }
       if (filters.expireDateRange && filters.expireDateRange.length === 2) {
         const [start, end] = filters.expireDateRange;
-        const expireDay = dayjs(item.expireAt);
-        if (expireDay.isBefore(start, 'day') || expireDay.isAfter(end, 'day')) return false;
+        const expireAt = dayjs(item.expireAt);
+        if (expireAt.isBefore(start) || expireAt.isAfter(end)) return false;
       }
       if (filters.dateRange && filters.dateRange.length === 2) {
         const [start, end] = filters.dateRange;
-        const createdDay = dayjs(item.createdAt);
-        if (createdDay.isBefore(start, 'day') || createdDay.isAfter(end, 'day')) return false;
+        const createdAt = dayjs(item.createdAt);
+        if (createdAt.isBefore(start) || createdAt.isAfter(end)) return false;
       }
       return true;
     });
+    const sorted = [...filtered].sort((a, b) => {
+      const aAnomaly = a.dispatchSummary.failedAttemptCount > 0 ? 1 : 0;
+      const bAnomaly = b.dispatchSummary.failedAttemptCount > 0 ? 1 : 0;
+      if (aAnomaly !== bAnomaly) return bAnomaly - aAnomaly;
+      if (a.dispatchSummary.failedAttemptCount !== b.dispatchSummary.failedAttemptCount) {
+        return b.dispatchSummary.failedAttemptCount - a.dispatchSummary.failedAttemptCount;
+      }
+      return b.createdAt.localeCompare(a.createdAt);
+    });
+    return sorted;
   }, [filters, allGrants]);
 
   const stats = useMemo(() => {
-    const totalWin = filteredData.reduce((s, i) => s + i.totalWin, 0);
-    const uniquePlayers = new Set(filteredData.map(i => i.playerId)).size;
+    const totalWin = filteredData.reduce((sum, item) => sum + item.totalWin, 0);
+    const uniquePlayers = new Set(filteredData.map((item) => item.playerId)).size;
+
     return {
       total: filteredData.length,
-      inUse: filteredData.filter(i => i.claimStatus === 'in_use').length,
-      completed: filteredData.filter(i => i.claimStatus === 'completed').length,
-      expired: filteredData.filter(i => i.claimStatus === 'expired').length,
-      failed: filteredData.filter(i => i.dispatchStatus === 'failed').length,
-      pendingSettle: filteredData.filter(i => i.dispatchStatus === 'dispatched').length,
       totalWin: +totalWin.toFixed(2),
       uniquePlayers,
+      completionRate: filteredData.length > 0
+        ? +((filteredData.filter((item) => item.claimStatus === 'completed').length / filteredData.length) * 100).toFixed(1)
+        : 0,
     };
   }, [filteredData]);
 
@@ -164,22 +356,621 @@ export default function FreeSpinGrantsPage() {
     message.success(`已複製：${text}`);
   };
 
+  const handleSync = (record: FreeSpinGrantItem) => {
+    const hide = message.loading(`同步中：${record.id}`, 0);
+    setTimeout(() => {
+      hide();
+      message.success('已從廠商同步狀態');
+    }, 1200);
+  };
+
+  const handleVoid = (record: FreeSpinGrantItem) => {
+    let voidReason = '派發失敗，作廢處理';
+
+    Modal.confirm({
+      title: '確認作廢此派發？玩家將無法使用',
+      icon: <StopOutlined />,
+      content: (
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Text>派發 ID：{record.id}</Text>
+          <Text>玩家：{record.playerId}</Text>
+          <Input.TextArea
+            rows={3}
+            defaultValue={voidReason}
+            placeholder="請輸入作廢原因"
+            onChange={(event) => {
+              voidReason = event.target.value || '派發失敗，作廢處理';
+            }}
+          />
+        </Space>
+      ),
+      okText: '確認作廢',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: () => {
+        const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
+        const nextGrant: FreeSpinGrantItem = {
+          ...record,
+          claimStatus: 'voided',
+          voidedAt: now,
+          voidedBy: 'darren@filbetph.com',
+          voidReason,
+        };
+
+        setAllGrants((prev) => prev.map((grant) => (grant.id === record.id ? nextGrant : grant)));
+        setDrawerGrant((prev) => (prev?.id === record.id ? nextGrant : prev));
+        message.success('已作廢');
+      },
+    });
+  };
+
+  const parseGameRestriction = (paths: GameRestrictionPath[] | undefined): FreeSpinGrantItem['gameRestriction'] => {
+    if (!paths || paths.length === 0) return null;
+
+    const gameTypes = new Set<GameType>();
+    const providerCodes = new Set<string>();
+    const gameMap = new Map<string, { code: string; name: string }>();
+
+    paths.forEach((path) => {
+      const [gameType, providerCode, gameCode] = path;
+      const restrictionProviders = freeSpinRestrictionCatalog[gameType];
+      if (!restrictionProviders) return;
+
+      gameTypes.add(gameType);
+
+      if (!providerCode) return;
+      providerCodes.add(providerCode);
+
+      if (!gameCode) return;
+      const restrictionProvider = restrictionProviders.find((provider) => provider.code === providerCode);
+      const game = restrictionProvider?.games.find((item) => item.code === gameCode);
+      if (game) {
+        gameMap.set(game.code, game);
+      }
+    });
+
+    if (gameTypes.size === 0 && providerCodes.size === 0 && gameMap.size === 0) {
+      return null;
+    }
+
+    return {
+      gameTypes: Array.from(gameTypes),
+      providers: Array.from(providerCodes),
+      games: Array.from(gameMap.values()),
+    };
+  };
+
+  const getGrantedGames = (grantType: GrantTypeValue, providerCodes?: string[], gameCodes?: string[]) => {
+    if (grantType !== 'game' || !gameCodes || gameCodes.length === 0) return null;
+
+    return gameCodes.map((gameCode) => {
+      for (const providerCode of (providerCodes || [])) {
+        const found = providerGames[providerCode]?.find((game) => game.code === gameCode);
+        if (found) return found;
+      }
+      return { code: gameCode, name: gameCode };
+    });
+  };
+
+  const buildGrantPayload = (
+    values: any,
+    playerId: string,
+    nextIdSeed: number,
+    createdBy: string,
+    remark: string | null
+  ): FreeSpinGrantItem => {
+    const createdAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
+    const expireAt = dayjs().add(values.expireDays || 7, 'day').format('YYYY-MM-DD HH:mm:ss');
+    const gameRestriction = parseGameRestriction(values.gameRestriction as GameRestrictionPath[] | undefined);
+    const providerCode = values.grantType === 'open' ? null : (values.providerCodes?.[0] || null);
+
+    return {
+      id: `FS${String(nextIdSeed).padStart(4, '0')}`,
+      name: values.name,
+      coverImage: values.coverImage || (createdBy === 'admin (batch)' ? defaultFsCoverImage : null),
+      playerId,
+      sourceType: 'manual',
+      sourceActivityName: values.activityName || null,
+      grantType: values.grantType,
+      providerCode,
+      providerName: values.grantType === 'open' ? null : providers.find((provider) => provider.code === providerCode)?.name || null,
+      grantedGames: getGrantedGames(values.grantType, values.providerCodes, values.gameCodes),
+      selectedGame: null,
+      totalSpins: values.totalSpins,
+      usedSpins: 0,
+      betAmount: values.betAmount ?? 0,
+      totalWin: 0,
+      wagerMultiple: values.wagerMultiple && values.wagerMultiple > 0 ? values.wagerMultiple : null,
+      gameRestriction,
+      claimStatus: 'claimed',
+      dispatchSummary: {
+        lastAttemptAt: null,
+        lastAttemptResult: null,
+        lastFailureReason: null,
+        failedAttemptCount: 0,
+        successAttemptCount: 0,
+        attempts: [],
+      },
+      vendorEventId: null,
+      currency: 'PHP',
+      minWithdraw: values.minWithdraw ?? null,
+      maxWithdraw: values.maxWithdraw ?? null,
+      expireAt,
+      usedAt: null,
+      settledAt: null,
+      voidedAt: null,
+      voidedBy: null,
+      voidReason: null,
+      createdBy,
+      createdAt,
+      remark,
+    };
+  };
+
+  const resetCreateModal = () => {
+    setCreateOpen(false);
+    createForm.resetFields();
+    setSelectedGrantType(null);
+    setSelectedProviders([]);
+    setCreateCoverFileList([]);
+  };
+
+  const resetBatchModal = () => {
+    setBatchOpen(false);
+    setBatchStep(0);
+    setBatchIdentifierType('uid');
+    setBatchSourceFileName(null);
+    setBatchSourceRawCount(0);
+    setBatchSourceEntries([]);
+    setBatchSelectedGrantType(null);
+    setBatchSelectedProviders([]);
+    setBatchCoverFileList([]);
+    setBatchSubmitting(false);
+    setBatchResultStatusFilter('all');
+    setBatchResult(null);
+    batchForm.resetFields();
+  };
+
+  const handleCoverUploadChange = async ({ file, fileList }: UploadChangeParam<UploadFile>) => {
+    if (file.status === 'removed' || fileList.length === 0) {
+      setCreateCoverFileList([]);
+      createForm.setFieldValue('coverImage', null);
+      return;
+    }
+
+    const rawFile = file.originFileObj;
+    if (!rawFile) return;
+
+    try {
+      const dataUrl = await fileToDataUrl(rawFile);
+      setCreateCoverFileList([{
+        uid: file.uid,
+        name: file.name,
+        status: 'done',
+        url: dataUrl,
+        thumbUrl: dataUrl,
+        originFileObj: rawFile,
+      }]);
+      createForm.setFieldValue('coverImage', dataUrl);
+    } catch {
+      setCreateCoverFileList([]);
+      createForm.setFieldValue('coverImage', null);
+      message.error('封面圖讀取失敗，請重新上傳');
+    }
+  };
+
+  const handleBatchCoverUploadChange = async ({ file, fileList }: UploadChangeParam<UploadFile>) => {
+    if (file.status === 'removed' || fileList.length === 0) {
+      setBatchCoverFileList([]);
+      batchForm.setFieldValue('coverImage', null);
+      return;
+    }
+
+    const rawFile = file.originFileObj;
+    if (!rawFile) return;
+
+    try {
+      const dataUrl = await fileToDataUrl(rawFile);
+      setBatchCoverFileList([{
+        uid: file.uid,
+        name: file.name,
+        status: 'done',
+        url: dataUrl,
+        thumbUrl: dataUrl,
+        originFileObj: rawFile,
+      }]);
+      batchForm.setFieldValue('coverImage', dataUrl);
+    } catch {
+      setBatchCoverFileList([]);
+      batchForm.setFieldValue('coverImage', null);
+      message.error('封面圖讀取失敗，請重新上傳');
+    }
+  };
+
+  const parseBatchIdentifiers = (content: string, identifierType: BatchIdentifierType): BatchParsedSource => {
+    const normalizedContent = content.replace(/^\uFEFF/, '');
+    const lines = normalizedContent.split('\n').map((line) => line.trim()).filter(Boolean);
+
+    if (lines.length === 0) {
+      return { rawCount: 0, identifiers: [] };
+    }
+
+    const [firstLine, ...restLines] = lines;
+    const firstCell = firstLine.split(',')[0]?.trim().toLowerCase();
+    const dataLines = firstCell && batchIdentifierHeaderSet.has(firstCell) ? restLines : lines;
+    const dedupedIdentifiers = new Set<string>();
+    let rawCount = 0;
+
+    dataLines.forEach((line) => {
+      const [identifierCell = ''] = line.split(',');
+      const identifier = normalizeBatchIdentifier(identifierCell, identifierType);
+      if (!identifier) return;
+
+      rawCount += 1;
+      dedupedIdentifiers.add(identifier);
+    });
+
+    return {
+      rawCount,
+      identifiers: Array.from(dedupedIdentifiers),
+    };
+  };
+
+  const resolveBatchPlayerId = (identifier: string, identifierType: BatchIdentifierType) => {
+    if (identifierType === 'phone') {
+      const phoneToPlayerIdMap = Object.entries(playerPhoneMap).reduce<Record<string, string>>((acc, [playerId, phone]) => {
+        acc[normalizeBatchIdentifier(phone, 'phone')] = playerId;
+        return acc;
+      }, {});
+      return phoneToPlayerIdMap[identifier] || null;
+    }
+
+    return playerPool.includes(identifier) ? identifier : null;
+  };
+
+  const handleBatchFileUpload = async (file: RcFile) => {
+    const extension = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!['csv', 'txt'].includes(extension)) {
+      message.error('名單檔案僅支援 .csv / .txt');
+      return Upload.LIST_IGNORE;
+    }
+
+    try {
+      const content = await readTextFile(file);
+      const { rawCount, identifiers } = parseBatchIdentifiers(content, batchIdentifierType);
+
+      if (rawCount === 0) {
+        message.error('名單內容為空');
+        return Upload.LIST_IGNORE;
+      }
+
+      if (rawCount > 10000) {
+        message.error('單次上傳不可超過 10,000 行，請拆批');
+        return Upload.LIST_IGNORE;
+      }
+
+      setBatchSourceFileName(file.name);
+      setBatchSourceRawCount(rawCount);
+      setBatchSourceEntries(identifiers);
+      message.success(`名單解析完成：${identifiers.length} 筆`);
+    } catch {
+      message.error('名單解析失敗，請確認為 UTF-8 編碼');
+    }
+
+    return Upload.LIST_IGNORE;
+  };
+
+  const downloadBatchTemplate = () => {
+    downloadTextFile('freespin-batch-template.csv', ['identifier', 'example_uid_001', 'example_uid_002', 'example_uid_003'].join('\n'));
+  };
+
+  const createFormSubmit = (values: any) => {
+    const newGrant = buildGrantPayload(values, values.playerId, getNextGrantIdSeed(allGrants) + 1, 'admin', values.remark || null);
+
+    setAllGrants((prev) => [newGrant, ...prev]);
+    resetCreateModal();
+    message.success('派發成功');
+  };
+
+  const handleBatchNextStep = async () => {
+    if (batchStep === 0) {
+      await batchForm.validateFields();
+      setBatchStep(1);
+    }
+  };
+
+  const handleBatchSubmit = async () => {
+    if (batchSourceEntries.length === 0) {
+      message.error('請先上傳名單');
+      return;
+    }
+
+    const values = await batchForm.validateFields();
+    setBatchSubmitting(true);
+
+    try {
+      const nextSeed = getNextGrantIdSeed(allGrants);
+      const remarkPrefix = `[批量派發-${values.name}]`;
+      const remark = values.remark ? `${remarkPrefix} ${values.remark}` : remarkPrefix;
+      const successList: BatchResultRow[] = [];
+      const failedList: BatchResultRow[] = [];
+      const newGrants: FreeSpinGrantItem[] = [];
+
+      batchSourceEntries.forEach((identifier, index) => {
+        const playerId = resolveBatchPlayerId(identifier, batchIdentifierType);
+
+        if (!playerId) {
+          failedList.push({
+            key: `failed-${identifier}-${index}`,
+            identifierRaw: identifier,
+            userId: null,
+            status: 'failed',
+            failureReason: '查無會員',
+          });
+          return;
+        }
+
+        newGrants.push(
+          buildGrantPayload(
+            values,
+            playerId,
+            nextSeed + newGrants.length + 1,
+            'admin (batch)',
+            remark
+          )
+        );
+        successList.push({
+          key: `success-${identifier}-${index}`,
+          identifierRaw: identifier,
+          userId: playerId,
+          status: 'success',
+          failureReason: null,
+        });
+      });
+
+      if (newGrants.length > 0) {
+        setAllGrants((prev) => [...newGrants, ...prev]);
+      }
+
+      const nextResult: BatchResultData = {
+        totalCount: batchSourceEntries.length,
+        successCount: successList.length,
+        failedCount: failedList.length,
+        totalFsAmount: successList.length * (values.totalSpins || 0),
+        successList,
+        failedList,
+      };
+
+      setBatchResult(nextResult);
+      setBatchResultStatusFilter('all');
+      setBatchStep(2);
+      message.success(`派發完成：成功 ${successList.length} / 失敗 ${failedList.length}`);
+    } finally {
+      setBatchSubmitting(false);
+    }
+  };
+
+  const renderGrantConfigFields = ({
+    formInstance,
+    currentGrantType,
+    currentProviders,
+    setGrantType,
+    setProviders,
+    coverFileList,
+    onCoverUploadChange,
+    onCoverRemove,
+    isBatch,
+  }: {
+    formInstance: FormInstance;
+    currentGrantType: GrantTypeValue | null;
+    currentProviders: string[];
+    setGrantType: (value: GrantTypeValue) => void;
+    setProviders: (value: string[]) => void;
+    coverFileList: UploadFile[];
+    onCoverUploadChange: (info: UploadChangeParam<UploadFile>) => Promise<void>;
+    onCoverRemove: () => void;
+    isBatch: boolean;
+  }) => (
+    <Row gutter={[24, 12]}>
+      <Form.Item name="coverImage" hidden>
+        <Input />
+      </Form.Item>
+
+      <Col span={12}>
+        <Form.Item name="name" label="名稱" rules={[{ required: true, message: '請輸入名稱' }]}>
+          <Input data-e2e-id={isBatch ? 'freespin-grants-batch-form-name-input' : 'freespin-grants-form-name-input'} placeholder="此名稱將顯示在用戶端" />
+        </Form.Item>
+      </Col>
+      <Col span={12}>
+        <Form.Item name="activityName" label="關聯活動">
+          <Select data-e2e-id={isBatch ? 'freespin-grants-batch-form-activity-name-select' : 'freespin-grants-form-activity-name-select'} placeholder="選擇活動" allowClear showSearch>
+            {activityOptions.map((activity) => <Select.Option key={activity} value={activity}>{activity}</Select.Option>)}
+          </Select>
+        </Form.Item>
+      </Col>
+
+      <Col span={12}>
+        <Form.Item name="grantType" label="派發層級" rules={[{ required: true, message: '請選擇派發層級' }]}>
+          <Radio.Group
+            data-e2e-id={isBatch ? 'freespin-grants-batch-form-grant-type-radio' : 'freespin-grants-form-grant-type-select'}
+            onChange={(event) => {
+              const nextValue = event.target.value as GrantTypeValue;
+              setGrantType(nextValue);
+              setProviders([]);
+              formInstance.setFieldsValue({ providerCodes: undefined, gameCodes: undefined });
+            }}
+          >
+            <Radio.Button value="open">OPEN</Radio.Button>
+            <Radio.Button value="provider">PROVIDER</Radio.Button>
+            <Radio.Button value="game">GAME</Radio.Button>
+          </Radio.Group>
+        </Form.Item>
+      </Col>
+      <Col span={12}>
+        <Form.Item name="providerCodes" label="廠商" rules={currentGrantType === 'provider' || currentGrantType === 'game' ? [{ required: true, message: '請選擇廠商' }] : []}>
+          <Select
+            data-e2e-id={isBatch ? 'freespin-grants-batch-form-provider-codes-select' : 'freespin-grants-form-provider-codes-select'}
+            mode={currentGrantType === 'provider' ? 'multiple' : 'multiple'}
+            placeholder={currentGrantType === 'open' || !currentGrantType ? 'OPEN 不需選擇廠商' : '選擇廠商'}
+            disabled={currentGrantType !== 'provider' && currentGrantType !== 'game'}
+            onChange={(vals: string[]) => {
+              setProviders(vals);
+              formInstance.setFieldsValue({ gameCodes: undefined });
+            }}
+          >
+            {providers.map((provider) => <Select.Option key={provider.code} value={provider.code}>{provider.name}</Select.Option>)}
+          </Select>
+        </Form.Item>
+      </Col>
+
+      {currentGrantType === 'game' && (
+        <Col span={24}>
+          <Form.Item name="gameCodes" label="遊戲" rules={[{ required: true, message: '請選擇遊戲' }]} tooltip="玩家將在這些遊戲中選一款使用">
+            <Select
+              data-e2e-id={isBatch ? 'freespin-grants-batch-form-game-codes-select' : 'freespin-grants-form-game-codes-select'}
+              mode="multiple"
+              placeholder="選擇遊戲（可複選，玩家選一款）"
+              disabled={currentProviders.length === 0}
+            >
+              {currentProviders.flatMap((providerCode) =>
+                (providerGames[providerCode] || []).map((game) => (
+                  <Select.Option key={game.code} value={game.code}>{providers.find((provider) => provider.code === providerCode)?.name} - {game.name}</Select.Option>
+                ))
+              )}
+            </Select>
+          </Form.Item>
+        </Col>
+      )}
+
+      <Col span={12}>
+        <Form.Item
+          name="totalSpins"
+          label={isBatch ? '預設次數' : '次數'}
+          rules={[{ required: true, message: `請輸入${isBatch ? '預設' : ''}次數` }]}
+          extra={isBatch ? '未在 CSV 第 2 欄指定的會員會用此值' : undefined}
+        >
+          <InputNumber data-e2e-id={isBatch ? 'freespin-grants-batch-form-total-spins-input' : 'freespin-grants-form-total-spins-input'} min={1} max={999999} style={{ width: '100%' }} placeholder={isBatch ? '預設次數' : '次數'} />
+        </Form.Item>
+      </Col>
+      <Col span={12}>
+        <Form.Item name="betAmount" label="單次投注額">
+          <InputNumber data-e2e-id={isBatch ? 'freespin-grants-batch-form-bet-amount-input' : 'freespin-grants-form-bet-amount-input'} min={0} step={0.1} style={{ width: '100%' }} placeholder="例：0.20" />
+        </Form.Item>
+      </Col>
+
+      <Col span={12}>
+        <Form.Item name="wagerMultiple" label="流水倍數" tooltip="若有設定，免費旋轉派彩入帳時依此倍數寫入流水限制表">
+          <InputNumber min={0} max={100} step={1} style={{ width: '100%' }} placeholder="無流水要求請留空或填 0" addonAfter="倍" data-e2e-id={isBatch ? 'freespin-grants-batch-wager-multiple-input' : 'freespin-grants-create-wager-multiple-input'} />
+        </Form.Item>
+      </Col>
+      <Col span={12}>
+        <Form.Item name="expireDays" label="有效期（天）">
+          <InputNumber data-e2e-id={isBatch ? 'freespin-grants-batch-form-expire-days-input' : 'freespin-grants-form-expire-days-input'} min={1} max={365} style={{ width: '100%' }} placeholder="預設 7 天" />
+        </Form.Item>
+      </Col>
+
+      <Col span={24}>
+        <Form.Item name="gameRestriction" label="場館限制" tooltip="若有設定，流水寫入時一同限制可消耗範圍">
+          <Cascader
+            multiple
+            options={gameRestrictionOptions}
+            placeholder="選擇遊戲類型 → 廠商 → 遊戲"
+            showCheckedStrategy={Cascader.SHOW_PARENT}
+            showSearch={{
+              filter: (inputValue, path) =>
+                path.some((option) => String(option.label).toLowerCase().includes(inputValue.toLowerCase())),
+            }}
+            data-e2e-id={isBatch ? 'freespin-grants-batch-game-restriction-cascader' : 'freespin-grants-create-game-restriction-cascader'}
+          />
+        </Form.Item>
+      </Col>
+
+      <Col span={24}>
+        <Row gutter={[24, 12]}>
+          <Col span={12}>
+            <Form.Item name="minWithdraw" label="最低提款">
+              <InputNumber data-e2e-id={isBatch ? 'freespin-grants-batch-form-min-withdraw-input' : 'freespin-grants-form-min-withdraw-input'} min={0} style={{ width: '100%' }} placeholder="不限" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="maxWithdraw" label="最高提款">
+              <InputNumber data-e2e-id={isBatch ? 'freespin-grants-batch-form-max-withdraw-input' : 'freespin-grants-form-max-withdraw-input'} min={0} style={{ width: '100%' }} placeholder="不限" />
+            </Form.Item>
+          </Col>
+        </Row>
+      </Col>
+
+      <Col span={24}>
+        <Form.Item label="封面圖">
+          <Upload
+            accept=".jpg,.jpeg,.png,.webp"
+            maxCount={1}
+            listType="picture-card"
+            beforeUpload={validateCoverImageFile}
+            fileList={coverFileList}
+            onChange={onCoverUploadChange}
+            onRemove={onCoverRemove}
+          >
+            {coverFileList.length >= 1 ? null : (
+              <div>
+                <PlusOutlined />
+                <div style={{ marginTop: 8 }}>上傳</div>
+              </div>
+            )}
+          </Upload>
+          <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+            建議尺寸 4:5（例：400 × 500），檔案 ≤ 500KB；未上傳將使用預設 SVG
+          </Text>
+        </Form.Item>
+      </Col>
+
+      <Col span={24}>
+        <Form.Item name="remark" label="備註">
+          <Input.TextArea data-e2e-id={isBatch ? 'freespin-grants-batch-form-remark-input' : 'freespin-grants-form-remark-input'} rows={2} placeholder="派發原因" />
+        </Form.Item>
+      </Col>
+    </Row>
+  );
+
   const columns: ColumnsType<FreeSpinGrantItem> = [
     { title: '派發 ID', dataIndex: 'id', width: 110, fixed: 'left', render: (val, record) => <a onClick={() => setDrawerGrant(record)}>{val}</a> },
     { title: '名稱', dataIndex: 'name', width: 130 },
     { title: '玩家', dataIndex: 'playerId', width: 120, fixed: 'left', render: (val) => <a style={{ color: '#1668dc' }}>{val}</a> },
     {
-      title: '廠商事件 ID', dataIndex: 'vendorEventId', width: 150,
-      render: (val: string | null) => {
+      title: (
+        <Space size={4}>
+          <span>廠商事件 ID</span>
+          <Tooltip
+            title={(
+              <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+                <div style={{ marginBottom: 4 }}>各廠商對應名稱：</div>
+                <div>• <strong>JILI</strong>：ReferenceId（平台自生成）<sup>*</sup></div>
+                <div>• <strong>PP</strong>：bonusCode（平台自生成）<sup>*</sup></div>
+                <div>• <strong>FC</strong>：EventID（廠商建立後回傳）</div>
+                <div>• <strong>PG</strong>：freeGameId（廠商建立後回傳）</div>
+                <div>• <strong>JDB</strong>：eventId（可自訂或廠商回傳）</div>
+                <div style={{ marginTop: 6, opacity: 0.85 }}><sup>*</sup> 標記為平台側建立派發時自行產生並傳給廠商，作為日後對帳的關聯鍵</div>
+              </div>
+            )}
+          >
+            <InfoCircleOutlined style={{ color: '#8c8c8c', cursor: 'help' }} />
+          </Tooltip>
+        </Space>
+      ), dataIndex: 'vendorEventId', width: 170,
+      render: (val: string | null, record) => {
         if (!val) return <Text type="secondary">—</Text>;
         return (
           <Space size={4}>
             <Text style={{ fontSize: 12 }}>{val}</Text>
             <Button
+              data-e2e-id={`freespin-grants-table-copy-vendor-event-btn-${record.id}`}
               type="text"
               size="small"
               icon={<CopyOutlined />}
-              onClick={(e) => { e.stopPropagation(); copyToClipboard(val); }}
+              onClick={(event) => {
+                event.stopPropagation();
+                copyToClipboard(val);
+              }}
             />
           </Space>
         );
@@ -187,9 +978,11 @@ export default function FreeSpinGrantsPage() {
     },
     {
       title: '來源', dataIndex: 'sourceType', width: 90,
-      render: (val) => val === 'activity'
-        ? <Tag color="blue">活動</Tag>
-        : <Tag color="green">手動</Tag>,
+      render: (val, record) => {
+        if (val === 'activity') return <Tag color="blue">活動</Tag>;
+        if (record.createdBy === 'admin (batch)') return <Tag color="gold">手動(批量)</Tag>;
+        return <Tag color="green">手動</Tag>;
+      },
     },
     {
       title: '關聯活動', dataIndex: 'sourceActivityName', width: 130,
@@ -217,7 +1010,7 @@ export default function FreeSpinGrantsPage() {
         if (!games || games.length === 0) return <Text type="secondary">—</Text>;
         if (games.length === 1) return games[0].name;
         return (
-          <Tooltip title={games.map(g => g.name).join(', ')}>
+          <Tooltip title={games.map((game) => game.name).join(', ')}>
             <span>{games[0].name} <Tag style={{ marginLeft: 4 }}>+{games.length - 1}</Tag></span>
           </Tooltip>
         );
@@ -239,19 +1032,25 @@ export default function FreeSpinGrantsPage() {
       ),
     },
     {
+      title: '異常', width: 70,
+      render: (_, record) => renderDispatchAnomaly(record, () => setDrawerGrant(record)),
+    },
+    {
       title: '進度', width: 160,
-      render: (_, r) => {
-        const pct = r.totalSpins > 0 ? Math.round(r.usedSpins / r.totalSpins * 100) : 0;
+      sorter: (a, b) => (a.usedSpins / Math.max(a.totalSpins, 1)) - (b.usedSpins / Math.max(b.totalSpins, 1)),
+      render: (_, record) => {
+        const pct = record.totalSpins > 0 ? Math.round(record.usedSpins / record.totalSpins * 100) : 0;
         return (
           <div>
             <Progress percent={pct} size="small" style={{ marginBottom: 2 }} />
-            <Text style={{ fontSize: 12 }} type="secondary">{r.usedSpins} / {r.totalSpins}</Text>
+            <Text style={{ fontSize: 12 }} type="secondary">{record.usedSpins} / {record.totalSpins}</Text>
           </div>
         );
       },
     },
     {
-      title: '累計贏得', dataIndex: 'totalWin', width: 110,
+      title: '派彩', dataIndex: 'totalWin', width: 110,
+      sorter: (a, b) => a.totalWin - b.totalWin,
       render: (val) => formatCurrency(val),
     },
     {
@@ -259,90 +1058,82 @@ export default function FreeSpinGrantsPage() {
       render: renderClaimStatus,
     },
     {
-      title: '派發狀態', width: 130,
-      render: (_, record) => renderDispatchStatus(record),
-    },
-    {
       title: '到期時間', dataIndex: 'expireAt', width: 170,
-      render: (val, r) => {
-        if (r.claimStatus === 'completed' || r.claimStatus === 'expired') return val;
-        const hoursLeft = dayjs(val).diff(dayjs(), 'hour');
-        if (hoursLeft < 0) return <span style={{ color: '#ff4d4f' }}>{val}</span>;
-        if (hoursLeft < 24) return <span style={{ color: '#ff4d4f' }}>⚠️ {val}</span>;
-        if (hoursLeft < 24 * 3) return <span style={{ color: '#faad14' }}>{val}</span>;
-        return val;
-      },
     },
     { title: '建立時間', dataIndex: 'createdAt', width: 170, sorter: (a, b) => a.createdAt.localeCompare(b.createdAt) },
     {
-      title: '操作', key: 'action', width: 130, fixed: 'right',
+      title: '操作', key: 'action', width: 180, fixed: 'right',
       render: (_, record) => (
-        <Space size={4}>
-          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setDrawerGrant(record)}>詳情</Button>
-          {record.dispatchStatus === 'failed' && record.retryCount < 3 && (
-            <Button type="link" size="small" onClick={() => handleResend(record)}>補發</Button>
+        <Space size={2} wrap={false}>
+          <Button
+            type="link"
+            size="small"
+            style={{ paddingInline: 4 }}
+            icon={<SyncOutlined />}
+            onClick={() => handleSync(record)}
+            data-e2e-id={`freespin-grants-table-sync-btn-${record.id}`}
+          >
+            同步
+          </Button>
+          <Button data-e2e-id={`freespin-grants-table-detail-btn-${record.id}`} type="link" size="small" style={{ paddingInline: 4 }} icon={<EyeOutlined />} onClick={() => setDrawerGrant(record)}>詳情</Button>
+          {canVoidGrant(record) && (
+            <Button
+              danger
+              type="link"
+              size="small"
+              style={{ paddingInline: 4 }}
+              icon={<StopOutlined />}
+              data-e2e-id={`freespin-grants-table-void-btn-${record.id}`}
+              onClick={() => handleVoid(record)}
+            >
+              作廢
+            </Button>
           )}
         </Space>
       ),
     },
   ];
 
-  const handleResend = (record: FreeSpinGrantItem) => {
-    Modal.confirm({
-      title: '確認補發 Free Spin',
-      content: (
-        <div>
-          <p style={{ marginBottom: 8 }}>將對以下記錄重新呼叫廠商 API 派發：</p>
-          <div style={{ background: '#fafafa', padding: 12, borderRadius: 4, fontSize: 13 }}>
-            <div><strong>派發 ID：</strong>{record.id}</div>
-            <div><strong>玩家：</strong>{record.playerId}</div>
-            <div><strong>名稱：</strong>{record.name}</div>
-            <div><strong>失敗原因：</strong>{record.failureReason || '—'}</div>
-            <div><strong>已重試：</strong>{record.retryCount}/3</div>
-          </div>
-        </div>
-      ),
-      okText: '確認補發',
-      cancelText: '取消',
-      onOk: () => {
-        setAllGrants(prev => prev.map(g =>
-          g.id === record.id
-            ? { ...g, dispatchStatus: 'dispatched' as const, failureReason: null, retryCount: g.retryCount + 1, vendorEventId: `VE${Math.floor(Math.random() * 900000 + 100000)}` }
-            : g
-        ));
-        message.success(`已補發成功（${record.id}）`);
-      },
-    });
-  };
+  const batchResultRows = useMemo(() => {
+    if (!batchResult) return [];
+    const rows = [...batchResult.successList, ...batchResult.failedList];
+    if (batchResultStatusFilter === 'all') return rows;
+    return rows.filter((row) => row.status === batchResultStatusFilter);
+  }, [batchResult, batchResultStatusFilter]);
 
-  const handleBatchConfirm = () => {
-    if (batchAction === 'extend') {
-      const values = batchForm.getFieldsValue();
-      const days = values.extendDays || 7;
-      setAllGrants(prev => prev.map(g =>
-        selectedRowKeys.includes(g.id) && g.claimStatus !== 'expired' && g.claimStatus !== 'completed'
-          ? { ...g, expireAt: dayjs(g.expireAt).add(days, 'day').format('YYYY-MM-DD HH:mm:ss') }
-          : g
-      ));
-      message.success(`已批量延期 ${selectedRowKeys.length} 筆（+${days} 天）`);
-    } else if (batchAction === 'resend') {
-      setAllGrants(prev => prev.map(g =>
-        selectedRowKeys.includes(g.id) && g.dispatchStatus === 'failed' && g.retryCount < 3
-          ? { ...g, dispatchStatus: 'dispatched' as const, failureReason: null, retryCount: g.retryCount + 1, vendorEventId: `VE${Math.floor(Math.random() * 900000 + 100000)}` }
-          : g
-      ));
-      message.success(`已批量補發 ${selectedRowKeys.length} 筆`);
-    } else if (batchAction === 'cancel') {
-      setAllGrants(prev => prev.map(g =>
-        selectedRowKeys.includes(g.id) && (g.claimStatus === 'claimed' || g.claimStatus === 'in_use')
-          ? { ...g, claimStatus: 'expired' as const }
-          : g
-      ));
-      message.success(`已批量取消 ${selectedRowKeys.length} 筆`);
-    }
-    setBatchAction(null);
-    setSelectedRowKeys([]);
-    batchForm.resetFields();
+  const batchResultColumns: ColumnsType<BatchResultRow> = [
+    { title: 'identifier_raw', dataIndex: 'identifierRaw', width: 200 },
+    {
+      title: 'user_id',
+      dataIndex: 'userId',
+      width: 160,
+      render: (value: string | null) => value || <Text type="secondary">—</Text>,
+    },
+    {
+      title: '狀態',
+      dataIndex: 'status',
+      width: 120,
+      render: (value: BatchResultRow['status']) => (
+        <Tag color={value === 'success' ? 'success' : 'error'}>
+          {value === 'success' ? '成功' : '失敗'}
+        </Tag>
+      ),
+    },
+    {
+      title: '失敗原因',
+      dataIndex: 'failureReason',
+      render: (value: string | null) => value || <Text type="secondary">—</Text>,
+    },
+  ];
+
+  const downloadBatchResultCsv = (status: 'success' | 'failed') => {
+    if (!batchResult) return;
+    const rows = status === 'success' ? batchResult.successList : batchResult.failedList;
+    const csv = [
+      'identifier_raw,user_id,status,failure_reason',
+      ...rows.map((row) => [row.identifierRaw, row.userId || '', row.status, row.failureReason || ''].join(',')),
+    ].join('\n');
+    downloadTextFile(`freespin-batch-${status}.csv`, csv);
   };
 
   const onSearch = () => {
@@ -355,11 +1146,6 @@ export default function FreeSpinGrantsPage() {
     setFilters({});
   };
 
-  const drawerUsage = useMemo(() => {
-    if (!drawerGrant) return [] as FreeSpinUsageItem[];
-    return allUsage.filter(u => u.grantId === drawerGrant.id);
-  }, [drawerGrant, allUsage]);
-
   const drawerProgress = drawerGrant
     ? Math.round((drawerGrant.usedSpins / Math.max(drawerGrant.totalSpins, 1)) * 100)
     : 0;
@@ -367,82 +1153,90 @@ export default function FreeSpinGrantsPage() {
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>Free Spin 派發記錄</Title>
-        <Text type="secondary">查詢所有 Free Spin 派發記錄與領取、派發狀態</Text>
+        <Title level={4} style={{ margin: 0 }}>Freespin 派發管理</Title>
+        <Text type="secondary">查詢所有 Freespin 派發管理資料、領取進度與派發異常</Text>
       </div>
 
       <Card style={{ marginBottom: 16 }}>
         <Form form={form} layout="inline" style={{ gap: 12, flexWrap: 'wrap', rowGap: 12 }}>
           <Form.Item name="playerId" label="玩家帳號">
-            <Input placeholder="輸入帳號" allowClear style={{ width: 140 }} />
-          </Form.Item>
-          <Form.Item name="name" label="名稱">
-            <Input placeholder="輸入名稱" allowClear style={{ width: 140 }} />
+            <Input data-e2e-id="freespin-grants-filter-player-id-input" placeholder="輸入帳號" allowClear style={{ width: 140 }} />
           </Form.Item>
           <Form.Item name="vendorEventId" label="廠商事件 ID">
-            <Input placeholder="VE…" allowClear style={{ width: 140 }} />
+            <Input data-e2e-id="freespin-grants-filter-vendor-event-id-input" placeholder="VE…" allowClear style={{ width: 140 }} />
           </Form.Item>
           <Form.Item name="sourceType" label="來源">
-            <Select placeholder="全部" allowClear style={{ width: 100 }}>
+            <Select data-e2e-id="freespin-grants-filter-source-type-select" placeholder="全部" allowClear style={{ width: 100 }}>
               <Select.Option value="activity">活動</Select.Option>
               <Select.Option value="manual">手動</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="activityName" label="關聯活動">
-            <Select placeholder="全部" allowClear style={{ width: 140 }}>
-              {activityOptions.map(a => <Select.Option key={a} value={a}>{a}</Select.Option>)}
+            <Select
+              data-e2e-id="freespin-grants-filter-activity-name-select"
+              placeholder="輸入或選擇活動"
+              allowClear
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                String(option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: 180 }}
+            >
+              {activityOptions.map((activity) => <Select.Option key={activity} value={activity}>{activity}</Select.Option>)}
             </Select>
           </Form.Item>
           <Form.Item name="grantType" label="贈送類型">
-            <Select placeholder="全部" allowClear style={{ width: 100 }}>
+            <Select data-e2e-id="freespin-grants-filter-grant-type-select" placeholder="全部" allowClear style={{ width: 100 }}>
               <Select.Option value="open">不限</Select.Option>
               <Select.Option value="provider">廠商</Select.Option>
               <Select.Option value="game">遊戲</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="providerCode" label="廠商">
-            <Select placeholder="全部" allowClear style={{ width: 130 }}>
-              {providers.map(p => <Select.Option key={p.code} value={p.code}>{p.name}</Select.Option>)}
+            <Select
+              data-e2e-id="freespin-grants-filter-provider-code-select"
+              placeholder="輸入或選擇廠商"
+              allowClear
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                String(option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+              style={{ width: 160 }}
+            >
+              {providers.map((provider) => <Select.Option key={provider.code} value={provider.code}>{provider.name}</Select.Option>)}
             </Select>
           </Form.Item>
           <Form.Item name="claimStatus" label="領取狀態">
-            <Select placeholder="全部" allowClear style={{ width: 110 }}>
+            <Select data-e2e-id="freespin-grants-filter-claim-status-select" placeholder="全部" allowClear style={{ width: 110 }}>
               <Select.Option value="claimed">已領取</Select.Option>
               <Select.Option value="in_use">使用中</Select.Option>
               <Select.Option value="completed">已完成</Select.Option>
               <Select.Option value="expired">已過期</Select.Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="dispatchStatus" label="派發狀態">
-            <Select placeholder="全部" allowClear style={{ width: 110 }}>
-              <Select.Option value="pending">待處理</Select.Option>
-              <Select.Option value="dispatched">已派發</Select.Option>
-              <Select.Option value="settled">已結算</Select.Option>
-              <Select.Option value="failed">失敗</Select.Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="settlementStatus" label="結算">
-            <Select placeholder="全部" allowClear style={{ width: 110 }}>
-              <Select.Option value="settled">已結算</Select.Option>
-              <Select.Option value="unsettled">未結算</Select.Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="expireSoon" label="即將過期">
-            <Select placeholder="全部" allowClear style={{ width: 110 }}>
-              <Select.Option value="24h">24 小時內</Select.Option>
-              <Select.Option value="7d">7 天內</Select.Option>
+              <Select.Option value="voided">已作廢</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="dateRange" label="建立日期">
-            <RangePicker style={{ width: 240 }} />
+            <RangePicker
+              data-e2e-id="freespin-grants-filter-date-range"
+              showTime={{ format: 'HH:mm:ss' }}
+              format="YYYY-MM-DD HH:mm:ss"
+              style={{ width: 380 }}
+            />
           </Form.Item>
           <Form.Item name="expireDateRange" label="到期日期">
-            <RangePicker style={{ width: 240 }} />
+            <RangePicker
+              data-e2e-id="freespin-grants-filter-expire-date-range"
+              showTime={{ format: 'HH:mm:ss' }}
+              format="YYYY-MM-DD HH:mm:ss"
+              style={{ width: 380 }}
+            />
           </Form.Item>
           <Form.Item>
             <Space>
-              <Button type="primary" icon={<SearchOutlined />} onClick={onSearch}>查詢</Button>
-              <Button icon={<ReloadOutlined />} onClick={onReset}>重置</Button>
+              <Button data-e2e-id="freespin-grants-filter-query-btn" type="primary" icon={<SearchOutlined />} onClick={onSearch}>查詢</Button>
+              <Button data-e2e-id="freespin-grants-filter-reset-btn" icon={<ReloadOutlined />} onClick={onReset}>重置</Button>
             </Space>
           </Form.Item>
         </Form>
@@ -450,46 +1244,26 @@ export default function FreeSpinGrantsPage() {
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}><Card><Statistic title="派發總筆數" value={stats.total} /></Card></Col>
-        <Col span={6}><Card><Statistic title="使用中筆數" value={stats.inUse} valueStyle={{ color: '#1668dc' }} /></Card></Col>
-        <Col span={6}><Card><Statistic title="派發失敗" value={stats.failed} valueStyle={{ color: '#ff4d4f' }} /></Card></Col>
-        <Col span={6}><Card><Statistic title="待結算筆數" value={stats.pendingSettle} valueStyle={{ color: '#faad14' }} /></Card></Col>
-      </Row>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={6}><Card><Statistic title="已完成筆數" value={stats.completed} valueStyle={{ color: '#52c41a' }} /></Card></Col>
-        <Col span={6}><Card><Statistic title="已過期筆數" value={stats.expired} valueStyle={{ color: '#8c8c8c' }} /></Card></Col>
+        <Col span={6}><Card><Statistic title="不重複玩家數" value={stats.uniquePlayers} /></Card></Col>
         <Col span={6}><Card><Statistic title="總派彩" value={stats.totalWin} prefix="₱" precision={2} valueStyle={{ color: '#52c41a' }} /></Card></Col>
-        <Col span={6}><Card><Statistic title="涉及玩家數" value={stats.uniquePlayers} /></Card></Col>
+        <Col span={6}><Card><Statistic title="完成率" value={stats.completionRate} suffix="%" valueStyle={{ color: '#1668dc' }} /></Card></Col>
       </Row>
 
       <Card>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12, gap: 8 }}>
           <Space>
-            {selectedRowKeys.length > 0 && (
-              <>
-                <Text strong>已選 {selectedRowKeys.length} 筆</Text>
-                <Button icon={<RetweetOutlined />} onClick={() => setBatchAction('resend')}>批量補發</Button>
-                <Button icon={<FieldTimeOutlined />} onClick={() => setBatchAction('extend')}>批量延期</Button>
-                <Button icon={<StopOutlined />} danger onClick={() => setBatchAction('cancel')}>批量取消</Button>
-                <Button type="link" onClick={() => setSelectedRowKeys([])}>清除選擇</Button>
-              </>
-            )}
-          </Space>
-          <Space>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>手動派發</Button>
-            <Button icon={<DownloadOutlined />}>導出 CSV</Button>
+            <Button data-e2e-id="freespin-grants-toolbar-create-btn" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>手動派發</Button>
+            <Button data-e2e-id="freespin-grants-batch-dispatch-btn" icon={<UploadOutlined />} onClick={() => setBatchOpen(true)}>批量派發</Button>
+            <Button data-e2e-id="freespin-grants-toolbar-export-btn" icon={<DownloadOutlined />}>導出 CSV</Button>
           </Space>
         </div>
         <Table
-          rowSelection={{
-            selectedRowKeys,
-            onChange: setSelectedRowKeys,
-            preserveSelectedRowKeys: true,
-          }}
           columns={columns}
           dataSource={filteredData}
           rowKey="id"
-          scroll={{ x: 2400 }}
-          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 筆` }}
+          onRow={(record) => ({ 'data-e2e-id': `freespin-grants-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
+          scroll={{ x: 2480 }}
+          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 筆` }}
           size="small"
         />
       </Card>
@@ -499,19 +1273,19 @@ export default function FreeSpinGrantsPage() {
         width={960}
         open={!!drawerGrant}
         onClose={() => setDrawerGrant(null)}
-        extra={drawerGrant && drawerGrant.dispatchStatus === 'failed' && drawerGrant.retryCount < 3 ? (
-          <Button type="primary" icon={<RetweetOutlined />} onClick={() => { handleResend(drawerGrant); }}>補發</Button>
+        extra={drawerGrant && canVoidGrant(drawerGrant) ? (
+          <Button data-e2e-id={`freespin-grants-drawer-resend-btn-${drawerGrant.id}`} danger type="primary" icon={<StopOutlined />} onClick={() => { handleVoid(drawerGrant); }}>作廢</Button>
         ) : null}
       >
         {drawerGrant && (
-          <div>
+          <div data-e2e-id="freespin-grants-drawer">
             <Title level={5}>基本資訊</Title>
             <Descriptions bordered size="small" column={2} style={{ marginBottom: 24 }}>
               <Descriptions.Item label="派發 ID">{drawerGrant.id}</Descriptions.Item>
               <Descriptions.Item label="名稱">{drawerGrant.name}</Descriptions.Item>
               <Descriptions.Item label="玩家">{drawerGrant.playerId}</Descriptions.Item>
               <Descriptions.Item label="幣別">{drawerGrant.currency}</Descriptions.Item>
-              <Descriptions.Item label="來源">{drawerGrant.sourceType === 'activity' ? '活動' : '手動'}</Descriptions.Item>
+              <Descriptions.Item label="來源">{drawerGrant.sourceType === 'activity' ? '活動' : drawerGrant.createdBy === 'admin (batch)' ? '手動（批量）' : '手動'}</Descriptions.Item>
               <Descriptions.Item label="關聯活動">{drawerGrant.sourceActivityName || '—'}</Descriptions.Item>
               <Descriptions.Item label="廠商事件 ID" span={2}>
                 {drawerGrant.vendorEventId ? (
@@ -525,6 +1299,21 @@ export default function FreeSpinGrantsPage() {
               <Descriptions.Item label="備註" span={2}>{drawerGrant.remark || '—'}</Descriptions.Item>
             </Descriptions>
 
+            <Card size="small" title="封面圖" style={{ marginBottom: 24 }}>
+              {drawerGrant.coverImage ? (
+                <Image
+                  src={drawerGrant.coverImage}
+                  alt="freespin-cover"
+                  width={80}
+                  height={100}
+                  style={{ borderRadius: 8, objectFit: 'cover', border: '1px solid #f0f0f0' }}
+                  preview={{ src: drawerGrant.coverImage }}
+                />
+              ) : (
+                <Text type="secondary">未設定封面</Text>
+              )}
+            </Card>
+
             <Title level={5}>設定</Title>
             <Descriptions bordered size="small" column={2} style={{ marginBottom: 24 }}>
               <Descriptions.Item label="贈送類型">
@@ -533,7 +1322,7 @@ export default function FreeSpinGrantsPage() {
               <Descriptions.Item label="廠商">{drawerGrant.providerName || '—'}</Descriptions.Item>
               <Descriptions.Item label="贈送遊戲" span={2}>
                 {drawerGrant.grantedGames && drawerGrant.grantedGames.length > 0
-                  ? drawerGrant.grantedGames.map(g => <Tag key={g.code}>{g.name}</Tag>)
+                  ? drawerGrant.grantedGames.map((game) => <Tag key={game.code}>{game.name}</Tag>)
                   : <Text type="secondary">—（贈送類型為 {drawerGrant.grantType === 'open' ? '不限' : '廠商'}，玩家自選）</Text>}
               </Descriptions.Item>
               <Descriptions.Item label="選定遊戲" span={2}>
@@ -547,9 +1336,22 @@ export default function FreeSpinGrantsPage() {
                   {formatCurrency(drawerGrant.betAmount)}
                 </Tooltip>
               </Descriptions.Item>
+              <Descriptions.Item label="流水倍數">
+                {drawerGrant.wagerMultiple != null ? `${drawerGrant.wagerMultiple} 倍` : '無流水要求'}
+              </Descriptions.Item>
+              <Descriptions.Item label="場館限制">
+                {renderGameRestrictionSummary(drawerGrant.gameRestriction)}
+              </Descriptions.Item>
               <Descriptions.Item label="最低提領">{drawerGrant.minWithdraw != null ? formatCurrency(drawerGrant.minWithdraw) : '不限'}</Descriptions.Item>
               <Descriptions.Item label="最高提領">{drawerGrant.maxWithdraw != null ? formatCurrency(drawerGrant.maxWithdraw) : '不限'}</Descriptions.Item>
               <Descriptions.Item label="到期時間" span={2}>{drawerGrant.expireAt}</Descriptions.Item>
+              {drawerGrant.claimStatus === 'voided' && (
+                <>
+                  <Descriptions.Item label="作廢時間">{drawerGrant.voidedAt || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="作廢人員">{drawerGrant.voidedBy || '—'}</Descriptions.Item>
+                  <Descriptions.Item label="作廢原因" span={2}>{drawerGrant.voidReason || '—'}</Descriptions.Item>
+                </>
+              )}
             </Descriptions>
 
             <Title level={5}>進度</Title>
@@ -565,224 +1367,267 @@ export default function FreeSpinGrantsPage() {
                   <div style={{ fontSize: 14, color: '#8c8c8c' }}>狀態</div>
                   <div style={{ marginTop: 8 }}>
                     {renderClaimStatus(drawerGrant.claimStatus)}
-                    {renderDispatchStatus(drawerGrant)}
                   </div>
                 </Col>
               </Row>
-              {drawerGrant.dispatchStatus === 'failed' && drawerGrant.failureReason && (
-                <div style={{ marginTop: 12, padding: 12, background: '#fff2f0', borderRadius: 4, border: '1px solid #ffccc7' }}>
-                  <WarningOutlined style={{ color: '#ff4d4f', marginRight: 6 }} />
-                  <strong>失敗原因：</strong>{drawerGrant.failureReason}
-                  <span style={{ marginLeft: 12 }}><strong>重試次數：</strong>{drawerGrant.retryCount}/3</span>
+              {drawerGrant.claimStatus === 'voided' && (
+                <div style={{ marginTop: 12, padding: 12, background: '#fafafa', borderRadius: 4, border: '1px solid #d9d9d9' }}>
+                  <strong>作廢處理：</strong>{drawerGrant.voidReason || '派發失敗，作廢處理'}
+                  <span style={{ marginLeft: 12 }}><strong>作廢人員：</strong>{drawerGrant.voidedBy || '—'}</span>
                 </div>
               )}
             </Card>
 
-            <Title level={5}>使用記錄 ({drawerUsage.length} 筆)</Title>
-            <Table
-              size="small"
-              style={{ marginBottom: 24 }}
-              columns={[
-                { title: '記錄 ID', dataIndex: 'id', width: 110 },
-                { title: '遊戲', dataIndex: 'gameName', width: 140 },
-                { title: '廠商回合 ID', dataIndex: 'vendorRoundId', width: 130 },
-                { title: '投注', dataIndex: 'betAmount', width: 80, render: formatCurrency },
-                { title: '派彩', dataIndex: 'winAmount', width: 90, render: formatCurrency },
-                {
-                  title: '淨贏輸', dataIndex: 'netWin', width: 90,
-                  render: (v: number) => <span style={{ color: v >= 0 ? '#52c41a' : '#ff4d4f' }}>{formatCurrency(v)}</span>,
-                },
-                { title: '時間', dataIndex: 'roundTime', width: 160 },
-              ]}
-              dataSource={drawerUsage}
-              rowKey="id"
-              pagination={{ pageSize: 10, size: 'small' }}
-              locale={{ emptyText: '尚無使用記錄' }}
-            />
-
-            <Title level={5}>操作日誌</Title>
-            <Timeline
-              items={[
-                { color: 'blue', children: <><strong>{drawerGrant.createdAt}</strong> {drawerGrant.createdBy} 建立派發</> },
-                ...(drawerGrant.vendorEventId ? [{ color: 'green' as const, children: <><strong>{drawerGrant.createdAt}</strong> 廠商 API 派發成功（event_id={drawerGrant.vendorEventId}）</> }] : []),
-                ...(drawerGrant.dispatchStatus === 'failed' ? [{ color: 'red' as const, children: <><strong>{drawerGrant.createdAt}</strong> 廠商 API 失敗：{drawerGrant.failureReason}（重試 {drawerGrant.retryCount}/3）</> }] : []),
-                ...(drawerGrant.usedAt ? [{ color: 'gray' as const, children: <><strong>{drawerGrant.usedAt}</strong> 玩家首次使用</> }] : []),
-                ...(drawerGrant.settledAt ? [{ color: 'green' as const, children: <><strong>{drawerGrant.settledAt}</strong> 廠商結算完成</> }] : []),
-              ]}
-            />
+            <Title level={5}>派發嘗試紀錄</Title>
+            <Card style={{ marginBottom: 24 }}>
+              <Table
+                size="small"
+                pagination={false}
+                columns={[
+                  { title: '時間', dataIndex: 'attemptedAt', width: 170 },
+                  {
+                    title: '結果',
+                    dataIndex: 'result',
+                    width: 80,
+                    render: (value: 'success' | 'fail') => value === 'success' ? <Tag color="success">成功</Tag> : <Tag color="error">失敗</Tag>,
+                  },
+                  {
+                    title: '廠商回應',
+                    dataIndex: 'vendorMessage',
+                    render: (value: string | null, row: DispatchAttempt) => row.vendorErrorCode ? `${row.vendorErrorCode}${value ? ` (${value})` : ''}` : '—',
+                  },
+                ]}
+                dataSource={drawerGrant.dispatchSummary.attempts}
+                rowKey={(row, index) => `${row.attemptedAt}-${index}`}
+                locale={{ emptyText: '尚無派發嘗試' }}
+              />
+            </Card>
           </div>
         )}
       </Drawer>
 
       <Modal
-        title={batchAction === 'resend' ? '批量補發' : batchAction === 'extend' ? '批量延期' : '批量取消'}
-        open={batchAction !== null}
-        onCancel={() => { setBatchAction(null); batchForm.resetFields(); }}
-        onOk={handleBatchConfirm}
-        okText="確認"
-        cancelText="取消"
-        okButtonProps={batchAction === 'cancel' ? { danger: true } : undefined}
-      >
-        <div style={{ marginBottom: 16 }}>
-          <Text>將對選中的 <strong>{selectedRowKeys.length}</strong> 筆記錄執行以下操作：</Text>
-        </div>
-        {batchAction === 'resend' && (
-          <div style={{ background: '#f6ffed', padding: 12, borderRadius: 4, border: '1px solid #b7eb8f' }}>
-            僅對「失敗且重試次數 &lt; 3」的記錄生效。
-          </div>
-        )}
-        {batchAction === 'extend' && (
-          <Form form={batchForm} layout="vertical">
-            <Form.Item name="extendDays" label="延長天數" rules={[{ required: true, message: '請輸入延長天數' }]}>
-              <InputNumber min={1} max={90} style={{ width: '100%' }} placeholder="例：7" />
-            </Form.Item>
-            <Text type="secondary">僅對「未完成、未過期」的記錄生效。</Text>
-          </Form>
-        )}
-        {batchAction === 'cancel' && (
-          <div style={{ background: '#fff2f0', padding: 12, borderRadius: 4, border: '1px solid #ffccc7' }}>
-            <WarningOutlined style={{ color: '#ff4d4f', marginRight: 6 }} />
-            取消後將無法恢復。僅對「已領取 / 使用中」的記錄生效。
-          </div>
-        )}
-      </Modal>
-
-      <Modal
         title="手動派發 Free Spin"
         open={createOpen}
-        width={640}
-        onCancel={() => { setCreateOpen(false); createForm.resetFields(); setSelectedGrantType(null); setSelectedProviders([]); }}
+        width={920}
+        onCancel={() => {
+          resetCreateModal();
+        }}
         onOk={() => {
-          createForm.validateFields().then((values) => {
-            const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
-            const expireDate = new Date();
-            expireDate.setDate(expireDate.getDate() + (values.expireDays || 7));
-            const newGrant: FreeSpinGrantItem = {
-              id: `FS${String(allGrants.length + 1).padStart(4, '0')}`,
-              name: values.name,
-              playerId: values.playerId,
-              sourceType: 'manual',
-              sourceActivityName: values.activityName || null,
-              grantType: values.grantType,
-              providerCode: values.grantType === 'open' ? null : (values.providerCodes?.[0] || null),
-              providerName: values.grantType === 'open' ? null : providers.find(p => p.code === values.providerCodes?.[0])?.name || null,
-              grantedGames: values.grantType === 'game' && values.gameCodes
-                ? values.gameCodes.map((gc: string) => {
-                    for (const pCode of (values.providerCodes || [])) {
-                      const found = providerGames[pCode]?.find(g => g.code === gc);
-                      if (found) return found;
-                    }
-                    return { code: gc, name: gc };
-                  })
-                : null,
-              selectedGame: null,
-              totalSpins: values.totalSpins,
-              usedSpins: 0,
-              betAmount: values.betAmount || 0.20,
-              totalWin: 0,
-              claimStatus: 'claimed',
-              dispatchStatus: 'pending',
-              vendorEventId: null,
-              currency: 'PHP',
-              minWithdraw: values.minWithdraw ?? null,
-              maxWithdraw: values.maxWithdraw ?? null,
-              expireAt: expireDate.toISOString().replace('T', ' ').slice(0, 19),
-              usedAt: null,
-              settledAt: null,
-              failureReason: null,
-              retryCount: 0,
-              createdBy: 'admin',
-              createdAt: now,
-              remark: values.remark || null,
-            };
-            setAllGrants(prev => [newGrant, ...prev]);
-            setCreateOpen(false);
-            createForm.resetFields();
-            setSelectedGrantType(null);
-            setSelectedProviders([]);
-            message.success('派發成功');
-          });
+          createForm.validateFields().then(createFormSubmit);
         }}
         okText="確認派發"
         cancelText="取消"
+        okButtonProps={{ 'data-e2e-id': 'freespin-grants-create-modal-submit-btn' }}
+        cancelButtonProps={{ 'data-e2e-id': 'freespin-grants-create-modal-cancel-btn' }}
       >
-        <Form form={createForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="名稱" rules={[{ required: true, message: '請輸入名稱' }]}>
-            <Input placeholder="此名稱將顯示在用戶端" />
-          </Form.Item>
-          <Form.Item name="playerId" label="發放對象" rules={[{ required: true, message: '請輸入玩家帳號' }]}>
-            <Input placeholder="輸入玩家帳號，多個以逗號分隔" />
-          </Form.Item>
-          <Form.Item name="grantType" label="贈送類型" rules={[{ required: true, message: '請選擇贈送類型' }]}>
-            <Select
-              placeholder="請選擇"
-              onChange={(val) => { setSelectedGrantType(val); setSelectedProviders([]); createForm.setFieldsValue({ providerCodes: undefined, gameCodes: undefined }); }}
-            >
-              <Select.Option value="open">不限</Select.Option>
-              <Select.Option value="provider">廠商</Select.Option>
-              <Select.Option value="game">遊戲</Select.Option>
-            </Select>
-          </Form.Item>
-          {(selectedGrantType === 'provider' || selectedGrantType === 'game') && (
-            <Form.Item name="providerCodes" label="廠商" rules={[{ required: true, message: '請選擇廠商' }]}>
-              <Select
-                mode="multiple"
-                placeholder="選擇廠商"
-                onChange={(vals: string[]) => { setSelectedProviders(vals); createForm.setFieldsValue({ gameCodes: undefined }); }}
-              >
-                {providers.map(p => <Select.Option key={p.code} value={p.code}>{p.name}</Select.Option>)}
-              </Select>
-            </Form.Item>
-          )}
-          {selectedGrantType === 'game' && selectedProviders.length > 0 && (
-            <Form.Item name="gameCodes" label="贈送遊戲" rules={[{ required: true, message: '請選擇贈送遊戲' }]} tooltip="玩家將在這些遊戲中選一款使用">
-              <Select mode="multiple" placeholder="選擇贈送遊戲（可複選，玩家選一款）">
-                {selectedProviders.flatMap(pCode =>
-                  (providerGames[pCode] || []).map(g => (
-                    <Select.Option key={g.code} value={g.code}>{providers.find(p => p.code === pCode)?.name} - {g.name}</Select.Option>
-                  ))
+        <div data-e2e-id="freespin-grants-create-modal">
+          <Form
+            form={createForm}
+            layout="horizontal"
+            labelCol={{ flex: '120px' }}
+            labelAlign="right"
+            style={{ marginTop: 16 }}
+            initialValues={{ expireDays: 7 }}
+          >
+            <Row gutter={[24, 12]}>
+              <Col span={12}>
+                <Form.Item name="playerId" label="玩家帳號" rules={[{ required: true, message: '請輸入玩家帳號' }]}>
+                  <Input data-e2e-id="freespin-grants-form-player-id-input" placeholder="輸入玩家帳號" />
+                </Form.Item>
+              </Col>
+            </Row>
+            {renderGrantConfigFields({
+              formInstance: createForm,
+              currentGrantType: selectedGrantType as GrantTypeValue | null,
+              currentProviders: selectedProviders,
+              setGrantType: (value) => setSelectedGrantType(value),
+              setProviders: setSelectedProviders,
+              coverFileList: createCoverFileList,
+              onCoverUploadChange: handleCoverUploadChange,
+              onCoverRemove: () => {
+                setCreateCoverFileList([]);
+                createForm.setFieldValue('coverImage', null);
+              },
+              isBatch: false,
+            })}
+          </Form>
+        </div>
+      </Modal>
+
+      <Modal
+        title="批量派發 Free Spin"
+        open={batchOpen}
+        width={960}
+        destroyOnClose
+        onCancel={resetBatchModal}
+        footer={(
+          <Space>
+            {batchResult ? (
+              <Button data-e2e-id="freespin-grants-batch-close-btn" type="primary" onClick={resetBatchModal}>關閉</Button>
+            ) : (
+              <>
+                {batchStep === 0 && <Button data-e2e-id="freespin-grants-batch-cancel-btn" onClick={resetBatchModal}>取消</Button>}
+                {batchStep === 1 && <Button data-e2e-id="freespin-grants-batch-prev-btn" onClick={() => setBatchStep(0)}>上一步</Button>}
+                {batchStep === 1 ? (
+                  <Button data-e2e-id="freespin-grants-batch-submit-btn" type="primary" loading={batchSubmitting} onClick={handleBatchSubmit}>
+                    確認派發
+                  </Button>
+                ) : (
+                  <Button data-e2e-id="freespin-grants-batch-next-btn-step-1" type="primary" onClick={handleBatchNextStep}>下一步</Button>
                 )}
-              </Select>
-            </Form.Item>
+              </>
+            )}
+          </Space>
+        )}
+      >
+        <div data-e2e-id="freespin-grants-batch-modal">
+          {!batchResult && (
+            <Steps
+              current={batchStep}
+              size="small"
+              style={{ marginBottom: 24 }}
+              items={[
+                { title: '派發設定' },
+                { title: '上傳名單' },
+              ]}
+            />
           )}
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="totalSpins" label="贈送次數" rules={[{ required: true, message: '請輸入次數' }]}>
-                <InputNumber min={1} max={999999} style={{ width: '100%' }} placeholder="次數" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="betAmount" label="單轉投注額">
-                <InputNumber min={0.01} step={0.10} style={{ width: '100%' }} placeholder="預設 0.20" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item name="expireDays" label="有效天數">
-                <InputNumber min={1} max={365} style={{ width: '100%' }} placeholder="預設 7 天" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="minWithdraw" label="最低提領金額">
-                <InputNumber min={0} style={{ width: '100%' }} placeholder="不限" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="maxWithdraw" label="最高提領金額">
-                <InputNumber min={0} style={{ width: '100%' }} placeholder="不限" />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="activityName" label="關聯活動（非必填）">
-            <Select placeholder="選擇活動" allowClear>
-              {activityOptions.map(a => <Select.Option key={a} value={a}>{a}</Select.Option>)}
-            </Select>
-          </Form.Item>
-          <Form.Item name="remark" label="備註（非必填）">
-            <Input.TextArea rows={2} placeholder="派發原因" />
-          </Form.Item>
-        </Form>
+
+          {batchStep === 0 && !batchResult && (
+            <Form
+              form={batchForm}
+              layout="horizontal"
+              labelCol={{ flex: '120px' }}
+              labelAlign="right"
+              style={{ marginTop: 16 }}
+              initialValues={{ expireDays: 7 }}
+            >
+              {renderGrantConfigFields({
+                formInstance: batchForm,
+                currentGrantType: batchSelectedGrantType,
+                currentProviders: batchSelectedProviders,
+                setGrantType: (value) => setBatchSelectedGrantType(value),
+                setProviders: setBatchSelectedProviders,
+                coverFileList: batchCoverFileList,
+                onCoverUploadChange: handleBatchCoverUploadChange,
+                onCoverRemove: () => {
+                  setBatchCoverFileList([]);
+                  batchForm.setFieldValue('coverImage', null);
+                },
+                isBatch: true,
+              })}
+            </Form>
+          )}
+
+          {batchStep === 1 && !batchResult && (
+            <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              <Card size="small">
+                <Space direction="vertical" size={16} style={{ width: '100%' }}>
+                  <div>
+                    <Text strong>識別類型</Text>
+                    <div style={{ marginTop: 8 }}>
+                      <Radio.Group
+                        value={batchIdentifierType}
+                        onChange={(event) => {
+                          const nextType = event.target.value as BatchIdentifierType;
+                          setBatchIdentifierType(nextType);
+                          setBatchSourceFileName(null);
+                          setBatchSourceRawCount(0);
+                          setBatchSourceEntries([]);
+                        }}
+                        data-e2e-id="freespin-grants-batch-step2-identifier-type-radio"
+                      >
+                        <Radio.Button value="uid">UID</Radio.Button>
+                        <Radio.Button value="phone">手機</Radio.Button>
+                        <Radio.Button value="account">帳號</Radio.Button>
+                      </Radio.Group>
+                    </div>
+                  </div>
+
+                  <Space>
+                    <Button data-e2e-id="freespin-grants-batch-step2-template-download-btn" icon={<DownloadOutlined />} onClick={downloadBatchTemplate}>下載範本</Button>
+                    <Text type="secondary">單欄 CSV，header 為 `identifier`</Text>
+                  </Space>
+
+                  <Upload.Dragger
+                    accept=".csv,.txt"
+                    showUploadList={false}
+                    beforeUpload={handleBatchFileUpload}
+                    data-e2e-id="freespin-grants-batch-step2-csv-upload"
+                  >
+                    <p className="ant-upload-drag-icon">
+                      <TeamOutlined />
+                    </p>
+                    <p className="ant-upload-text">拖曳或點擊上傳 CSV / TXT</p>
+                    <p className="ant-upload-hint">自動忽略空行、跳過 header、去重；UTF-8；上限 10,000 行</p>
+                  </Upload.Dragger>
+
+                  <Descriptions size="small" bordered column={1}>
+                    <Descriptions.Item label="檔名">{batchSourceFileName || '—'}</Descriptions.Item>
+                    <Descriptions.Item label="原始上傳行數">{batchSourceRawCount || '—'}</Descriptions.Item>
+                    <Descriptions.Item label="去重後名單數">{batchSourceEntries.length || '—'}</Descriptions.Item>
+                  </Descriptions>
+
+                  <Alert
+                    type="info"
+                    showIcon
+                    message={`送出後將直接執行派發${batchSourceEntries.length > 0 ? `，本批共 ${batchSourceEntries.length} 筆名單` : ''}`}
+                    description="Mock 階段僅排除查無會員，不顯示預覽確認頁，也不提供整批作廢或失敗清單再派。"
+                  />
+                </Space>
+              </Card>
+            </Space>
+          )}
+
+          {batchResult && (
+            <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              <Row gutter={16}>
+                <Col span={6}><Card size="small"><Statistic title="總筆數" value={batchResult.totalCount} /></Card></Col>
+                <Col span={6}><Card size="small"><Statistic title="成功" value={batchResult.successCount} valueStyle={{ color: '#52c41a' }} /></Card></Col>
+                <Col span={6}><Card size="small"><Statistic title="失敗" value={batchResult.failedCount} valueStyle={{ color: '#ff4d4f' }} /></Card></Col>
+                <Col span={6}><Card size="small"><Statistic title="派發 FS 總額" value={batchResult.totalFsAmount} /></Card></Col>
+              </Row>
+
+              <Card size="small" title="失敗分類統計">
+                <Row gutter={16}>
+                  <Col span={8}><Statistic title="查無會員" value={batchResult.failedList.filter((row) => row.failureReason === '查無會員').length} /></Col>
+                  <Col span={8}><Statistic title="廠商 callback 失敗" value={0} /></Col>
+                  <Col span={8}><Statistic title="其他" value={batchResult.failedList.filter((row) => row.failureReason && row.failureReason !== '查無會員').length} /></Col>
+                </Row>
+              </Card>
+
+              <Card
+                size="small"
+                title="派發明細"
+                extra={(
+                  <Space wrap>
+                    <Radio.Group
+                      value={batchResultStatusFilter}
+                      onChange={(event) => setBatchResultStatusFilter(event.target.value)}
+                      optionType="button"
+                      buttonStyle="solid"
+                    >
+                      <Radio.Button value="all">全部</Radio.Button>
+                      <Radio.Button value="success">成功</Radio.Button>
+                      <Radio.Button value="failed">失敗</Radio.Button>
+                    </Radio.Group>
+                    <Button icon={<DownloadOutlined />} onClick={() => downloadBatchResultCsv('success')}>下載成功 CSV</Button>
+                    <Button icon={<DownloadOutlined />} onClick={() => downloadBatchResultCsv('failed')}>下載失敗 CSV</Button>
+                  </Space>
+                )}
+              >
+                <Table<BatchResultRow>
+                  rowKey="key"
+                  columns={batchResultColumns}
+                  dataSource={batchResultRows}
+                  pagination={{ pageSize: 10, showSizeChanger: true }}
+                  scroll={{ x: 760 }}
+                />
+              </Card>
+            </Space>
+          )}
+        </div>
       </Modal>
     </div>
   );
