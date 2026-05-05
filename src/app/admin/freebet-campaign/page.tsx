@@ -85,6 +85,13 @@ function getAvailableActions(record: FreeBetGrantRecord): string[] {
   return actions;
 }
 
+function getActionKey(action: string) {
+  if (action === '同步状态') return 'sync-status';
+  if (action === '取消') return 'cancel';
+  if (action === '重试发放') return 'retry-grant';
+  return 'action';
+}
+
 function showErrorMessage(record: FreeBetGrantRecord) {
   const isFailed = record.grantStatus === 'failed';
   const title = isFailed ? '发放失败详情' : '发放警告详情';
@@ -260,7 +267,7 @@ export default function FreeBetCampaignPage() {
       width: 120,
       render: (value, record) => {
         if (editingConfigKey === record.key) {
-          return <Form.Item name="bonusId" style={{ margin: 0 }}><InputNumber style={{ width: 100 }} /></Form.Item>;
+          return <Form.Item name="bonusId" style={{ margin: 0 }}><InputNumber data-e2e-id={`freebet-campaign-config-table-bonus-id-input-${record.key}`} style={{ width: 100 }} /></Form.Item>;
         }
         return <Text code>{value}</Text>;
       },
@@ -271,7 +278,7 @@ export default function FreeBetCampaignPage() {
       width: 130,
       render: (value, record) => {
         if (editingConfigKey === record.key) {
-          return <Form.Item name="rewardAmount" style={{ margin: 0 }}><InputNumber style={{ width: 110 }} prefix="₱" /></Form.Item>;
+          return <Form.Item name="rewardAmount" style={{ margin: 0 }}><InputNumber data-e2e-id={`freebet-campaign-config-table-reward-amount-input-${record.key}`} style={{ width: 110 }} prefix="₱" /></Form.Item>;
         }
         return <Text strong>{formatCurrency(value)}</Text>;
       },
@@ -295,12 +302,12 @@ export default function FreeBetCampaignPage() {
         if (editingConfigKey === record.key) {
           return (
             <Space size={4}>
-              <Button type="link" size="small" onClick={() => setEditingConfigKey(null)}>取消</Button>
-              <Button type="link" size="small" icon={<SaveOutlined />} onClick={() => handleConfigSave(record.key)}>保存</Button>
+              <Button data-e2e-id={`freebet-campaign-config-table-cancel-btn-${record.key}`} type="link" size="small" onClick={() => setEditingConfigKey(null)}>取消</Button>
+              <Button data-e2e-id={`freebet-campaign-config-table-save-btn-${record.key}`} type="link" size="small" icon={<SaveOutlined />} onClick={() => handleConfigSave(record.key)}>保存</Button>
             </Space>
           );
         }
-        return <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleConfigEdit(record)}>编辑</Button>;
+        return <Button data-e2e-id={`freebet-campaign-config-table-edit-btn-${record.key}`} type="link" size="small" icon={<EditOutlined />} onClick={() => handleConfigEdit(record)}>编辑</Button>;
       },
     },
   ];
@@ -455,6 +462,7 @@ export default function FreeBetCampaignPage() {
           <Space size={4} wrap>
             {actions.map((action) => (
               <Button
+                data-e2e-id={`freebet-campaign-table-action-btn-${getActionKey(action)}-${record.id}`}
                 key={action}
                 type="link"
                 size="small"
@@ -483,45 +491,45 @@ export default function FreeBetCampaignPage() {
       <Card size="small" style={{ marginBottom: 16 }}>
         <Form form={form} layout="inline" style={{ gap: 8, flexWrap: 'wrap', rowGap: 8 }}>
           <Form.Item name="uid" label="UID">
-            <Input placeholder="输入 UID" allowClear style={{ width: 120 }} />
+            <Input data-e2e-id="freebet-campaign-filter-uid-input" placeholder="输入 UID" allowClear style={{ width: 120 }} />
           </Form.Item>
           <Form.Item name="playerAccount" label="会员账号">
-            <Input placeholder="输入账号" allowClear style={{ width: 140 }} />
+            <Input data-e2e-id="freebet-campaign-filter-player-account-input" placeholder="输入账号" allowClear style={{ width: 140 }} />
           </Form.Item>
           <Form.Item name="phone" label="手机号">
-            <Input placeholder="输入手机号" allowClear style={{ width: 140 }} />
+            <Input data-e2e-id="freebet-campaign-filter-phone-input" placeholder="输入手机号" allowClear style={{ width: 140 }} />
           </Form.Item>
           <Form.Item name="assigneeId" label="Assignee ID">
-            <Input placeholder="输入 ID" allowClear style={{ width: 120 }} />
+            <Input data-e2e-id="freebet-campaign-filter-assignee-id-input" placeholder="输入 ID" allowClear style={{ width: 120 }} />
           </Form.Item>
           <Form.Item name="vipLevelAtSettlement" label="VIP 等级">
-            <Select placeholder="全部" allowClear style={{ width: 100 }}>
+            <Select data-e2e-id="freebet-campaign-filter-vip-level-select" placeholder="全部" allowClear style={{ width: 100 }}>
               {Array.from({ length: 30 }, (_, i) => (
                 <Select.Option key={i + 1} value={i + 1}>VIP{i + 1}</Select.Option>
               ))}
             </Select>
           </Form.Item>
           <Form.Item name="grantStatus" label="发放状态">
-            <Select placeholder="全部" allowClear style={{ width: 100 }}>
+            <Select data-e2e-id="freebet-campaign-filter-grant-status-select" placeholder="全部" allowClear style={{ width: 100 }}>
               <Select.Option value="success">成功</Select.Option>
               <Select.Option value="warning">警告</Select.Option>
               <Select.Option value="failed">失败</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="btiStatusCode" label="BTi 状态">
-            <Select placeholder="全部" allowClear style={{ width: 140 }}>
+            <Select data-e2e-id="freebet-campaign-filter-bti-status-select" placeholder="全部" allowClear style={{ width: 140 }}>
               {Object.entries(BTI_STATUS_MAP).map(([code, info]) => (
                 <Select.Option key={code} value={Number(code)}>{info.label}</Select.Option>
               ))}
             </Select>
           </Form.Item>
           <Form.Item name="dateRange" label="发放时间">
-            <RangePicker style={{ width: 240 }} />
+            <RangePicker data-e2e-id="freebet-campaign-filter-date-range" style={{ width: 240 }} />
           </Form.Item>
           <Form.Item>
             <Space>
-              <Button type="primary" icon={<SearchOutlined />} onClick={() => setFilters(form.getFieldsValue())}>查询</Button>
-              <Button icon={<ReloadOutlined />} onClick={() => { form.resetFields(); setFilters({}); }}>重置</Button>
+              <Button data-e2e-id="freebet-campaign-filter-query-btn" type="primary" icon={<SearchOutlined />} onClick={() => setFilters(form.getFieldsValue())}>查询</Button>
+              <Button data-e2e-id="freebet-campaign-filter-reset-btn" icon={<ReloadOutlined />} onClick={() => { form.resetFields(); setFilters({}); }}>重置</Button>
             </Space>
           </Form.Item>
         </Form>
@@ -558,8 +566,8 @@ export default function FreeBetCampaignPage() {
 
       {/* Action Buttons */}
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        <Button icon={<SettingOutlined />} onClick={() => setConfigModalOpen(true)}>奖励配置</Button>
-        <Button icon={<DownloadOutlined />}>导出</Button>
+        <Button data-e2e-id="freebet-campaign-toolbar-config-btn" icon={<SettingOutlined />} onClick={() => setConfigModalOpen(true)}>奖励配置</Button>
+        <Button data-e2e-id="freebet-campaign-toolbar-export-btn" icon={<DownloadOutlined />}>导出</Button>
       </div>
 
       {/* Batch Actions + Table */}
@@ -569,8 +577,8 @@ export default function FreeBetCampaignPage() {
           selectedRowKeys.length > 0 ? (
             <Space>
               <Text>已选 {selectedRowKeys.length} 笔</Text>
-              <Button size="small" icon={<SyncOutlined />} onClick={handleBatchSync}>批次同步状态</Button>
-              <Button size="small" icon={<CloseCircleOutlined />} onClick={() => setSelectedRowKeys([])}>取消选择</Button>
+              <Button data-e2e-id="freebet-campaign-toolbar-batch-sync-btn" size="small" icon={<SyncOutlined />} onClick={handleBatchSync}>批次同步状态</Button>
+              <Button data-e2e-id="freebet-campaign-toolbar-clear-selection-btn" size="small" icon={<CloseCircleOutlined />} onClick={() => setSelectedRowKeys([])}>取消选择</Button>
             </Space>
           ) : null
         }
@@ -579,6 +587,7 @@ export default function FreeBetCampaignPage() {
           columns={grantColumns}
           dataSource={filteredGrants}
           rowKey="id"
+          onRow={(record) => ({ 'data-e2e-id': `freebet-campaign-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
           size="small"
           scroll={{ x: 2200 }}
           rowSelection={{
@@ -597,15 +606,18 @@ export default function FreeBetCampaignPage() {
         footer={null}
         width={860}
       >
-        <Form form={editForm} component={false}>
-          <Table
-            columns={configColumns}
-            dataSource={configData}
-            rowKey="key"
-            size="small"
-            pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 笔` }}
-          />
-        </Form>
+        <div data-e2e-id="freebet-campaign-config-modal">
+          <Form form={editForm} component={false}>
+            <Table
+              columns={configColumns}
+              dataSource={configData}
+              rowKey="key"
+              onRow={(record) => ({ 'data-e2e-id': `freebet-campaign-config-table-row-${record.key}` } as React.HTMLAttributes<HTMLTableRowElement>)}
+              size="small"
+              pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 笔` }}
+            />
+          </Form>
+        </div>
       </Modal>
 
       {/* Detail Drawer */}
@@ -618,6 +630,7 @@ export default function FreeBetCampaignPage() {
         extra={
           drawerRecord && (
             <Button
+              data-e2e-id="freebet-campaign-drawer-sync-bti-btn"
               type="primary"
               size="small"
               icon={<SyncOutlined />}
@@ -629,6 +642,7 @@ export default function FreeBetCampaignPage() {
         }
       >
         {drawerRecord && (
+          <div data-e2e-id="freebet-campaign-drawer">
           <Space direction="vertical" size={20} style={{ width: '100%' }}>
             <Descriptions column={1} size="small" bordered>
               <Descriptions.Item label="发放单号">{drawerRecord.id}</Descriptions.Item>
@@ -674,6 +688,7 @@ export default function FreeBetCampaignPage() {
                       {drawerRecord.grantStatus === 'warning' ? '警告' : '失败'}
                     </Tag>
                     <Button
+                      data-e2e-id={`freebet-campaign-drawer-error-info-btn-${drawerRecord.id}`}
                       size="small"
                       type="link"
                       style={{ padding: 0, height: 'auto' }}
@@ -718,6 +733,7 @@ export default function FreeBetCampaignPage() {
                       <Space>
                         <Text>{drawerRecord.errorAt ?? ''} — BTi 返回错误，发放失败</Text>
                         <Button
+                          data-e2e-id={`freebet-campaign-drawer-timeline-error-detail-btn-${drawerRecord.id}`}
                           size="small"
                           type="link"
                           style={{ padding: 0, height: 'auto' }}
@@ -746,10 +762,11 @@ export default function FreeBetCampaignPage() {
 
             <Space>
               {getAvailableActions(drawerRecord).map((action) => (
-                <Button key={action} danger={action === '取消'} onClick={() => confirmAction(action, drawerRecord)}>{action}</Button>
+                <Button data-e2e-id={`freebet-campaign-drawer-action-btn-${getActionKey(action)}-${drawerRecord.id}`} key={action} danger={action === '取消'} onClick={() => confirmAction(action, drawerRecord)}>{action}</Button>
               ))}
             </Space>
           </Space>
+          </div>
         )}
       </Drawer>
     </div>

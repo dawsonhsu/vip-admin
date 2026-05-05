@@ -41,25 +41,25 @@ export default function VipRewardsPage() {
     { title: '序號', dataIndex: 'id', width: 70, fixed: 'left' },
     {
       title: '會員帳號', dataIndex: 'account', width: 130, fixed: 'left',
-      render: (val) => <a style={{ color: '#1668dc' }}>{val}</a>,
+      render: (val, record) => <a data-e2e-id={`vip-rewards-table-account-link-${record.uid}`} style={{ color: '#1668dc' }}>{val}</a>,
     },
     { title: '會員 UID', dataIndex: 'uid', width: 100 },
     {
       title: 'VIP 等級', dataIndex: 'vipLevel', width: 90,
-      render: (val) => <Tag color="blue">V{val}</Tag>,
+      render: (val, record) => <Tag data-e2e-id={`vip-rewards-table-vip-tag-${record.uid}`} color="blue">V{val}</Tag>,
     },
     {
       title: '等級區間', dataIndex: 'tierRange', width: 100,
-      render: (val) => {
+      render: (val, record) => {
         const colors: Record<string, string> = { Bronze: '#cd7f32', Silver: '#c0c0c0', Gold: '#ffd700', Platinum: '#e5e4e2', Diamond: '#b9f2ff' };
-        return <Tag color={colors[val] || 'default'}>{val}</Tag>;
+        return <Tag data-e2e-id={`vip-rewards-table-tier-tag-${record.uid}`} color={colors[val] || 'default'}>{val}</Tag>;
       },
     },
     {
       title: '獎勵類型', dataIndex: 'rewardType', width: 110,
-      render: (val) => {
+      render: (val, record) => {
         const colors: Record<string, string> = { '簽到獎勵': 'green', '升級禮金': 'blue', '生日禮金': 'magenta', '半月禮金': 'cyan', '返現獎勵': 'orange' };
-        return <Tag color={colors[val] || 'default'}>{val}</Tag>;
+        return <Tag data-e2e-id={`vip-rewards-table-reward-type-tag-${record.uid}-${record.id}`} color={colors[val] || 'default'}>{val}</Tag>;
       },
     },
     {
@@ -73,9 +73,9 @@ export default function VipRewardsPage() {
     },
     {
       title: '領取狀態', dataIndex: 'claimStatus', width: 100,
-      render: (val) => val === 'claimed'
-        ? <Tag color="green">已領取</Tag>
-        : <Tag color="orange">待領取</Tag>,
+      render: (val, record) => val === 'claimed'
+        ? <Tag data-e2e-id={`vip-rewards-table-claim-status-tag-${record.uid}-${record.id}`} color="green">已領取</Tag>
+        : <Tag data-e2e-id={`vip-rewards-table-claim-status-tag-${record.uid}-${record.id}`} color="orange">待領取</Tag>,
     },
     { title: '發放時間', dataIndex: 'distributionDate', width: 180 },
     {
@@ -97,65 +97,66 @@ export default function VipRewardsPage() {
       <Card style={{ marginBottom: 16 }}>
         <Form form={form} layout="inline" style={{ gap: 12, flexWrap: 'wrap', rowGap: 12 }}>
           <Form.Item name="account" label="會員帳號">
-            <Input placeholder="輸入帳號" allowClear style={{ width: 140 }} />
+            <Input data-e2e-id="vip-rewards-filter-account-input" placeholder="輸入帳號" allowClear style={{ width: 140 }} />
           </Form.Item>
           <Form.Item name="uid" label="會員 UID">
-            <Input placeholder="輸入 UID" allowClear style={{ width: 130 }} />
+            <Input data-e2e-id="vip-rewards-filter-uid-input" placeholder="輸入 UID" allowClear style={{ width: 130 }} />
           </Form.Item>
           <Form.Item name="vipLevel" label="VIP 等級">
-            <Select placeholder="全部" allowClear style={{ width: 100 }}>
+            <Select data-e2e-id="vip-rewards-filter-vip-level-select" placeholder="全部" allowClear style={{ width: 100 }}>
               {Array.from({ length: 31 }, (_, i) => (
                 <Select.Option key={i} value={i}>V{i}</Select.Option>
               ))}
             </Select>
           </Form.Item>
           <Form.Item name="tierRange" label="等級區間">
-            <Select placeholder="全部" allowClear style={{ width: 120 }}>
+            <Select data-e2e-id="vip-rewards-filter-tier-range-select" placeholder="全部" allowClear style={{ width: 120 }}>
               {tierRanges.map(t => <Select.Option key={t} value={t}>{t}</Select.Option>)}
             </Select>
           </Form.Item>
           <Form.Item name="rewardType" label="獎勵類型">
-            <Select placeholder="全部" allowClear style={{ width: 120 }}>
+            <Select data-e2e-id="vip-rewards-filter-reward-type-select" placeholder="全部" allowClear style={{ width: 120 }}>
               {rewardTypes.map(t => <Select.Option key={t} value={t}>{t}</Select.Option>)}
             </Select>
           </Form.Item>
           <Form.Item name="claimStatus" label="領取狀態">
-            <Select placeholder="全部" allowClear style={{ width: 110 }}>
+            <Select data-e2e-id="vip-rewards-filter-claim-status-select" placeholder="全部" allowClear style={{ width: 110 }}>
               <Select.Option value="pending">待領取</Select.Option>
               <Select.Option value="claimed">已領取</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="distDateRange" label="發放時間">
-            <RangePicker style={{ width: 260 }} />
+            <RangePicker data-e2e-id="vip-rewards-filter-dist-date-range" style={{ width: 260 }} />
           </Form.Item>
           <Form.Item name="claimDateRange" label="領取時間">
-            <RangePicker style={{ width: 260 }} />
+            <RangePicker data-e2e-id="vip-rewards-filter-claim-date-range" style={{ width: 260 }} />
           </Form.Item>
           <Form.Item>
             <Space>
-              <Button type="primary" icon={<SearchOutlined />} onClick={onSearch}>查詢</Button>
-              <Button icon={<ReloadOutlined />} onClick={onReset}>重置</Button>
+              <Button data-e2e-id="vip-rewards-filter-query-btn" type="primary" icon={<SearchOutlined />} onClick={onSearch}>查詢</Button>
+              <Button data-e2e-id="vip-rewards-filter-reset-btn" icon={<ReloadOutlined />} onClick={onReset}>重置</Button>
             </Space>
           </Form.Item>
         </Form>
       </Card>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={5}><Card><Statistic title="獎勵總筆數" value={stats.total} /></Card></Col>
-        <Col span={5}><Card><Statistic title="涉及會員數" value={stats.members} /></Card></Col>
-        <Col span={5}><Card><Statistic title="發放總金額" value={stats.totalAmount} prefix="₱" precision={2} valueStyle={{ color: '#faad14' }} /></Card></Col>
-        <Col span={5}><Card><Statistic title="Free Spins 總數" value={stats.totalSpins} valueStyle={{ color: '#1668dc' }} /></Card></Col>
-        <Col span={4}><Card><Statistic title="待領取" value={stats.pending} valueStyle={{ color: '#ff4d4f' }} /></Card></Col>
+        <Col span={5}><Card><Statistic data-e2e-id="vip-rewards-summary-total" title="獎勵總筆數" value={stats.total} /></Card></Col>
+        <Col span={5}><Card><Statistic data-e2e-id="vip-rewards-summary-members" title="涉及會員數" value={stats.members} /></Card></Col>
+        <Col span={5}><Card><Statistic data-e2e-id="vip-rewards-summary-total-amount" title="發放總金額" value={stats.totalAmount} prefix="₱" precision={2} valueStyle={{ color: '#faad14' }} /></Card></Col>
+        <Col span={5}><Card><Statistic data-e2e-id="vip-rewards-summary-total-spins" title="Free Spins 總數" value={stats.totalSpins} valueStyle={{ color: '#1668dc' }} /></Card></Col>
+        <Col span={4}><Card><Statistic data-e2e-id="vip-rewards-summary-pending" title="待領取" value={stats.pending} valueStyle={{ color: '#ff4d4f' }} /></Card></Col>
       </Row>
 
       <Card>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-          <Button icon={<DownloadOutlined />}>導出 Excel</Button>
+          <Button data-e2e-id="vip-rewards-toolbar-export-btn" icon={<DownloadOutlined />}>導出 Excel</Button>
         </div>
         <Table
           columns={columns}
           dataSource={filteredData}
           rowKey="id"
+          onRow={(record) => ({ 'data-e2e-id': `vip-rewards-table-row-${record.uid}` } as React.HTMLAttributes<HTMLTableRowElement>)}
           scroll={{ x: 1500 }}
           pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (t) => `共 ${t} 筆` }}
           size="small"

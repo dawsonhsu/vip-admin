@@ -20,6 +20,7 @@ import {
   AppstoreOutlined,
   ToolOutlined,
   FileTextOutlined,
+  SwapOutlined,
   ApiOutlined,
   HomeOutlined,
   SunOutlined,
@@ -36,71 +37,107 @@ const { Title, Text } = Typography;
 type MenuItem = Required<MenuProps>['items'][number];
 
 const menuItems: MenuItem[] = [
-  { key: '/admin', icon: <HomeOutlined />, label: '首頁' },
+  { key: '/admin', icon: <HomeOutlined />, label: <span data-e2e-id="layout-menu-home">首頁</span> },
   {
     key: 'member-mgmt',
     icon: <TeamOutlined />,
-    label: '會員管理',
+    label: <span data-e2e-id="layout-menu-member-mgmt">會員管理</span>,
     children: [
-      { key: '/admin/members', icon: <UserOutlined />, label: '會員列表' },
-      { key: '/admin/vip-rewards', icon: <GiftOutlined />, label: 'VIP 獎勵表' },
-      { key: '/admin/vip-checkin-log', icon: <CalendarOutlined />, label: 'VIP 簽到日誌' },
-      { key: '/admin/vip-config', icon: <SettingOutlined />, label: 'VIP 配置' },
+      { key: '/admin/members', icon: <UserOutlined />, label: <span data-e2e-id="layout-menu-members">會員列表</span> },
+      { key: '/admin/inviter-transfer-log', icon: <SwapOutlined />, label: <span data-e2e-id="layout-menu-inviter-transfer">邀請人轉移紀錄</span> },
+      { key: '/admin/vip-rewards', icon: <GiftOutlined />, label: <span data-e2e-id="layout-menu-vip-rewards">VIP 獎勵表</span> },
+      { key: '/admin/vip-checkin-log', icon: <CalendarOutlined />, label: <span data-e2e-id="layout-menu-vip-checkin">VIP 簽到日誌</span> },
+      { key: '/admin/vip-config', icon: <SettingOutlined />, label: <span data-e2e-id="layout-menu-vip-config">VIP 配置</span> },
     ],
   },
-  { key: 'kyc', icon: <SafetyCertificateOutlined />, label: 'KYC' },
-  { key: 'agent', icon: <TeamOutlined />, label: '代理管理' },
-  { key: 'report', icon: <BarChartOutlined />, label: '報表管理' },
-  { key: 'finance', icon: <DollarOutlined />, label: '財務管理' },
-  { key: 'settlement', icon: <BankOutlined />, label: '結算管理' },
-  { key: 'risk', icon: <AlertOutlined />, label: '風控管理' },
+  { key: 'kyc', icon: <SafetyCertificateOutlined />, label: <span data-e2e-id="layout-menu-kyc">KYC</span> },
+  { key: 'agent', icon: <TeamOutlined />, label: <span data-e2e-id="layout-menu-agent">代理管理</span> },
+  {
+    key: 'report',
+    icon: <BarChartOutlined />,
+    label: <span data-e2e-id="layout-menu-report">報表管理</span>,
+    children: [
+      { key: '/admin/member-stats', icon: <BarChartOutlined />, label: <span data-e2e-id="layout-menu-member-stats">會員日統計</span> },
+      { key: '/admin/member-game-stats', icon: <PlayCircleOutlined />, label: <span data-e2e-id="layout-menu-member-game-stats">會員遊戲日統計</span> },
+    ],
+  },
+  {
+    key: 'finance',
+    icon: <DollarOutlined />,
+    label: <span data-e2e-id="layout-menu-finance">財務管理</span>,
+    children: [
+      { key: '/admin/deposit-records', icon: <DollarOutlined />, label: <span data-e2e-id="layout-menu-deposit-records">存款記錄</span> },
+    ],
+  },
+  { key: 'settlement', icon: <BankOutlined />, label: <span data-e2e-id="layout-menu-settlement">結算管理</span> },
+  {
+    key: 'risk',
+    icon: <AlertOutlined />,
+    label: <span data-e2e-id="layout-menu-risk">風控管理</span>,
+    children: [
+      { key: '/admin/up-down-score', icon: <DollarOutlined />, label: <span data-e2e-id="layout-menu-up-down-score">上下分紀錄</span> },
+    ],
+  },
   {
     key: 'operations',
     icon: <NotificationOutlined />,
-    label: '運營管理',
+    label: <span data-e2e-id="layout-menu-operations">運營管理</span>,
     children: [
-      { key: '/admin/activity-list', icon: <NotificationOutlined />, label: '活動列表' },
+      { key: '/admin/activity-list', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-activity-list">活動列表</span> },
+      { key: '/admin/ops-tools', icon: <ToolOutlined />, label: <span data-e2e-id="layout-menu-ops-tools">運營小工具</span> },
     ],
   },
-  { key: 'promotion', icon: <NotificationOutlined />, label: '推廣管理' },
-  { key: 'site', icon: <GlobalOutlined />, label: '站點管理' },
-  { key: 'game', icon: <PlayCircleOutlined />, label: '遊戲' },
+  { key: 'promotion', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-promotion">推廣管理</span> },
+  { key: 'site', icon: <GlobalOutlined />, label: <span data-e2e-id="layout-menu-site">站點管理</span> },
+  { key: 'game', icon: <PlayCircleOutlined />, label: <span data-e2e-id="layout-menu-game">遊戲</span> },
   {
     key: 'game-mgmt',
     icon: <AppstoreOutlined />,
-    label: '遊戲管理',
+    label: <span data-e2e-id="layout-menu-game-mgmt">遊戲管理</span>,
     children: [
-      { key: '/admin/freespin-grants', icon: <GiftOutlined />, label: 'Free Spin 派發記錄' },
-      { key: '/admin/freespin-usage', icon: <FileTextOutlined />, label: 'Free Spin 使用記錄' },
-      { key: '/admin/freebet-campaign', icon: <NotificationOutlined />, label: 'FreeBet 活動管理' },
+      { key: '/admin/freespin-grants', icon: <GiftOutlined />, label: <span data-e2e-id="layout-menu-freespin-grants">Freespin 派發管理</span> },
+      { key: '/admin/freebet-campaign', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-freebet-campaign">FreeBet 活動管理</span> },
+      { key: '/admin/game-management', icon: <AppstoreOutlined />, label: <span data-e2e-id="layout-menu-game-management">遊戲管理</span> },
     ],
   },
-  { key: 'system', icon: <ToolOutlined />, label: '系統' },
-  { key: 'logs', icon: <FileTextOutlined />, label: '日誌' },
-  { key: 'integration', icon: <ApiOutlined />, label: '集成後台' },
+  { key: 'system', icon: <ToolOutlined />, label: <span data-e2e-id="layout-menu-system">系統</span> },
+  { key: 'logs', icon: <FileTextOutlined />, label: <span data-e2e-id="layout-menu-logs">日誌</span> },
+  { key: 'integration', icon: <ApiOutlined />, label: <span data-e2e-id="layout-menu-integration">集成後台</span> },
 ];
 
 const breadcrumbMap: Record<string, string> = {
   '/admin': '首頁',
   '/admin/members': '會員列表',
+  '/admin/inviter-transfer-log': '邀請人轉移紀錄',
   '/admin/vip-rewards': 'VIP 獎勵表',
   '/admin/vip-checkin-log': 'VIP 簽到日誌',
   '/admin/vip-config': 'VIP 配置',
-  '/admin/freespin-grants': 'Free Spin 派發記錄',
-  '/admin/freespin-usage': 'Free Spin 使用記錄',
+  '/admin/freespin-grants': 'Freespin 派發管理',
   '/admin/freebet-campaign': 'FreeBet 活動管理',
+  '/admin/game-management': '遊戲管理',
   '/admin/activity-list': '活動列表',
+  '/admin/ops-tools': '運營小工具',
+  '/admin/deposit-records': '存款記錄',
+  '/admin/up-down-score': '上下分紀錄',
+  '/admin/member-stats': '會員日統計',
+  '/admin/member-game-stats': '會員遊戲日統計',
 };
 
 const parentBreadcrumbMap: Record<string, string> = {
   '/admin/members': '會員管理',
+  '/admin/inviter-transfer-log': '會員管理',
   '/admin/vip-rewards': '會員管理',
   '/admin/vip-checkin-log': '會員管理',
   '/admin/vip-config': '會員管理',
   '/admin/freespin-grants': '遊戲管理',
-  '/admin/freespin-usage': '遊戲管理',
   '/admin/freebet-campaign': '遊戲管理',
+  '/admin/game-management': '遊戲管理',
   '/admin/activity-list': '運營管理',
+  '/admin/ops-tools': '運營管理',
+  '/admin/deposit-records': '財務管理',
+  '/admin/up-down-score': '風控管理',
+  '/admin/member-stats': '報表管理',
+  '/admin/member-game-stats': '報表管理',
 };
 
 interface AdminLayoutProps {
@@ -121,9 +158,9 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
   };
 
   const userMenuItems: MenuProps['items'] = [
-    { key: 'profile', icon: <UserOutlined />, label: '個人設定' },
+    { key: 'profile', icon: <UserOutlined />, label: <span data-e2e-id="layout-user-profile">個人設定</span> },
     { type: 'divider' },
-    { key: 'logout', icon: <LogoutOutlined />, label: '登出', danger: true },
+    { key: 'logout', icon: <LogoutOutlined />, label: <span data-e2e-id="layout-user-logout">登出</span>, danger: true },
   ];
 
   // Theme-aware colors
@@ -136,8 +173,9 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
   const headerTextColor = isDark ? '#e8e8e8' : '#333';
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh' }} data-e2e-id="layout-root">
       <Sider
+        data-e2e-id="layout-sider"
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
@@ -155,7 +193,7 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
           zIndex: 100,
         }}
       >
-        <div style={{
+        <div data-e2e-id="layout-sider-logo" style={{
           height: 48,
           display: 'flex',
           alignItems: 'center',
@@ -169,6 +207,7 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
           </Title>
         </div>
         <Menu
+          data-e2e-id="layout-sider-menu"
           theme={isDark ? 'dark' : 'light'}
           mode="inline"
           selectedKeys={[pathname]}
@@ -179,7 +218,7 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
         />
       </Sider>
       <Layout style={{ marginLeft: collapsed ? 80 : 240, transition: 'margin-left 0.2s' }}>
-        <Header style={{
+        <Header data-e2e-id="layout-header" style={{
           background: headerBg,
           borderBottom: `1px solid ${siderBorder}`,
           padding: '0 24px',
@@ -193,6 +232,7 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
           zIndex: 99,
         }}>
           <Breadcrumb
+            data-e2e-id="layout-breadcrumb"
             items={[
               { title: <HomeOutlined /> },
               ...(parentBreadcrumbMap[pathname]
@@ -203,13 +243,15 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
           />
           <Space size="middle">
             <Switch
+              data-e2e-id="layout-theme-toggle"
               checked={isDark}
               onChange={onThemeChange}
               checkedChildren={<MoonOutlined />}
               unCheckedChildren={<SunOutlined />}
             />
-            <BellOutlined style={{ fontSize: 16, color: headerTextColor, cursor: 'pointer' }} />
+            <BellOutlined data-e2e-id="layout-bell-btn" style={{ fontSize: 16, color: headerTextColor, cursor: 'pointer' }} />
             <FullscreenOutlined
+              data-e2e-id="layout-fullscreen-btn"
               style={{ fontSize: 16, color: headerTextColor, cursor: 'pointer' }}
               onClick={() => {
                 if (!document.fullscreenElement) {
@@ -220,14 +262,14 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
               }}
             />
             <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-              <Space style={{ cursor: 'pointer' }}>
+              <Space style={{ cursor: 'pointer' }} data-e2e-id="layout-header-user-menu">
                 <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: '#1668dc' }} />
                 <Text style={{ color: headerTextColor, fontSize: 13 }}>Darren</Text>
               </Space>
             </Dropdown>
           </Space>
         </Header>
-        <Content style={{ padding: 24, background: contentBg, minHeight: 'calc(100vh - 48px)' }}>
+        <Content data-e2e-id="layout-content" style={{ padding: 24, background: contentBg, minHeight: 'calc(100vh - 48px)' }}>
           {children}
         </Content>
       </Layout>

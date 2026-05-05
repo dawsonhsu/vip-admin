@@ -109,11 +109,12 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       title: '活动名称',
       dataIndex: 'name',
       width: 260,
-      render: (value) => (
+      render: (value, record) => (
         <Space>
           <Text>{value}</Text>
           <Tooltip title="复制名称">
             <Button
+              data-e2e-id={`activity-list-table-copy-name-btn-${record.id}`}
               type="text"
               size="small"
               icon={<span style={{ fontSize: 12 }}>📋</span>}
@@ -213,6 +214,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       render: (_, record) => (
         <Space size={0} split={<span style={{ color: '#d9d9d9' }}>|</span>}>
           <Button
+            data-e2e-id={`activity-list-table-edit-config-btn-${record.id}`}
             type="link"
             size="small"
             icon={<EditOutlined />}
@@ -222,6 +224,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
           </Button>
           {FREEBET_ACTIVITY_IDS.has(record.id) && (
             <Button
+              data-e2e-id={`activity-list-table-view-report-btn-${record.id}`}
               type="link"
               size="small"
               icon={<BarChartOutlined />}
@@ -240,10 +243,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <Card size="small" style={{ marginBottom: 16 }}>
         <Form form={form} layout="inline" style={{ gap: 8, flexWrap: 'wrap', rowGap: 8 }}>
           <Form.Item name="id" label="活动ID">
-            <Input placeholder="请输入" allowClear style={{ width: 130 }} />
+            <Input data-e2e-id="activity-list-filter-id-input" placeholder="请输入" allowClear style={{ width: 130 }} />
           </Form.Item>
           <Form.Item name="updatedBy" label="更新人">
-            <Select placeholder="请选择更新人" allowClear style={{ width: 200 }}>
+            <Select data-e2e-id="activity-list-filter-updated-by-select" placeholder="请选择更新人" allowClear style={{ width: 200 }}>
               {updaters.map((u) => (
                 <Select.Option key={u} value={u}>
                   {u}
@@ -252,13 +255,13 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
             </Select>
           </Form.Item>
           <Form.Item name="status" label="活动状态">
-            <Select placeholder="请选择" allowClear style={{ width: 120 }}>
+            <Select data-e2e-id="activity-list-filter-status-select" placeholder="请选择" allowClear style={{ width: 120 }}>
               <Select.Option value="进行中">进行中</Select.Option>
               <Select.Option value="关闭">关闭</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="type" label="活动类型">
-            <Select placeholder="请选择" allowClear style={{ width: 180 }}>
+            <Select data-e2e-id="activity-list-filter-type-select" placeholder="请选择" allowClear style={{ width: 180 }}>
               {activityTypes.map((t) => (
                 <Select.Option key={t} value={t}>
                   {t}
@@ -267,11 +270,12 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
             </Select>
           </Form.Item>
           <Form.Item name="dateRange" label="更新时间">
-            <RangePicker style={{ width: 240 }} />
+            <RangePicker data-e2e-id="activity-list-filter-date-range" style={{ width: 240 }} />
           </Form.Item>
           <Form.Item>
             <Space>
               <Button
+                data-e2e-id="activity-list-filter-query-btn"
                 type="primary"
                 icon={<SearchOutlined />}
                 onClick={() => setFilters(form.getFieldsValue())}
@@ -279,6 +283,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
                 查询
               </Button>
               <Button
+                data-e2e-id="activity-list-filter-reset-btn"
                 icon={<ReloadOutlined />}
                 onClick={() => {
                   form.resetFields();
@@ -300,15 +305,16 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
           gap: 8,
         }}
       >
-        <Button icon={<DownloadOutlined />}>导出</Button>
-        <Button icon={<ReloadOutlined />} />
-        <Button icon={<SettingOutlined />} />
+        <Button data-e2e-id="activity-list-toolbar-export-btn" icon={<DownloadOutlined />}>导出</Button>
+        <Button data-e2e-id="activity-list-toolbar-refresh-btn" icon={<ReloadOutlined />} />
+        <Button data-e2e-id="activity-list-toolbar-settings-btn" icon={<SettingOutlined />} />
       </div>
 
       <Table
         columns={columns}
         dataSource={filtered}
         rowKey="key"
+        onRow={(record) => ({ 'data-e2e-id': `activity-list-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
         size="small"
         scroll={{ x: 2300 }}
         pagination={{
@@ -462,6 +468,7 @@ function VipTaskTable() {
       fixed: 'right',
       render: (_, record) => (
         <Button
+          data-e2e-id={`activity-list-task-table-view-config-btn-${record.taskId}`}
           type="link"
           size="small"
           icon={<EditOutlined />}
@@ -478,6 +485,7 @@ function VipTaskTable() {
       fixed: 'right',
       render: (_, record) => (
         <Button
+          data-e2e-id={`activity-list-task-table-view-report-btn-${record.taskId}`}
           type="link"
           size="small"
           onClick={() => message.info(`奖励报表 ${record.taskId}`)}
@@ -493,16 +501,16 @@ function VipTaskTable() {
       <Card size="small" style={{ marginBottom: 16 }}>
         <Form form={form} layout="inline" style={{ gap: 8, flexWrap: 'wrap', rowGap: 8 }}>
           <Form.Item name="taskId" label="任务ID">
-            <Input placeholder="请输入" allowClear style={{ width: 180 }} />
+            <Input data-e2e-id="activity-list-task-filter-task-id-input" placeholder="请输入" allowClear style={{ width: 180 }} />
           </Form.Item>
           <Form.Item name="status" label="任务状态">
-            <Select placeholder="请选择" allowClear style={{ width: 120 }}>
+            <Select data-e2e-id="activity-list-task-filter-status-select" placeholder="请选择" allowClear style={{ width: 120 }}>
               <Select.Option value="进行中">进行中</Select.Option>
               <Select.Option value="关闭">关闭</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="taskType" label="任务类型">
-            <Select placeholder="请选择" allowClear style={{ width: 140 }}>
+            <Select data-e2e-id="activity-list-task-filter-task-type-select" placeholder="请选择" allowClear style={{ width: 140 }}>
               <Select.Option value="新手任务">新手任务</Select.Option>
               <Select.Option value="日常任务">日常任务</Select.Option>
               <Select.Option value="周常任务">周常任务</Select.Option>
@@ -510,7 +518,7 @@ function VipTaskTable() {
             </Select>
           </Form.Item>
           <Form.Item name="vipRange" label="归属等级">
-            <Select placeholder="请选择" allowClear style={{ width: 120 }}>
+            <Select data-e2e-id="activity-list-task-filter-vip-range-select" placeholder="请选择" allowClear style={{ width: 120 }}>
               <Select.Option value="青铜">青铜</Select.Option>
               <Select.Option value="白银">白银</Select.Option>
               <Select.Option value="黄金">黄金</Select.Option>
@@ -519,6 +527,7 @@ function VipTaskTable() {
           <Form.Item>
             <Space>
               <Button
+                data-e2e-id="activity-list-task-filter-query-btn"
                 type="primary"
                 icon={<SearchOutlined />}
                 onClick={() => setFilters(form.getFieldsValue())}
@@ -526,6 +535,7 @@ function VipTaskTable() {
                 查询
               </Button>
               <Button
+                data-e2e-id="activity-list-task-filter-reset-btn"
                 icon={<ReloadOutlined />}
                 onClick={() => {
                   form.resetFields();
@@ -547,15 +557,16 @@ function VipTaskTable() {
           gap: 8,
         }}
       >
-        <Button icon={<DownloadOutlined />}>导出</Button>
-        <Button icon={<ReloadOutlined />} />
-        <Button icon={<SettingOutlined />} />
+        <Button data-e2e-id="activity-list-task-toolbar-export-btn" icon={<DownloadOutlined />}>导出</Button>
+        <Button data-e2e-id="activity-list-task-toolbar-refresh-btn" icon={<ReloadOutlined />} />
+        <Button data-e2e-id="activity-list-task-toolbar-settings-btn" icon={<SettingOutlined />} />
       </div>
 
       <Table
         columns={columns}
         dataSource={filtered}
         rowKey="key"
+        onRow={(record) => ({ 'data-e2e-id': `activity-list-task-table-row-${record.taskId}` } as React.HTMLAttributes<HTMLTableRowElement>)}
         size="small"
         scroll={{ x: 2600 }}
         pagination={{
@@ -583,22 +594,23 @@ export default function ActivityListPage() {
       </div>
 
       <Tabs
+        data-e2e-id="activity-list-tab"
         activeKey={activeTab}
         onChange={setActiveTab}
         items={[
           {
             key: 'active',
-            label: `限时活动（有效）· ${activeActivities.length}`,
+            label: <span data-e2e-id="activity-list-tab-active">{`限时活动（有效）· ${activeActivities.length}`}</span>,
             children: <ActivityTable data={activeActivities} />,
           },
           {
             key: 'inactive',
-            label: `限时活动（失效）· ${inactiveActivities.length}`,
+            label: <span data-e2e-id="activity-list-tab-inactive">{`限时活动（失效）· ${inactiveActivities.length}`}</span>,
             children: <ActivityTable data={inactiveActivities} />,
           },
           {
             key: 'vipTask',
-            label: `VIP 任务中心 · ${vipTasks.length}`,
+            label: <span data-e2e-id="activity-list-tab-vip-task">{`VIP 任务中心 · ${vipTasks.length}`}</span>,
             children: <VipTaskTable />,
           },
         ]}

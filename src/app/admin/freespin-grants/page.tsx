@@ -80,9 +80,13 @@ type RestrictionCatalogEntry = [GameType, (typeof freeSpinRestrictionCatalog)[Ga
 type DispatchAttempt = FreeSpinGrantItem['dispatchSummary']['attempts'][number];
 type GrantTypeValue = FreeSpinGrantItem['grantType'];
 type BatchIdentifierType = 'phone' | 'uid' | 'account';
+type BatchSourceEntry = {
+  identifier: string;
+  spinOverride: number | null;
+};
 type BatchParsedSource = {
   rawCount: number;
-  identifiers: string[];
+  entries: BatchSourceEntry[];
 };
 type BatchResultRow = {
   key: string;
@@ -95,7 +99,6 @@ type BatchResultData = {
   totalCount: number;
   successCount: number;
   failedCount: number;
-  totalFsAmount: number;
   successList: BatchResultRow[];
   failedList: BatchResultRow[];
 };
@@ -261,12 +264,11 @@ export default function FreeSpinGrantsPage() {
   const [batchIdentifierType, setBatchIdentifierType] = useState<BatchIdentifierType>('uid');
   const [batchSourceFileName, setBatchSourceFileName] = useState<string | null>(null);
   const [batchSourceRawCount, setBatchSourceRawCount] = useState(0);
-  const [batchSourceEntries, setBatchSourceEntries] = useState<string[]>([]);
+  const [batchSourceEntries, setBatchSourceEntries] = useState<BatchSourceEntry[]>([]);
   const [batchSelectedGrantType, setBatchSelectedGrantType] = useState<GrantTypeValue | null>(null);
   const [batchSelectedProviders, setBatchSelectedProviders] = useState<string[]>([]);
   const [batchCoverFileList, setBatchCoverFileList] = useState<UploadFile[]>([]);
   const [batchSubmitting, setBatchSubmitting] = useState(false);
-  const [batchResultStatusFilter, setBatchResultStatusFilter] = useState<'all' | 'success' | 'failed'>('all');
   const [batchResult, setBatchResult] = useState<BatchResultData | null>(null);
   const [drawerGrant, setDrawerGrant] = useState<FreeSpinGrantItem | null>(null);
   const [createCoverFileList, setCreateCoverFileList] = useState<UploadFile[]>([]);
@@ -526,7 +528,6 @@ export default function FreeSpinGrantsPage() {
     setBatchSelectedProviders([]);
     setBatchCoverFileList([]);
     setBatchSubmitting(false);
-    setBatchResultStatusFilter('all');
     setBatchResult(null);
     batchForm.resetFields();
   };
@@ -592,27 +593,38 @@ export default function FreeSpinGrantsPage() {
     const lines = normalizedContent.split('\n').map((line) => line.trim()).filter(Boolean);
 
     if (lines.length === 0) {
-      return { rawCount: 0, identifiers: [] };
+      return { rawCount: 0, entries: [] };
     }
 
     const [firstLine, ...restLines] = lines;
     const firstCell = firstLine.split(',')[0]?.trim().toLowerCase();
     const dataLines = firstCell && batchIdentifierHeaderSet.has(firstCell) ? restLines : lines;
-    const dedupedIdentifiers = new Set<string>();
+    const dedupedEntries = new Map<string, BatchSourceEntry>();
     let rawCount = 0;
 
     dataLines.forEach((line) => {
-      const [identifierCell = ''] = line.split(',');
-      const identifier = normalizeBatchIdentifier(identifierCell, identifierType);
+      const cells = line.split(',');
+      const identifier = normalizeBatchIdentifier(cells[0] || '', identifierType);
       if (!identifier) return;
 
+      const rawSpin = (cells[1] || '').trim();
+      let spinOverride: number | null = null;
+      if (rawSpin) {
+        const parsed = Number(rawSpin);
+        if (Number.isInteger(parsed) && parsed > 0 && parsed <= 999999) {
+          spinOverride = parsed;
+        }
+      }
+
       rawCount += 1;
-      dedupedIdentifiers.add(identifier);
+      if (!dedupedEntries.has(identifier)) {
+        dedupedEntries.set(identifier, { identifier, spinOverride });
+      }
     });
 
     return {
       rawCount,
-      identifiers: Array.from(dedupedIdentifiers),
+      entries: Array.from(dedupedEntries.values()),
     };
   };
 
@@ -637,22 +649,22 @@ export default function FreeSpinGrantsPage() {
 
     try {
       const content = await readTextFile(file);
-      const { rawCount, identifiers } = parseBatchIdentifiers(content, batchIdentifierType);
+      const { rawCount, entries } = parseBatchIdentifiers(content, batchIdentifierType);
 
       if (rawCount === 0) {
         message.error('名單內容為空');
         return Upload.LIST_IGNORE;
       }
 
-      if (rawCount > 10000) {
-        message.error('單次上傳不可超過 10,000 行，請拆批');
+      if (rawCount > 200000) {
+        message.error('單次上傳不可超過 200,000 行，請拆批');
         return Upload.LIST_IGNORE;
       }
 
       setBatchSourceFileName(file.name);
       setBatchSourceRawCount(rawCount);
-      setBatchSourceEntries(identifiers);
-      message.success(`名單解析完成：${identifiers.length} 筆`);
+      setBatchSourceEntries(entries);
+      message.success(`名單解析完成：${entries.length} 筆`);
     } catch {
       message.error('名單解析失敗，請確認為 UTF-8 編碼');
     }
@@ -661,7 +673,15 @@ export default function FreeSpinGrantsPage() {
   };
 
   const downloadBatchTemplate = () => {
-    downloadTextFile('freespin-batch-template.csv', ['identifier', 'example_uid_001', 'example_uid_002', 'example_uid_003'].join('\n'));
+    downloadTextFile(
+      'freespin-batch-template.csv',
+      [
+        'identifier,spin_count',
+        'example_uid_001,10',
+        'example_uid_002,',
+        'example_uid_003,25',
+      ].join('\n'),
+    );
   };
 
   const createFormSubmit = (values: any) => {
@@ -696,7 +716,8 @@ export default function FreeSpinGrantsPage() {
       const failedList: BatchResultRow[] = [];
       const newGrants: FreeSpinGrantItem[] = [];
 
-      batchSourceEntries.forEach((identifier, index) => {
+      batchSourceEntries.forEach((entry, index) => {
+        const { identifier, spinOverride } = entry;
         const playerId = resolveBatchPlayerId(identifier, batchIdentifierType);
 
         if (!playerId) {
@@ -710,9 +731,10 @@ export default function FreeSpinGrantsPage() {
           return;
         }
 
+        const rowValues = spinOverride !== null ? { ...values, totalSpins: spinOverride } : values;
         newGrants.push(
           buildGrantPayload(
-            values,
+            rowValues,
             playerId,
             nextSeed + newGrants.length + 1,
             'admin (batch)',
@@ -736,13 +758,11 @@ export default function FreeSpinGrantsPage() {
         totalCount: batchSourceEntries.length,
         successCount: successList.length,
         failedCount: failedList.length,
-        totalFsAmount: successList.length * (values.totalSpins || 0),
         successList,
         failedList,
       };
 
       setBatchResult(nextResult);
-      setBatchResultStatusFilter('all');
       setBatchStep(2);
       message.success(`派發完成：成功 ${successList.length} / 失敗 ${failedList.length}`);
     } finally {
@@ -1096,18 +1116,34 @@ export default function FreeSpinGrantsPage() {
 
   const batchResultRows = useMemo(() => {
     if (!batchResult) return [];
-    const rows = [...batchResult.successList, ...batchResult.failedList];
-    if (batchResultStatusFilter === 'all') return rows;
-    return rows.filter((row) => row.status === batchResultStatusFilter);
-  }, [batchResult, batchResultStatusFilter]);
+    return batchResult.failedList;
+  }, [batchResult]);
 
   const batchResultColumns: ColumnsType<BatchResultRow> = [
     { title: 'identifier_raw', dataIndex: 'identifierRaw', width: 200 },
     {
-      title: 'user_id',
+      title: 'UID',
       dataIndex: 'userId',
-      width: 160,
-      render: (value: string | null) => value || <Text type="secondary">—</Text>,
+      width: 180,
+      render: (value: string | null, record) => {
+        const uid = resolveBatchPlayerId(record.identifierRaw, batchIdentifierType) ?? value;
+        if (!uid) return <Text type="secondary">—</Text>;
+        return (
+          <Space size={4}>
+            <Text style={{ fontSize: 12 }}>{uid}</Text>
+            <Button
+              data-e2e-id={`freespin-grants-batch-result-copy-uid-btn-${record.key}`}
+              type="text"
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={(event) => {
+                event.stopPropagation();
+                copyToClipboard(uid);
+              }}
+            />
+          </Space>
+        );
+      },
     },
     {
       title: '狀態',
@@ -1126,14 +1162,17 @@ export default function FreeSpinGrantsPage() {
     },
   ];
 
-  const downloadBatchResultCsv = (status: 'success' | 'failed') => {
+  const downloadBatchResultCsv = () => {
     if (!batchResult) return;
-    const rows = status === 'success' ? batchResult.successList : batchResult.failedList;
+    const rows = batchResult.failedList;
     const csv = [
-      'identifier_raw,user_id,status,failure_reason',
-      ...rows.map((row) => [row.identifierRaw, row.userId || '', row.status, row.failureReason || ''].join(',')),
+      'identifier_raw,uid,status,failure_reason',
+      ...rows.map((row) => {
+        const uid = resolveBatchPlayerId(row.identifierRaw, batchIdentifierType) ?? row.userId ?? '';
+        return [row.identifierRaw, uid, row.status, row.failureReason || ''].join(',');
+      }),
     ].join('\n');
-    downloadTextFile(`freespin-batch-${status}.csv`, csv);
+    downloadTextFile('freespin-batch-failed.csv', csv);
   };
 
   const onSearch = () => {
@@ -1547,7 +1586,6 @@ export default function FreeSpinGrantsPage() {
 
                   <Space>
                     <Button data-e2e-id="freespin-grants-batch-step2-template-download-btn" icon={<DownloadOutlined />} onClick={downloadBatchTemplate}>下載範本</Button>
-                    <Text type="secondary">單欄 CSV，header 為 `identifier`</Text>
                   </Space>
 
                   <Upload.Dragger
@@ -1560,7 +1598,7 @@ export default function FreeSpinGrantsPage() {
                       <TeamOutlined />
                     </p>
                     <p className="ant-upload-text">拖曳或點擊上傳 CSV / TXT</p>
-                    <p className="ant-upload-hint">自動忽略空行、跳過 header、去重；UTF-8；上限 10,000 行</p>
+                    <p className="ant-upload-hint">支援 1 欄或 2 欄（第 2 欄逐筆指定次數，留空以「預設次數」派發）；自動忽略空行、跳過 header、去重；UTF-8；上限 200,000 行</p>
                   </Upload.Dragger>
 
                   <Descriptions size="small" bordered column={1}>
@@ -1568,13 +1606,6 @@ export default function FreeSpinGrantsPage() {
                     <Descriptions.Item label="原始上傳行數">{batchSourceRawCount || '—'}</Descriptions.Item>
                     <Descriptions.Item label="去重後名單數">{batchSourceEntries.length || '—'}</Descriptions.Item>
                   </Descriptions>
-
-                  <Alert
-                    type="info"
-                    showIcon
-                    message={`送出後將直接執行派發${batchSourceEntries.length > 0 ? `，本批共 ${batchSourceEntries.length} 筆名單` : ''}`}
-                    description="Mock 階段僅排除查無會員，不顯示預覽確認頁，也不提供整批作廢或失敗清單再派。"
-                  />
                 </Space>
               </Card>
             </Space>
@@ -1583,37 +1614,17 @@ export default function FreeSpinGrantsPage() {
           {batchResult && (
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
               <Row gutter={16}>
-                <Col span={6}><Card size="small"><Statistic title="總筆數" value={batchResult.totalCount} /></Card></Col>
-                <Col span={6}><Card size="small"><Statistic title="成功" value={batchResult.successCount} valueStyle={{ color: '#52c41a' }} /></Card></Col>
-                <Col span={6}><Card size="small"><Statistic title="失敗" value={batchResult.failedCount} valueStyle={{ color: '#ff4d4f' }} /></Card></Col>
-                <Col span={6}><Card size="small"><Statistic title="派發 FS 總額" value={batchResult.totalFsAmount} /></Card></Col>
+                <Col span={8}><Card size="small"><Statistic title="總筆數" value={batchResult.totalCount} /></Card></Col>
+                <Col span={8}><Card size="small"><Statistic title="成功" value={batchResult.successCount} valueStyle={{ color: '#52c41a' }} /></Card></Col>
+                <Col span={8}><Card size="small"><Statistic title="失敗" value={batchResult.failedCount} valueStyle={{ color: '#ff4d4f' }} /></Card></Col>
               </Row>
-
-              <Card size="small" title="失敗分類統計">
-                <Row gutter={16}>
-                  <Col span={8}><Statistic title="查無會員" value={batchResult.failedList.filter((row) => row.failureReason === '查無會員').length} /></Col>
-                  <Col span={8}><Statistic title="廠商 callback 失敗" value={0} /></Col>
-                  <Col span={8}><Statistic title="其他" value={batchResult.failedList.filter((row) => row.failureReason && row.failureReason !== '查無會員').length} /></Col>
-                </Row>
-              </Card>
 
               <Card
                 size="small"
-                title="派發明細"
+                title="派發明細（僅顯示失敗）"
                 extra={(
                   <Space wrap>
-                    <Radio.Group
-                      value={batchResultStatusFilter}
-                      onChange={(event) => setBatchResultStatusFilter(event.target.value)}
-                      optionType="button"
-                      buttonStyle="solid"
-                    >
-                      <Radio.Button value="all">全部</Radio.Button>
-                      <Radio.Button value="success">成功</Radio.Button>
-                      <Radio.Button value="failed">失敗</Radio.Button>
-                    </Radio.Group>
-                    <Button icon={<DownloadOutlined />} onClick={() => downloadBatchResultCsv('success')}>下載成功 CSV</Button>
-                    <Button icon={<DownloadOutlined />} onClick={() => downloadBatchResultCsv('failed')}>下載失敗 CSV</Button>
+                    <Button icon={<DownloadOutlined />} onClick={downloadBatchResultCsv}>下載失敗 CSV</Button>
                   </Space>
                 )}
               >

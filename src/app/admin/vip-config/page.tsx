@@ -65,12 +65,12 @@ export default function VipConfigPage() {
     { title: '序號', dataIndex: 'id', width: 60, fixed: 'left', align: 'center' },
     {
       title: '等級區間', dataIndex: 'tierRange', width: 100, fixed: 'left', align: 'center',
-      render: (val) => <Tag color={tierColors[val]}>{val}</Tag>,
+      render: (val, record) => <Tag data-e2e-id={`vip-config-table-tier-tag-${record.id}`} color={tierColors[val]}>{val}</Tag>,
       onCell: (record, index) => getTierRowSpan(record, index),
     },
     {
       title: 'VIP等級', dataIndex: 'vipLevel', width: 80, align: 'center',
-      render: (val) => <Tag color="blue">V{val}</Tag>,
+      render: (val, record) => <Tag data-e2e-id={`vip-config-table-vip-tag-${record.id}`} color="blue">V{val}</Tag>,
     },
     {
       title: 'XP要求', dataIndex: 'xpRequired', width: 120, align: 'right',
@@ -124,39 +124,39 @@ export default function VipConfigPage() {
     {
       title: titleWithTip('第6天', '該 VIP 等級連續簽到 6 天時，第 6 天時獲得的獎勵。'),
       dataIndex: 'day6', width: 90, align: 'center',
-      render: (val) => <Tag color="gold">₱{val}</Tag>,
+      render: (val, record) => <Tag data-e2e-id={`vip-config-table-day6-tag-${record.id}`} color="gold">₱{val}</Tag>,
     },
     {
       title: titleWithTip('第7天', '該 VIP 等級連續簽到 7 天時，第 7 天時獲得的獎勵。'),
       dataIndex: 'day7P', width: 140, align: 'center',
-      render: (val, record) => <Tag color="green">₱{val} + {record.day7FS}FS</Tag>,
+      render: (val, record) => <Tag data-e2e-id={`vip-config-table-day7-tag-${record.id}`} color="green">₱{val} + {record.day7FS}FS</Tag>,
     },
     {
       title: titleWithTip('第16天', '該 VIP 等級連續簽到 16 天時，第 16 天時獲得的獎勵。'),
       dataIndex: 'day16', width: 90, align: 'center',
-      render: (val) => <Tag color="gold">₱{val}</Tag>,
+      render: (val, record) => <Tag data-e2e-id={`vip-config-table-day16-tag-${record.id}`} color="gold">₱{val}</Tag>,
     },
     {
       title: titleWithTip('第17天', '該 VIP 等級連續簽到 17 天時，第 17 天時獲得的獎勵。'),
       dataIndex: 'day17P', width: 140, align: 'center',
-      render: (val, record) => <Tag color="green">₱{val} + {record.day17FS}FS</Tag>,
+      render: (val, record) => <Tag data-e2e-id={`vip-config-table-day17-tag-${record.id}`} color="green">₱{val} + {record.day17FS}FS</Tag>,
     },
     {
       title: titleWithTip('第26天', '該 VIP 等級連續簽到 26 天時，第 26 天時獲得的獎勵。'),
       dataIndex: 'day26', width: 90, align: 'center',
-      render: (val) => <Tag color="gold">₱{val}</Tag>,
+      render: (val, record) => <Tag data-e2e-id={`vip-config-table-day26-tag-${record.id}`} color="gold">₱{val}</Tag>,
     },
     {
       title: titleWithTip('第27天', '該 VIP 等級連續簽到 27 天時，第 27 天時獲得的獎勵。'),
       dataIndex: 'day27P', width: 140, align: 'center',
-      render: (val, record) => <Tag color="purple">₱{val} + {record.day27FS}FS</Tag>,
+      render: (val, record) => <Tag data-e2e-id={`vip-config-table-day27-tag-${record.id}`} color="purple">₱{val} + {record.day27FS}FS</Tag>,
     },
     { title: '維護人', dataIndex: 'maintainer', width: 160 },
     { title: '維護時間', dataIndex: 'maintainTime', width: 170 },
     {
       title: '操作', width: 80, fixed: 'right', align: 'center',
       render: (_, record) => (
-        <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} size="small">
+        <Button data-e2e-id={`vip-config-table-edit-btn-${record.id}`} type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} size="small">
           編輯
         </Button>
       ),
@@ -178,6 +178,7 @@ export default function VipConfigPage() {
           columns={columns}
           dataSource={data}
           rowKey="id"
+          onRow={(record) => ({ 'data-e2e-id': `vip-config-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
           scroll={{ x: 3200 }}
           pagination={false}
           size="small"
@@ -205,53 +206,55 @@ export default function VipConfigPage() {
         cancelText="取消"
       >
         {editingRecord && (
-          <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+          <div data-e2e-id="vip-config-modal">
+            <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
             {/* 基本設定 */}
             <Divider orientation="left" orientationMargin={0}>基本設定</Divider>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
               <Form.Item label="等級區間" name="tierRange">
-                <Input disabled />
+                <Input data-e2e-id="vip-config-form-tier-range-input" disabled />
               </Form.Item>
               <Form.Item label="VIP 等級" name="vipLevel">
-                <InputNumber disabled style={{ width: '100%' }} />
+                <InputNumber data-e2e-id="vip-config-form-vip-level-input" disabled style={{ width: '100%' }} />
               </Form.Item>
               <Form.Item label="XP 要求" name="xpRequired" rules={[{ required: true }]}>
-                <InputNumber style={{ width: '100%' }} min={0} formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} />
+                <InputNumber data-e2e-id="vip-config-form-xp-required-input" style={{ width: '100%' }} min={0} formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} />
               </Form.Item>
             </div>
 
             {/* 獎勵設定 — 頁籤 */}
             <Divider orientation="left" orientationMargin={0}>獎勵設定</Divider>
             <Tabs
+              data-e2e-id="vip-config-tab"
               defaultActiveKey="basic"
               items={[
                 {
                   key: 'basic',
-                  label: '基礎獎勵',
+                  label: <span data-e2e-id="vip-config-tab-basic">基礎獎勵</span>,
                   children: (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
                         <Form.Item label="升級禮金 (₱)" name="upgradeBonus" rules={[{ required: true }]}>
-                          <InputNumber style={{ width: '100%' }} min={0} />
+                          <InputNumber data-e2e-id="vip-config-form-upgrade-bonus-input" style={{ width: '100%' }} min={0} />
                         </Form.Item>
                         <Form.Item label="流水要求" name="upgradeBonusFlow" rules={[{ required: true }]}>
-                          <InputNumber style={{ width: '100%' }} min={0} addonAfter="倍" />
+                          <InputNumber data-e2e-id="vip-config-form-upgrade-bonus-flow-input" style={{ width: '100%' }} min={0} addonAfter="倍" />
                         </Form.Item>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
                         <Form.Item label="生日禮金 (₱)" name="birthdayBonus" rules={[{ required: true }]}>
-                          <InputNumber style={{ width: '100%' }} min={0} />
+                          <InputNumber data-e2e-id="vip-config-form-birthday-bonus-input" style={{ width: '100%' }} min={0} />
                         </Form.Item>
                         <Form.Item label="流水要求" name="birthdayBonusFlow" rules={[{ required: true }]}>
-                          <InputNumber style={{ width: '100%' }} min={0} addonAfter="倍" />
+                          <InputNumber data-e2e-id="vip-config-form-birthday-bonus-flow-input" style={{ width: '100%' }} min={0} addonAfter="倍" />
                         </Form.Item>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
                         <Form.Item label="每日負盈利" name="dailyNegReturn" rules={[{ required: true }]}>
-                          <Input style={{ width: '100%' }} placeholder="例：3%" />
+                          <Input data-e2e-id="vip-config-form-daily-neg-return-input" style={{ width: '100%' }} placeholder="例：3%" />
                         </Form.Item>
                         <Form.Item label="流水要求" name="dailyNegReturnFlow" rules={[{ required: true }]}>
-                          <InputNumber style={{ width: '100%' }} min={0} addonAfter="倍" />
+                          <InputNumber data-e2e-id="vip-config-form-daily-neg-return-flow-input" style={{ width: '100%' }} min={0} addonAfter="倍" />
                         </Form.Item>
                       </div>
                     </div>
@@ -259,7 +262,7 @@ export default function VipConfigPage() {
                 },
                 {
                   key: 'biweekly',
-                  label: '半月禮金',
+                  label: <span data-e2e-id="vip-config-tab-biweekly">半月禮金</span>,
                   children: (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 16px' }}>
                       <Form.Item label="累計存款要求 (₱)" name="biweeklyDepositMin" rules={[{ required: true }]}>
@@ -285,7 +288,7 @@ export default function VipConfigPage() {
                 },
                 {
                   key: 'checkin',
-                  label: '簽到',
+                  label: <span data-e2e-id="vip-config-tab-checkin">簽到</span>,
                   children: (
                     <>
                       <Alert
@@ -394,6 +397,7 @@ export default function VipConfigPage() {
               ]}
             />
           </Form>
+          </div>
         )}
       </Modal>
     </div>

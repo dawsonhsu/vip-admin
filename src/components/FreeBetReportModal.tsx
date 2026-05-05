@@ -74,6 +74,13 @@ function getAvailableActions(record: FreeBetGrantRecord): string[] {
   return actions;
 }
 
+function getActionKey(action: string) {
+  if (action === '同步状态') return 'sync-status';
+  if (action === '取消') return 'cancel';
+  if (action === '重试发放') return 'retry-grant';
+  return 'action';
+}
+
 function confirmAction(action: string, record: FreeBetGrantRecord) {
   if (action === '同步状态') {
     message.success(`已对 ${record.playerAccount} 发起 BTi 状态同步`);
@@ -407,6 +414,7 @@ export default function FreeBetReportModal({
           <Space size={4} wrap>
             {actions.map((action) => (
               <Button
+                data-e2e-id={`freebet-report-modal-table-action-btn-${getActionKey(action)}-${record.id}`}
                 key={action}
                 type="link"
                 size="small"
@@ -435,27 +443,28 @@ export default function FreeBetReportModal({
       onCancel={onClose}
       footer={
         <div style={{ textAlign: 'right' }}>
-          <Button onClick={onClose}>关闭</Button>
+          <Button data-e2e-id="freebet-report-modal-footer-close-btn" onClick={onClose}>关闭</Button>
         </div>
       }
       width="94%"
       style={{ top: 20 }}
       styles={{ body: { maxHeight: '78vh', overflowY: 'auto', padding: 16 } }}
     >
+      <div data-e2e-id="freebet-report-modal-modal">
       {/* Filters */}
       <Card size="small" style={{ marginBottom: 12 }}>
         <Form form={form} layout="inline" style={{ gap: 8, rowGap: 8, flexWrap: 'wrap' }}>
           <Form.Item name="uid" label="UID">
-            <Input placeholder="输入 UID" allowClear style={{ width: 120 }} />
+            <Input data-e2e-id="freebet-report-modal-filter-uid-input" placeholder="输入 UID" allowClear style={{ width: 120 }} />
           </Form.Item>
           <Form.Item name="playerAccount" label="会员账号">
-            <Input placeholder="输入账号" allowClear style={{ width: 140 }} />
+            <Input data-e2e-id="freebet-report-modal-filter-player-account-input" placeholder="输入账号" allowClear style={{ width: 140 }} />
           </Form.Item>
           <Form.Item name="phone" label="手机号">
-            <Input placeholder="输入手机号" allowClear style={{ width: 140 }} />
+            <Input data-e2e-id="freebet-report-modal-filter-phone-input" placeholder="输入手机号" allowClear style={{ width: 140 }} />
           </Form.Item>
           <Form.Item name="vipLevelAtSettlement" label="VIP">
-            <Select placeholder="全部" allowClear style={{ width: 100 }}>
+            <Select data-e2e-id="freebet-report-modal-filter-vip-level-select" placeholder="全部" allowClear style={{ width: 100 }}>
               {Array.from({ length: 30 }, (_, i) => (
                 <Select.Option key={i + 1} value={i + 1}>
                   VIP{i + 1}
@@ -464,14 +473,14 @@ export default function FreeBetReportModal({
             </Select>
           </Form.Item>
           <Form.Item name="grantStatus" label="发放状态">
-            <Select placeholder="全部" allowClear style={{ width: 100 }}>
+            <Select data-e2e-id="freebet-report-modal-filter-grant-status-select" placeholder="全部" allowClear style={{ width: 100 }}>
               <Select.Option value="success">成功</Select.Option>
               <Select.Option value="warning">警告</Select.Option>
               <Select.Option value="failed">失败</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item name="btiStatusCode" label="BTi 状态">
-            <Select placeholder="全部" allowClear style={{ width: 140 }}>
+            <Select data-e2e-id="freebet-report-modal-filter-bti-status-select" placeholder="全部" allowClear style={{ width: 140 }}>
               {Object.entries(BTI_STATUS_MAP).map(([code, info]) => (
                 <Select.Option key={code} value={Number(code)}>
                   {info.label}
@@ -480,11 +489,12 @@ export default function FreeBetReportModal({
             </Select>
           </Form.Item>
           <Form.Item name="dateRange" label="发放时间">
-            <RangePicker style={{ width: 240 }} />
+            <RangePicker data-e2e-id="freebet-report-modal-filter-date-range" style={{ width: 240 }} />
           </Form.Item>
           <Form.Item>
             <Space>
               <Button
+                data-e2e-id="freebet-report-modal-filter-query-btn"
                 type="primary"
                 icon={<SearchOutlined />}
                 onClick={() => setFilters(form.getFieldsValue())}
@@ -492,6 +502,7 @@ export default function FreeBetReportModal({
                 查询
               </Button>
               <Button
+                data-e2e-id="freebet-report-modal-filter-reset-btn"
                 icon={<ReloadOutlined />}
                 onClick={() => {
                   const today = getTodayRange();
@@ -564,7 +575,7 @@ export default function FreeBetReportModal({
           gap: 8,
         }}
       >
-        <Button icon={<DownloadOutlined />}>导出</Button>
+        <Button data-e2e-id="freebet-report-modal-toolbar-export-btn" icon={<DownloadOutlined />}>导出</Button>
       </div>
 
       {/* Table */}
@@ -575,6 +586,7 @@ export default function FreeBetReportModal({
             <Space>
               <Text>已选 {selectedRowKeys.length} 笔</Text>
               <Button
+                data-e2e-id="freebet-report-modal-toolbar-batch-sync-btn"
                 size="small"
                 icon={<SyncOutlined />}
                 onClick={handleBatchSync}
@@ -582,6 +594,7 @@ export default function FreeBetReportModal({
                 批次同步状态
               </Button>
               <Button
+                data-e2e-id="freebet-report-modal-toolbar-clear-selection-btn"
                 size="small"
                 icon={<CloseCircleOutlined />}
                 onClick={() => setSelectedRowKeys([])}
@@ -596,6 +609,7 @@ export default function FreeBetReportModal({
           columns={grantColumns}
           dataSource={filteredGrants}
           rowKey="id"
+          onRow={(record) => ({ 'data-e2e-id': `freebet-report-modal-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
           size="small"
           scroll={{ x: 2380 }}
           rowSelection={{
@@ -609,6 +623,7 @@ export default function FreeBetReportModal({
           }}
         />
       </Card>
+      </div>
     </Modal>
   );
 }

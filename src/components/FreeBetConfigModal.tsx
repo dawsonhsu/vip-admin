@@ -41,6 +41,10 @@ const VIP_SEGMENTS = [
   { key: 'diamond_supreme', label: '钻石至尊', range: 'VIP 26-30' },
 ];
 
+function getActionKey(action: string) {
+  return action === '取消' ? 'cancel' : action === '保存' ? 'save' : action === '编辑' ? 'edit' : 'action';
+}
+
 interface FreeBetConfigModalProps {
   open: boolean;
   onClose: () => void;
@@ -92,7 +96,7 @@ export default function FreeBetConfigModal({ open, onClose }: FreeBetConfigModal
         if (editingConfigKey === record.key) {
           return (
             <Form.Item name="bonusId" style={{ margin: 0 }}>
-              <InputNumber style={{ width: 120 }} />
+              <InputNumber data-e2e-id={`freebet-config-modal-table-bonus-id-input-${record.key}`} style={{ width: 120 }} />
             </Form.Item>
           );
         }
@@ -106,7 +110,7 @@ export default function FreeBetConfigModal({ open, onClose }: FreeBetConfigModal
         if (editingConfigKey === record.key) {
           return (
             <Form.Item name="rewardAmount" style={{ margin: 0 }}>
-              <InputNumber style={{ width: '100%' }} prefix="₱" />
+              <InputNumber data-e2e-id={`freebet-config-modal-table-reward-amount-input-${record.key}`} style={{ width: '100%' }} prefix="₱" />
             </Form.Item>
           );
         }
@@ -126,10 +130,11 @@ export default function FreeBetConfigModal({ open, onClose }: FreeBetConfigModal
         if (editingConfigKey === record.key) {
           return (
             <Space size={4}>
-              <Button type="link" size="small" onClick={() => setEditingConfigKey(null)}>
+              <Button data-e2e-id={`freebet-config-modal-table-${getActionKey('取消')}-btn-${record.key}`} type="link" size="small" onClick={() => setEditingConfigKey(null)}>
                 取消
               </Button>
               <Button
+                data-e2e-id={`freebet-config-modal-table-save-btn-${record.key}`}
                 type="link"
                 size="small"
                 icon={<SaveOutlined />}
@@ -142,6 +147,7 @@ export default function FreeBetConfigModal({ open, onClose }: FreeBetConfigModal
         }
         return (
           <Button
+            data-e2e-id={`freebet-config-modal-table-edit-btn-${record.key}`}
             type="link"
             size="small"
             icon={<EditOutlined />}
@@ -175,164 +181,173 @@ export default function FreeBetConfigModal({ open, onClose }: FreeBetConfigModal
       onOk={handleOk}
       okText="OK"
       cancelText="Cancel"
+      okButtonProps={{ 'data-e2e-id': 'freebet-config-modal-footer-submit-btn' }}
+      cancelButtonProps={{ 'data-e2e-id': 'freebet-config-modal-footer-cancel-btn' }}
       width={1060}
       styles={{ body: { maxHeight: '65vh', overflowY: 'auto', paddingRight: 16 } }}
       centered
     >
-      <Form
-        form={form}
-        labelCol={{ span: 5 }}
-        wrapperCol={{ span: 18 }}
-        labelAlign="right"
-        initialValues={{
-          activityType: 'extra',
-          activityId: 29,
-          name: '世界杯冠军 FreeBet',
-          ruleSource: 'code',
-          status: 'active',
-          timeRange: [dayjs('2026-05-01 00:00:00'), dayjs('2026-06-10 23:59:59')],
-          introSource: 'frontend',
-          orderReview: 'auto',
-          autoCredit: 'auto',
-          wagerLimit: [],
-          wagerRequirement: 0,
-          googleCode: undefined,
-        }}
-      >
-        {/* 活动类型：与 FAT 保持一致；FreeBet 归类为附加类 */}
-        <Form.Item label="活动类型" name="activityType" rules={[{ required: true }]}>
-          <Radio.Group>
-            <Radio value="blindbox">盲盒类</Radio>
-            <Radio value="rebate">返水类</Radio>
-            <Radio value="deposit">首存类</Radio>
-            <Radio value="leaderboard">排行榜类</Radio>
-            <Radio value="extra">附加类</Radio>
-          </Radio.Group>
-        </Form.Item>
-
-        <Form.Item label="活动ID" name="activityId" rules={[{ required: true }]}>
-          <InputNumber disabled style={{ width: '100%' }} />
-        </Form.Item>
-
-        <Form.Item label="活动名称" name="name" rules={[{ required: true }]}>
-          <Input placeholder="请输入活动名称" />
-        </Form.Item>
-
-        <Form.Item
-          label="活动规则来源"
-          name="ruleSource"
-          rules={[{ required: true }]}
+      <div data-e2e-id="freebet-config-modal-modal">
+        <Form
+          form={form}
+          labelCol={{ span: 5 }}
+          wrapperCol={{ span: 18 }}
+          labelAlign="right"
+          initialValues={{
+            activityType: 'extra',
+            activityId: 29,
+            name: '世界杯冠军 FreeBet',
+            ruleSource: 'code',
+            status: 'active',
+            timeRange: [dayjs('2026-05-01 00:00:00'), dayjs('2026-06-10 23:59:59')],
+            introSource: 'frontend',
+            orderReview: 'auto',
+            autoCredit: 'auto',
+            wagerLimit: [],
+            wagerRequirement: 0,
+            googleCode: undefined,
+          }}
         >
-          <Radio.Group>
-            <Radio value="backend">后台配置</Radio>
-            <Radio value="code">开发代码配置</Radio>
-          </Radio.Group>
-        </Form.Item>
+          {/* 活动类型：与 FAT 保持一致；FreeBet 归类为附加类 */}
+          <Form.Item label="活动类型" name="activityType" rules={[{ required: true }]}>
+            <Radio.Group data-e2e-id="freebet-config-modal-form-activity-type-radio">
+              <Radio value="blindbox">盲盒类</Radio>
+              <Radio value="rebate">返水类</Radio>
+              <Radio value="deposit">首存类</Radio>
+              <Radio value="leaderboard">排行榜类</Radio>
+              <Radio value="extra">附加类</Radio>
+            </Radio.Group>
+          </Form.Item>
 
-        <Form.Item label="活动状态" name="status" rules={[{ required: true }]}>
-          <Select
-            options={[
-              { value: 'active', label: '有效' },
-              { value: 'closed', label: '失效' },
-            ]}
-          />
-        </Form.Item>
+          <Form.Item label="活动ID" name="activityId" rules={[{ required: true }]}>
+            <InputNumber data-e2e-id="freebet-config-modal-form-activity-id-input" disabled style={{ width: '100%' }} />
+          </Form.Item>
 
-        <Form.Item
-          label="活动持续时间"
-          name="timeRange"
-          rules={[{ required: true }]}
-        >
-          <RangePicker
-            showTime
-            style={{ width: '100%' }}
-            format="YYYY-MM-DD HH:mm:ss"
-          />
-        </Form.Item>
+          <Form.Item label="活动名称" name="name" rules={[{ required: true }]}>
+            <Input data-e2e-id="freebet-config-modal-form-name-input" placeholder="请输入活动名称" />
+          </Form.Item>
 
-        <Form.Item
-          label="活动介绍页来源"
-          name="introSource"
-          rules={[{ required: true }]}
-        >
-          <Radio.Group>
-            <Radio value="backend">后台配置</Radio>
-            <Radio value="frontend">前端开发设计</Radio>
-          </Radio.Group>
-        </Form.Item>
+          <Form.Item
+            label="活动规则来源"
+            name="ruleSource"
+            rules={[{ required: true }]}
+          >
+            <Radio.Group data-e2e-id="freebet-config-modal-form-rule-source-radio">
+              <Radio value="backend">后台配置</Radio>
+              <Radio value="code">开发代码配置</Radio>
+            </Radio.Group>
+          </Form.Item>
 
-        {/* FreeBet 奖励配置 */}
-        <Form.Item label="FreeBet 奖励配置" required>
-          <Form form={editForm} component={false}>
-            <Table
-              columns={rewardColumns}
-              dataSource={configData}
-              rowKey="key"
-              size="small"
-              pagination={false}
-              scroll={{ y: 360 }}
+          <Form.Item label="活动状态" name="status" rules={[{ required: true }]}>
+            <Select
+              data-e2e-id="freebet-config-modal-form-status-select"
+              options={[
+                { value: 'active', label: '有效' },
+                { value: 'closed', label: '失效' },
+              ]}
             />
-          </Form>
-        </Form.Item>
+          </Form.Item>
 
-        <Form.Item
-          label="订单审核方式"
-          name="orderReview"
-          rules={[{ required: true }]}
-        >
-          <Radio.Group>
-            <Radio value="auto">自动</Radio>
-            <Radio value="manual">人工</Radio>
-          </Radio.Group>
-        </Form.Item>
+          <Form.Item
+            label="活动持续时间"
+            name="timeRange"
+            rules={[{ required: true }]}
+          >
+            <RangePicker
+              data-e2e-id="freebet-config-modal-form-time-range"
+              showTime
+              style={{ width: '100%' }}
+              format="YYYY-MM-DD HH:mm:ss"
+            />
+          </Form.Item>
 
-        <Form.Item
-          label="是否自动到帐"
-          name="autoCredit"
-          rules={[{ required: true }]}
-        >
-          <Radio.Group>
-            <Radio value="manual">手动领取</Radio>
-            <Radio value="auto">自动到账</Radio>
-          </Radio.Group>
-        </Form.Item>
+          <Form.Item
+            label="活动介绍页来源"
+            name="introSource"
+            rules={[{ required: true }]}
+          >
+            <Radio.Group data-e2e-id="freebet-config-modal-form-intro-source-radio">
+              <Radio value="backend">后台配置</Radio>
+              <Radio value="frontend">前端开发设计</Radio>
+            </Radio.Group>
+          </Form.Item>
 
-        <Form.Item label="流水场馆/游戏限制" name="wagerLimit">
-          <Select
-            mode="tags"
-            style={{ width: '100%' }}
-            placeholder="添加允许流水的场馆或游戏"
-            options={[
-              { value: 'BTi Sports', label: 'BTi Sports' },
-              { value: 'FIFA World Cup Champion', label: 'FIFA World Cup Champion' },
-              { value: 'PBA', label: 'PBA' },
-              { value: 'NBA', label: 'NBA' },
-              { value: 'Saba Sports', label: 'Saba Sports' },
-            ]}
-          />
-        </Form.Item>
+          {/* FreeBet 奖励配置 */}
+          <Form.Item label="FreeBet 奖励配置" required>
+            <Form form={editForm} component={false}>
+              <Table
+                columns={rewardColumns}
+                dataSource={configData}
+                rowKey="key"
+                onRow={(record) => ({ 'data-e2e-id': `freebet-config-modal-table-row-${record.key}` } as React.HTMLAttributes<HTMLTableRowElement>)}
+                size="small"
+                pagination={false}
+                scroll={{ y: 360 }}
+              />
+            </Form>
+          </Form.Item>
 
-        <Form.Item
-          label="礼金流水要求"
-          name="wagerRequirement"
-          rules={[{ required: true }]}
-        >
-          <InputNumber
-            style={{ width: '100%' }}
-            min={0}
-            step={0.5}
-            addonAfter="倍"
-          />
-        </Form.Item>
+          <Form.Item
+            label="订单审核方式"
+            name="orderReview"
+            rules={[{ required: true }]}
+          >
+            <Radio.Group data-e2e-id="freebet-config-modal-form-order-review-radio">
+              <Radio value="auto">自动</Radio>
+              <Radio value="manual">人工</Radio>
+            </Radio.Group>
+          </Form.Item>
 
-        <Form.Item
-          label="谷歌验证码"
-          name="googleCode"
-          rules={[{ required: true, message: '请输入谷歌验证码' }]}
-        >
-          <Input.Password placeholder="请输入谷歌验证码" maxLength={6} />
-        </Form.Item>
-      </Form>
+          <Form.Item
+            label="是否自动到帐"
+            name="autoCredit"
+            rules={[{ required: true }]}
+          >
+            <Radio.Group data-e2e-id="freebet-config-modal-form-auto-credit-radio">
+              <Radio value="manual">手动领取</Radio>
+              <Radio value="auto">自动到账</Radio>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item label="流水场馆/游戏限制" name="wagerLimit">
+            <Select
+              data-e2e-id="freebet-config-modal-form-wager-limit-select"
+              mode="tags"
+              style={{ width: '100%' }}
+              placeholder="添加允许流水的场馆或游戏"
+              options={[
+                { value: 'BTi Sports', label: 'BTi Sports' },
+                { value: 'FIFA World Cup Champion', label: 'FIFA World Cup Champion' },
+                { value: 'PBA', label: 'PBA' },
+                { value: 'NBA', label: 'NBA' },
+                { value: 'Saba Sports', label: 'Saba Sports' },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="礼金流水要求"
+            name="wagerRequirement"
+            rules={[{ required: true }]}
+          >
+            <InputNumber
+              data-e2e-id="freebet-config-modal-form-wager-requirement-input"
+              style={{ width: '100%' }}
+              min={0}
+              step={0.5}
+              addonAfter="倍"
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="谷歌验证码"
+            name="googleCode"
+            rules={[{ required: true, message: '请输入谷歌验证码' }]}
+          >
+            <Input.Password data-e2e-id="freebet-config-modal-form-google-code-input" placeholder="请输入谷歌验证码" maxLength={6} />
+          </Form.Item>
+        </Form>
+      </div>
     </Modal>
   );
 }
