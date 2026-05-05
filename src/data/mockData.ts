@@ -1049,3 +1049,202 @@ export function appendVipHistory(uid: string, item: VipLevelHistoryItem) {
   const list = getVipHistory(uid);
   list.unshift(item);   // 新的在前
 }
+
+// ==================== 會員能力（功能限制）字典與狀態 ====================
+export type CapabilityCategory = '財務' | '行為' | '風控' | '行銷';
+export type CapabilitySource = 'manual' | 'risk_engine' | 'kyc_flow' | 'system';
+export type CapabilityAction = 'open' | 'close' | 'update';
+
+export interface CapabilityDictItem {
+  key: string;
+  nameZh: string;
+  nameEn: string;
+  category: CapabilityCategory;
+  color: string;        // antd Tag 顏色 token
+  sortOrder: number;
+  enabled: boolean;
+  description?: string;
+}
+
+export interface MemberCapabilityState {
+  capabilityKey: string;
+  restricted: boolean;
+  reason: string;
+  source: CapabilitySource;
+  restrictedAt: string;          // YYYY-MM-DD HH:mm:ss
+  restrictedUntil: string | null; // null = 永久
+  operator: string;
+}
+
+export interface MemberCapabilityLog {
+  id: string;
+  createdAt: string;
+  capabilityKey: string;
+  action: CapabilityAction;
+  reason: string;
+  source: CapabilitySource;
+  restrictedUntil: string | null;
+  operator: string;
+}
+
+export const capabilityDict: CapabilityDictItem[] = [
+  { key: 'deposit',  nameZh: '存款',     nameEn: 'Deposit',  category: '財務', color: 'red',     sortOrder: 10, enabled: true, description: '會員儲值' },
+  { key: 'withdraw', nameZh: '提現',     nameEn: 'Withdraw', category: '財務', color: 'orange',  sortOrder: 20, enabled: true, description: '會員提款' },
+  { key: 'bet',      nameZh: '投注',     nameEn: 'Bet',      category: '行為', color: 'purple',  sortOrder: 30, enabled: true, description: '所有遊戲投注' },
+  { key: 'promo',    nameZh: '領取優惠', nameEn: 'Promo',    category: '行銷', color: 'magenta', sortOrder: 40, enabled: true, description: '活動禮金 / Free Spin 領取' },
+  { key: 'chat',     nameZh: '站內聊天', nameEn: 'Chat',     category: '行為', color: 'cyan',    sortOrder: 50, enabled: true, description: '會員聊天 / 留言' },
+  { key: 'login',    nameZh: '登入',     nameEn: 'Login',    category: '風控', color: 'volcano', sortOrder: 60, enabled: true, description: 'APP / H5 登入' },
+];
+
+export const capabilityCategoryColor: Record<CapabilityCategory, string> = {
+  財務: 'red',
+  行為: 'blue',
+  風控: 'volcano',
+  行銷: 'magenta',
+};
+
+export const capabilitySourceLabel: Record<CapabilitySource, string> = {
+  manual: '人工',
+  risk_engine: '風控引擎',
+  kyc_flow: 'KYC 流程',
+  system: '系統',
+};
+
+export const capabilitySourceColor: Record<CapabilitySource, string> = {
+  manual: 'default',
+  risk_engine: 'volcano',
+  kyc_flow: 'gold',
+  system: 'blue',
+};
+
+export function getCapabilityDictItem(key: string): CapabilityDictItem | undefined {
+  return capabilityDict.find(c => c.key === key);
+}
+
+// 每個會員的能力 state（map 內 array，array 元素只在「曾經被設定過」時存在）
+const _memberCapabilityStates = new Map<string, MemberCapabilityState[]>();
+const _memberCapabilityLogs = new Map<string, MemberCapabilityLog[]>();
+let _capabilitySeedDone = false;
+
+interface CapabilitySeed {
+  uidSuffix: string;       // 對應 generateMembers 產出的 uid 末尾
+  states: Array<Omit<MemberCapabilityState, 'capabilityKey'> & { capabilityKey: string }>;
+  logs: Array<Omit<MemberCapabilityLog, 'id'>>;
+}
+
+const capabilitySeeds: CapabilitySeed[] = [
+  // U10020：對應截圖 ocean_20，存款＋提現被限制
+  {
+    uidSuffix: 'U10020',
+    states: [
+      { capabilityKey: 'deposit',  restricted: true,  reason: '短時間內多次異常充值，暫停存款待人工複核', source: 'risk_engine', restrictedAt: '2026-04-29 10:18:00', restrictedUntil: '2026-05-06 10:18:00', operator: 'risk.ops@filbet.com' },
+      { capabilityKey: 'bet',      restricted: false, reason: '風險排查完成，恢復投注功能',               source: 'manual',      restrictedAt: '2026-04-28 13:25:00', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
+      { capabilityKey: 'withdraw', restricted: true,  reason: 'KYC 補件中，暫時限制提現',                 source: 'kyc_flow',    restrictedAt: '2026-04-28 16:45:00', restrictedUntil: null,                 operator: 'kyc.audit@filbet.com' },
+    ],
+    logs: [
+      { createdAt: '2026-04-29 10:18:00', capabilityKey: 'deposit',  action: 'close', reason: '短時間內多次異常充值，暫停存款待人工複核', source: 'risk_engine', restrictedUntil: '2026-05-06 10:18:00', operator: 'risk.ops@filbet.com' },
+      { createdAt: '2026-04-29 09:42:00', capabilityKey: 'withdraw', action: 'open',  reason: '銀行卡複核完成，暫時恢復提現',             source: 'manual',      restrictedUntil: null,                 operator: 'ops.supervisor@filbet.com' },
+      { createdAt: '2026-04-28 16:45:00', capabilityKey: 'withdraw', action: 'close', reason: 'KYC 補件中，暫時限制提現',                 source: 'kyc_flow',    restrictedUntil: null,                 operator: 'kyc.audit@filbet.com' },
+      { createdAt: '2026-04-28 13:25:00', capabilityKey: 'bet',      action: 'open',  reason: '風險排查完成，恢復投注功能',               source: 'manual',      restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
+      { createdAt: '2026-04-28 09:15:00', capabilityKey: 'bet',      action: 'close', reason: '投注行為命中套利規則，先行限制投注',       source: 'risk_engine', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
+      { createdAt: '2026-04-27 21:10:00', capabilityKey: 'deposit',  action: 'open',  reason: '會員補充說明完成，恢復存款功能',           source: 'manual',      restrictedUntil: null,                 operator: 'ops.supervisor@filbet.com' },
+      { createdAt: '2026-04-27 20:05:00', capabilityKey: 'deposit',  action: 'close', reason: '同裝置多帳號風險待查，先關閉存款',         source: 'risk_engine', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
+    ],
+  },
+  // U10005：登入被風控封鎖（永久）
+  {
+    uidSuffix: 'U10005',
+    states: [
+      { capabilityKey: 'login', restricted: true, reason: '異地登入 + 多帳號重疊裝置，永久封鎖待查', source: 'risk_engine', restrictedAt: '2026-04-22 03:21:00', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
+    ],
+    logs: [
+      { createdAt: '2026-04-22 03:21:00', capabilityKey: 'login', action: 'close', reason: '異地登入 + 多帳號重疊裝置，永久封鎖待查', source: 'risk_engine', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
+    ],
+  },
+  // U10012：領取優惠暫時限制（套利清查）
+  {
+    uidSuffix: 'U10012',
+    states: [
+      { capabilityKey: 'promo', restricted: true, reason: '活動套利疑慮，限制 7 天領取優惠', source: 'risk_engine', restrictedAt: '2026-04-30 15:00:00', restrictedUntil: '2026-05-07 15:00:00', operator: 'risk.ops@filbet.com' },
+    ],
+    logs: [
+      { createdAt: '2026-04-30 15:00:00', capabilityKey: 'promo', action: 'close', reason: '活動套利疑慮，限制 7 天領取優惠', source: 'risk_engine', restrictedUntil: '2026-05-07 15:00:00', operator: 'risk.ops@filbet.com' },
+    ],
+  },
+  // U10033：提現被限制
+  {
+    uidSuffix: 'U10033',
+    states: [
+      { capabilityKey: 'withdraw', restricted: true, reason: '提款資料與 KYC 主檔不一致，暫停提現', source: 'kyc_flow', restrictedAt: '2026-04-27 11:08:00', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
+    ],
+    logs: [
+      { createdAt: '2026-04-27 11:08:00', capabilityKey: 'withdraw', action: 'close', reason: '提款資料與 KYC 主檔不一致，暫停提現', source: 'kyc_flow', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
+    ],
+  },
+  // U10041：站內聊天 + 投注雙限制
+  {
+    uidSuffix: 'U10041',
+    states: [
+      { capabilityKey: 'chat', restricted: true, reason: '聊天頻繁洗版宣傳第三方平台',         source: 'manual',      restrictedAt: '2026-05-02 09:30:00', restrictedUntil: '2026-05-09 09:30:00', operator: 'ops.supervisor@filbet.com' },
+      { capabilityKey: 'bet',  restricted: true, reason: '異常對沖投注模式偵測，限制投注待查', source: 'risk_engine', restrictedAt: '2026-05-03 18:00:00', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
+    ],
+    logs: [
+      { createdAt: '2026-05-03 18:00:00', capabilityKey: 'bet',  action: 'close', reason: '異常對沖投注模式偵測，限制投注待查', source: 'risk_engine', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
+      { createdAt: '2026-05-02 09:30:00', capabilityKey: 'chat', action: 'close', reason: '聊天頻繁洗版宣傳第三方平台',         source: 'manual',      restrictedUntil: '2026-05-09 09:30:00', operator: 'ops.supervisor@filbet.com' },
+    ],
+  },
+];
+
+function ensureCapabilitySeed() {
+  if (_capabilitySeedDone) return;
+  _capabilitySeedDone = true;
+  for (const seed of capabilitySeeds) {
+    _memberCapabilityStates.set(
+      seed.uidSuffix,
+      seed.states.map(s => ({ ...s })),
+    );
+    _memberCapabilityLogs.set(
+      seed.uidSuffix,
+      seed.logs.map((log, idx) => ({ id: `cap-${seed.uidSuffix}-${idx}`, ...log })),
+    );
+  }
+}
+
+export function getMemberCapabilityStates(uid: string): MemberCapabilityState[] {
+  ensureCapabilitySeed();
+  if (!_memberCapabilityStates.has(uid)) {
+    _memberCapabilityStates.set(uid, []);
+  }
+  return _memberCapabilityStates.get(uid) || [];
+}
+
+export function setMemberCapabilityState(uid: string, next: MemberCapabilityState) {
+  ensureCapabilitySeed();
+  const list = getMemberCapabilityStates(uid);
+  const idx = list.findIndex(s => s.capabilityKey === next.capabilityKey);
+  if (idx >= 0) {
+    list[idx] = next;
+  } else {
+    list.push(next);
+  }
+}
+
+export function getMemberCapabilityLogs(uid: string): MemberCapabilityLog[] {
+  ensureCapabilitySeed();
+  if (!_memberCapabilityLogs.has(uid)) {
+    _memberCapabilityLogs.set(uid, []);
+  }
+  return _memberCapabilityLogs.get(uid) || [];
+}
+
+export function appendMemberCapabilityLog(uid: string, log: MemberCapabilityLog) {
+  ensureCapabilitySeed();
+  const list = getMemberCapabilityLogs(uid);
+  list.unshift(log);
+}
+
+export function getActiveRestrictedCapabilityKeys(uid: string, now: dayjs.Dayjs = dayjs()): string[] {
+  return getMemberCapabilityStates(uid)
+    .filter(s => s.restricted && (!s.restrictedUntil || dayjs(s.restrictedUntil).isAfter(now)))
+    .map(s => s.capabilityKey);
+}
