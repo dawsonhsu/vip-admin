@@ -146,6 +146,7 @@ function parseCsv(
     const turnoverMultiplier = isUp ? (turnoverText ? Number(turnoverText) : NaN) : null;
     const errors: string[] = [];
 
+    if (index >= 200) errors.push('超過單次匯入上限 200 名會員');
     if (!keyValue) errors.push(keyType === 'phone' ? '缺少手機號' : '缺少會員UID');
     if (keyValue && !profile) errors.push('會員不存在');
     if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount < 0.01) errors.push('調整金額需大於 0.01');
@@ -690,6 +691,11 @@ export default function UpDownScorePage() {
       const keyHeader = batchModal.csvKeyType === 'phone' ? '手機號' : '會員UID';
       return (
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Alert
+            type="info"
+            showIcon
+            message="單次匯入最多 200 名會員，超出部分將標為「不合法」並排除於本批"
+          />
           <Form layout="vertical">
             <Row gutter={[24, 16]}>
               {isUp && (
@@ -756,7 +762,7 @@ export default function UpDownScorePage() {
                     </p>
                     <p className="ant-upload-text">拖曳 CSV 到此處，或點擊上傳</p>
                     <p className="ant-upload-hint">
-                      模板欄位：{keyHeader}, 調整金額{isUp ? ', 流水倍數' : ''}, 調整理由
+                      模板欄位：{keyHeader}, 調整金額{isUp ? ', 流水倍數' : ''}, 調整理由 · 單次最多 200 名會員
                     </p>
                   </Dragger>
                 </Form.Item>
