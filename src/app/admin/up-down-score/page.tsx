@@ -6,6 +6,7 @@ import {
   Alert,
   Button,
   Card,
+  Cascader,
   Col,
   DatePicker,
   Form,
@@ -32,7 +33,6 @@ import {
   ReloadOutlined,
   SearchOutlined,
   SettingOutlined,
-  SwapOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
@@ -50,6 +50,7 @@ import {
   type UpDownStatus,
   type UpDownType,
 } from '@/data/upDownScoreData';
+import { freeSpinRestrictionCatalog } from '@/data/mockData';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -62,11 +63,14 @@ interface SingleModalState {
   triggerType: UpDownType;
 }
 
+type CsvKeyType = 'phone' | 'uid';
+
 interface BatchModalState {
   open: boolean;
   currentStep: number;
-  sharedVenueLimit?: (typeof venueLimitOptions)[number];
-  sharedTurnoverMultiplier?: number;
+  batchType: '上分' | '下分';
+  sharedVenueLimit?: string[][];
+  csvKeyType: CsvKeyType;
   rows: BatchUploadRow[];
   otp: string;
   result: {
@@ -79,7 +83,7 @@ interface RecordTabContentProps {
   type: '上分' | '下分';
   records: UpDownScoreRecord[];
   onOpenSingle: (type: UpDownType) => void;
-  onOpenBatch: () => void;
+  onOpenBatch: (type: '上分' | '下分') => void;
 }
 
 const orderTypeTagColor: Record<UpDownType, string> = {
@@ -116,8 +120,9 @@ function createOrderNo(type: UpDownType, sequence: number) {
 
 function parseCsv(
   content: string,
-  sharedVenueLimit: (typeof venueLimitOptions)[number],
-  sharedTurnoverMultiplier: number,
+  sharedVenueLimit: string[][],
+  keyType: CsvKeyType,
+  batchType: UpDownType,
 ): BatchUploadRow[] {
   const lines = content
     .split(/\r?\n/)
@@ -126,36 +131,50 @@ function parseCsv(
 
   if (lines.length <= 1) return [];
 
+  const isUp = batchType === '上分';
+
   return lines.slice(1).map((line, index) => {
     const columns = line.split(',').map((item) => item.trim());
-    const [memberPhone = '', amountText = '', turnoverText = '', reason = ''] = columns;
-    const profile = memberPhone ? getMemberProfileByPhone(memberPhone) : undefined;
+    const keyValue = columns[0] ?? '';
+    const amountText = columns[1] ?? '';
+    const turnoverText = isUp ? (columns[2] ?? '') : '';
+    const reason = (isUp ? columns[3] : columns[2]) ?? '';
+    const profile = keyValue
+      ? (keyType === 'phone' ? getMemberProfileByPhone(keyValue) : getMemberProfileByUid(keyValue))
+      : undefined;
     const parsedAmount = amountText ? Number(amountText) : null;
-    const turnoverMultiplier = turnoverText ? Number(turnoverText) : sharedTurnoverMultiplier;
+    const turnoverMultiplier = isUp ? (turnoverText ? Number(turnoverText) : NaN) : null;
     const errors: string[] = [];
 
-    if (!memberPhone) errors.push('缺少手機號');
-    if (memberPhone && !profile) errors.push('會員不存在');
+    if (!keyValue) errors.push(keyType === 'phone' ? '缺少手機號' : '缺少會員UID');
+    if (keyValue && !profile) errors.push('會員不存在');
     if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount < 0.01) errors.push('調整金額需大於 0.01');
-    if (!turnoverMultiplier || Number.isNaN(turnoverMultiplier) || turnoverMultiplier < 1 || turnoverMultiplier > 100) {
-      errors.push('流水倍數需為 1-100');
+    if (isUp) {
+      if (
+        !turnoverMultiplier ||
+        Number.isNaN(turnoverMultiplier) ||
+        turnoverMultiplier < 1 ||
+        turnoverMultiplier > 100
+      ) {
+        errors.push('流水倍數需為 1-100');
+      }
     }
     if (!reason || reason.length > 500) errors.push('調整理由需為 1-500 字');
 
     return {
-      key: `上分-${index + 1}`,
-      memberPhone,
-      memberUid: profile?.uid ?? '',
+      key: `${batchType}-${index + 1}`,
+      memberPhone: keyType === 'phone' ? keyValue : (profile?.phone ?? ''),
+      memberUid: keyType === 'uid' ? keyValue : (profile?.uid ?? ''),
       memberAccountId: profile?.accountId ?? '',
       memberName: profile?.memberName ?? '',
       accountStatus: profile?.accountStatus ?? '',
       walletBalance: profile?.walletBalance ?? null,
       submitAmount: parsedAmount,
-      turnoverMultiplier,
+      turnoverMultiplier: typeof turnoverMultiplier === 'number' && !Number.isNaN(turnoverMultiplier) ? turnoverMultiplier : null,
       venueLimit: sharedVenueLimit,
       reason,
       valid: errors.length === 0,
-      errorMessage: errors.join('；') || '合法',
+      errorMessage: errors.join('；'),
     };
   });
 }
@@ -347,13 +366,10 @@ function RecordTabContent({ type, records, onOpenSingle, onOpenBatch }: RecordTa
       </Card>
 
       <Card size="small">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           <Space wrap>
-            <Button type="primary" icon={<SwapOutlined />} onClick={() => onOpenSingle(type)}>
-              上下分
-            </Button>
-            <Button icon={<UploadOutlined />} onClick={onOpenBatch}>
-              批量上分
+            <Button icon={<UploadOutlined />} onClick={() => onOpenBatch(type)}>
+              批量{type}
             </Button>
             <Button icon={<DownloadOutlined />} onClick={handleExport}>
               導出 Excel
@@ -393,8 +409,9 @@ export default function UpDownScorePage() {
   const [batchModal, setBatchModal] = useState<BatchModalState>({
     open: false,
     currentStep: 0,
+    batchType: '上分',
     sharedVenueLimit: undefined,
-    sharedTurnoverMultiplier: undefined,
+    csvKeyType: 'phone',
     rows: [],
     otp: '',
     result: null,
@@ -402,6 +419,22 @@ export default function UpDownScorePage() {
 
   const upRecords = useMemo(() => records.filter((item) => item.type === '上分'), [records]);
   const downRecords = useMemo(() => records.filter((item) => item.type === '下分' || item.type === '清零'), [records]);
+
+  const gameRestrictionOptions = useMemo(
+    () => Object.entries(freeSpinRestrictionCatalog).map(([gameType, restrictionProviders]) => ({
+      value: gameType,
+      label: gameType,
+      children: restrictionProviders.map((restrictionProvider) => ({
+        value: restrictionProvider.code,
+        label: restrictionProvider.name,
+        children: restrictionProvider.games.map((game) => ({
+          value: game.code,
+          label: game.name,
+        })),
+      })),
+    })),
+    [],
+  );
 
   const currentSingleType = Form.useWatch<UpDownType>('adjustType', singleForm) ?? singleModal.triggerType;
   const currentSinglePhone = Form.useWatch<string>('memberPhone', singleForm);
@@ -507,12 +540,13 @@ export default function UpDownScorePage() {
     message.success(`${nextType}申請提交成功`);
   };
 
-  const handleOpenBatch = () => {
+  const handleOpenBatch = (type: '上分' | '下分') => {
     setBatchModal({
       open: true,
       currentStep: 0,
+      batchType: type,
       sharedVenueLimit: undefined,
-      sharedTurnoverMultiplier: undefined,
+      csvKeyType: 'phone',
       rows: [],
       otp: '',
       result: null,
@@ -520,35 +554,37 @@ export default function UpDownScorePage() {
   };
 
   const handleDownloadTemplate = () => {
-    const template = [
-      '手機號,調整金額,流水倍數,調整理由',
-      '9762100000,1000,5,活動補發',
-    ].join('\n');
-    downloadCsv('批量上分_CSV模板.csv', template);
+    const isPhone = batchModal.csvKeyType === 'phone';
+    const isUp = batchModal.batchType === '上分';
+    const keyHeader = isPhone ? '手機號' : '會員UID';
+    const keyExample = isPhone ? '9762100000' : 'UID100001';
+    const header = isUp
+      ? `${keyHeader},調整金額,流水倍數,調整理由`
+      : `${keyHeader},調整金額,調整理由`;
+    const example = isUp
+      ? `${keyExample},1000,5,活動補發`
+      : `${keyExample},1000,異常修正`;
+    downloadCsv(`批量${batchModal.batchType}_CSV模板_${keyHeader}.csv`, [header, example].join('\n'));
   };
 
   const uploadProps: UploadProps = {
     accept: '.csv',
     maxCount: 1,
     beforeUpload: async (file) => {
-      if (!batchModal.sharedVenueLimit) {
-        message.error('請先選擇場館/遊戲限制');
-        return Upload.LIST_IGNORE;
-      }
-      if (
-        batchModal.sharedTurnoverMultiplier === undefined ||
-        batchModal.sharedTurnoverMultiplier < 1 ||
-        batchModal.sharedTurnoverMultiplier > 100
-      ) {
-        message.error('請先輸入 1-100 的上分提現流水要求');
+      if (batchModal.batchType === '上分' && (!batchModal.sharedVenueLimit || batchModal.sharedVenueLimit.length === 0)) {
+        message.error('請先選擇場館限制');
         return Upload.LIST_IGNORE;
       }
       const content = await file.text();
-      const rows = parseCsv(content, batchModal.sharedVenueLimit, batchModal.sharedTurnoverMultiplier);
+      const rows = parseCsv(
+        content,
+        batchModal.sharedVenueLimit ?? [],
+        batchModal.csvKeyType,
+        batchModal.batchType,
+      );
       setBatchModal((prev) => ({
         ...prev,
         rows,
-        currentStep: 1,
         result: null,
       }));
       message.success(`已解析 ${rows.length} 筆資料`);
@@ -558,11 +594,9 @@ export default function UpDownScorePage() {
   };
 
   const previewColumns: ColumnsType<BatchUploadRow> = [
-    { title: '手機號', dataIndex: 'memberPhone', width: 130 },
     { title: '會員UID', dataIndex: 'memberUid', width: 120, render: (value: string) => value || <Text type="secondary">—</Text> },
+    { title: '手機號', dataIndex: 'memberPhone', width: 130, render: (value: string) => value || <Text type="secondary">—</Text> },
     { title: '會員帳號ID', dataIndex: 'memberAccountId', width: 140, render: (value: string) => value || <Text type="secondary">—</Text> },
-    { title: '會員名', dataIndex: 'memberName', width: 120, render: (value: string) => value || <Text type="secondary">—</Text> },
-    { title: '會員帳號狀態', dataIndex: 'accountStatus', width: 120, render: (value: string) => value || <Text type="secondary">—</Text> },
     {
       title: '提交時錢包餘額',
       dataIndex: 'walletBalance',
@@ -575,12 +609,14 @@ export default function UpDownScorePage() {
       width: 120,
       render: (value: number | null) => (value ? formatCurrency(value) : <Text type="secondary">—</Text>),
     },
-    {
-      title: '流水倍數',
-      dataIndex: 'turnoverMultiplier',
-      width: 100,
-      render: (value: number | null) => (value ? `${value} 倍` : <Text type="secondary">—</Text>),
-    },
+    ...(batchModal.batchType === '上分'
+      ? [{
+          title: '流水倍數',
+          dataIndex: 'turnoverMultiplier',
+          width: 100,
+          render: (value: number | null) => (value ? `${value} 倍` : <Text type="secondary">—</Text>),
+        } as ColumnsType<BatchUploadRow>[number]]
+      : []),
     { title: '調整理由', dataIndex: 'reason', width: 220 },
     {
       title: '校驗結果',
@@ -588,7 +624,12 @@ export default function UpDownScorePage() {
       width: 120,
       render: (value: boolean) => <Tag color={value ? 'success' : 'error'}>{value ? '合法' : '不合法'}</Tag>,
     },
-    { title: '錯誤訊息', dataIndex: 'errorMessage', width: 260 },
+    {
+      title: '錯誤訊息',
+      dataIndex: 'errorMessage',
+      width: 260,
+      render: (value: string, record) => (record.valid ? <Text type="secondary">—</Text> : value),
+    },
   ];
 
   const failedResultColumns: ColumnsType<BatchUploadRow> = [
@@ -609,13 +650,14 @@ export default function UpDownScorePage() {
     const successRows = batchModal.rows.filter((row) => row.valid);
     const failedRows = batchModal.rows.filter((row) => !row.valid);
 
+    const batchType = batchModal.batchType;
     const newRecords = successRows.map((row, index) => {
       const profile = getMemberProfileByPhone(row.memberPhone)!;
       return {
         key: `batch-${Date.now()}-${index}`,
         seq: records.length + index + 1,
-        orderNo: createOrderNo('上分', records.length + index + 1),
-        type: '上分' as UpDownType,
+        orderNo: createOrderNo(batchType, records.length + index + 1),
+        type: batchType,
         memberPhone: profile.phone,
         memberUid: profile.uid,
         memberName: profile.memberName,
@@ -631,102 +673,111 @@ export default function UpDownScorePage() {
     });
 
     setRecords((prev) => [...newRecords, ...prev]);
-    setActiveTab('上分');
+    setActiveTab(batchType === '上分' ? '上分' : '下分');
     setBatchModal((prev) => ({
       ...prev,
-      currentStep: 3,
+      currentStep: 2,
       result: { successRows, failedRows },
     }));
-    message.success(`批量上分已建立 ${successRows.length} 筆申請`);
+    message.success(`批量${batchType}已建立 ${successRows.length} 筆申請`);
   };
 
   const stepContent = () => {
     if (batchModal.currentStep === 0) {
-      return (
-        <Form layout="horizontal" labelCol={{ flex: '110px' }} labelAlign="right">
-          <Row gutter={[24, 12]}>
-            <Col span={12}>
-              <Form.Item label="場館/遊戲限制（本批次共用）" required>
-                <Select
-                  placeholder="請選擇"
-                  value={batchModal.sharedVenueLimit}
-                  onChange={(value) => setBatchModal((prev) => ({ ...prev, sharedVenueLimit: value }))}
-                >
-                  {venueLimitOptions.map((option) => (
-                    <Select.Option key={option} value={option}>
-                      {option}
-                    </Select.Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="上分提現流水要求（本批次共用）" required>
-                <InputNumber
-                  min={1}
-                  max={100}
-                  precision={0}
-                  addonAfter="倍"
-                  placeholder="1-100"
-                  style={{ width: '100%' }}
-                  value={batchModal.sharedTurnoverMultiplier}
-                  onChange={(value) => setBatchModal((prev) => ({ ...prev, sharedTurnoverMultiplier: value ?? undefined }))}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="CSV 模板">
-                <Button icon={<DownloadOutlined />} onClick={handleDownloadTemplate}>
-                  下載 CSV 模板
-                </Button>
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Alert
-                type="info"
-                showIcon={false}
-                message="同一批匯入名單會套用相同的場館限制與流水要求"
-                style={{ background: '#f5f5f5', border: '1px solid #d9d9d9' }}
-              />
-            </Col>
-            <Col span={24}>
-              <Form.Item label="CSV 上傳" style={{ marginBottom: 0 }}>
-                <Dragger {...uploadProps}>
-                  <p className="ant-upload-drag-icon">
-                    <InboxOutlined />
-                  </p>
-                  <p className="ant-upload-text">拖曳 CSV 到此處，或點擊上傳</p>
-                  <p className="ant-upload-hint">模板欄位：手機號, 調整金額, 流水倍數, 調整理由</p>
-                </Dragger>
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      );
-    }
-
-    if (batchModal.currentStep === 1) {
+      const isUp = batchModal.batchType === '上分';
+      const hasVenueLimit = !isUp || (!!batchModal.sharedVenueLimit && batchModal.sharedVenueLimit.length > 0);
+      const hasRows = batchModal.rows.length > 0;
+      const keyHeader = batchModal.csvKeyType === 'phone' ? '手機號' : '會員UID';
       return (
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <Alert
-            type="info"
-            showIcon
-            message={`本批次共用設定：場館/遊戲限制 ${batchModal.sharedVenueLimit ?? '—'}；上分提現流水要求 ${batchModal.sharedTurnoverMultiplier ?? '—'} 倍`}
-          />
-          <Form layout="horizontal" labelCol={{ flex: '110px' }} labelAlign="right">
-            <Row gutter={[24, 12]}>
+          <Form layout="vertical">
+            <Row gutter={[24, 16]}>
+              {isUp && (
+                <Col span={24}>
+                  <Form.Item
+                    label="場館限制"
+                    tooltip="同一批匯入名單會套用相同的場館/遊戲限制"
+                    required
+                  >
+                    <Cascader
+                      multiple
+                      options={gameRestrictionOptions}
+                      placeholder="選擇遊戲類型 → 廠商 → 遊戲"
+                      showCheckedStrategy={Cascader.SHOW_PARENT}
+                      value={batchModal.sharedVenueLimit}
+                      onChange={(value) =>
+                        setBatchModal((prev) => ({ ...prev, sharedVenueLimit: value as string[][] }))
+                      }
+                      showSearch={{
+                        filter: (inputValue, path) =>
+                          path.some((option) =>
+                            String(option.label).toLowerCase().includes(inputValue.toLowerCase()),
+                          ),
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+              )}
               <Col span={24}>
-                <Form.Item label="校驗摘要" style={{ marginBottom: 0 }}>
-                  <Text>合法 {validCount} 筆 / 不合法 {invalidCount} 筆</Text>
+                <Form.Item label="會員識別欄位" required style={{ marginBottom: 0 }}>
+                  <Radio.Group
+                    value={batchModal.csvKeyType}
+                    onChange={(event) =>
+                      setBatchModal((prev) => ({
+                        ...prev,
+                        csvKeyType: event.target.value as CsvKeyType,
+                        rows: [],
+                      }))
+                    }
+                    optionType="button"
+                    buttonStyle="solid"
+                    options={[
+                      { label: '手機號', value: 'phone' },
+                      { label: '會員 UID', value: 'uid' },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={24}>
+                <Form.Item
+                  label={
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <span>CSV 上傳</span>
+                      <Button size="small" type="link" icon={<DownloadOutlined />} onClick={handleDownloadTemplate} style={{ padding: 0 }}>
+                        下載 CSV 模板
+                      </Button>
+                    </div>
+                  }
+                  style={{ marginBottom: 0 }}
+                >
+                  <Dragger {...uploadProps}>
+                    <p className="ant-upload-drag-icon">
+                      <InboxOutlined />
+                    </p>
+                    <p className="ant-upload-text">拖曳 CSV 到此處，或點擊上傳</p>
+                    <p className="ant-upload-hint">
+                      模板欄位：{keyHeader}, 調整金額{isUp ? ', 流水倍數' : ''}, 調整理由
+                    </p>
+                  </Dragger>
                 </Form.Item>
               </Col>
             </Row>
           </Form>
-          <Table rowKey="key" columns={previewColumns} dataSource={batchModal.rows} pagination={{ pageSize: 6 }} scroll={{ x: 1800 }} />
+          {hasRows && (
+            <Alert
+              type="success"
+              showIcon
+              message={`已解析 ${batchModal.rows.length} 筆資料（合法 ${validCount} 筆 / 不合法 ${invalidCount} 筆）`}
+            />
+          )}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Space>
-              <Button onClick={() => setBatchModal((prev) => ({ ...prev, currentStep: 0 }))}>上一步</Button>
-              <Button type="primary" disabled={validCount === 0} onClick={() => setBatchModal((prev) => ({ ...prev, currentStep: 2 }))}>
+              <Button onClick={() => setBatchModal((prev) => ({ ...prev, open: false }))}>取消</Button>
+              <Button
+                type="primary"
+                disabled={!hasVenueLimit || !hasRows}
+                onClick={() => setBatchModal((prev) => ({ ...prev, currentStep: 1 }))}
+              >
                 下一步
               </Button>
             </Space>
@@ -735,29 +786,48 @@ export default function UpDownScorePage() {
       );
     }
 
-    if (batchModal.currentStep === 2) {
+    if (batchModal.currentStep === 1) {
+      const validAmountSum = batchModal.rows
+        .filter((row) => row.valid)
+        .reduce((sum, row) => sum + (row.submitAmount ?? 0), 0);
       return (
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <Form layout="horizontal" labelCol={{ flex: '110px' }} labelAlign="right">
-            <Row gutter={[24, 12]}>
-              <Col span={24}>
-                <Form.Item label="Google驗證碼" required>
-                  <Input
-                    value={batchModal.otp}
-                    onChange={(event) => setBatchModal((prev) => ({ ...prev, otp: event.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                    placeholder="請輸入 6 位數字"
-                  />
-                </Form.Item>
-              </Col>
-              <Col span={24}>
-                <Text>整批一次驗證，請輸入您的 Google Authenticator 6 位驗證碼</Text>
-              </Col>
-            </Row>
+          <Space size={24} wrap>
+            <Text strong>校驗摘要：合法 {validCount} 筆 / 不合法 {invalidCount} 筆</Text>
+            <Text strong>{batchModal.batchType}金額合計：{formatCurrency(validAmountSum)}</Text>
+          </Space>
+          {invalidCount > 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              message={`校驗結果為「不合法」的 ${invalidCount} 筆資料不會進行調整，請確認後再執行`}
+            />
+          )}
+          <Table rowKey="key" columns={previewColumns} dataSource={batchModal.rows} pagination={{ pageSize: 10 }} scroll={{ x: 1800 }} />
+          <Form layout="vertical">
+            <Form.Item
+              label="Google 驗證碼"
+              required
+              extra="整批一次驗證，請輸入您的 Google Authenticator 6 位驗證碼"
+              style={{ marginBottom: 0 }}
+            >
+              <Input
+                value={batchModal.otp}
+                onChange={(event) => setBatchModal((prev) => ({ ...prev, otp: event.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                placeholder="請輸入 6 位數字"
+                maxLength={6}
+                style={{ maxWidth: 240 }}
+              />
+            </Form.Item>
           </Form>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Space>
-              <Button onClick={() => setBatchModal((prev) => ({ ...prev, currentStep: 1 }))}>上一步</Button>
-              <Button type="primary" disabled={batchModal.otp.length !== 6} onClick={executeBatch}>
+              <Button onClick={() => setBatchModal((prev) => ({ ...prev, currentStep: 0 }))}>上一步</Button>
+              <Button
+                type="primary"
+                disabled={validCount === 0 || batchModal.otp.length !== 6}
+                onClick={executeBatch}
+              >
                 確認執行
               </Button>
             </Space>
@@ -787,7 +857,7 @@ export default function UpDownScorePage() {
               const rows = (batchModal.result?.failedRows ?? [])
                 .map((row) => `${row.memberPhone},${row.submitAmount ?? ''},${row.errorMessage}`)
                 .join('\n');
-              downloadCsv('批量上分_失敗清單.csv', header + rows);
+              downloadCsv(`批量${batchModal.batchType}_失敗清單.csv`, header + rows);
             }}
           >
             下載失敗清單
@@ -981,7 +1051,7 @@ export default function UpDownScorePage() {
       </Modal>
 
       <Modal
-        title="批量上分"
+        title={`批量${batchModal.batchType}`}
         open={batchModal.open}
         width={900}
         footer={null}
@@ -992,8 +1062,7 @@ export default function UpDownScorePage() {
           current={batchModal.currentStep}
           items={[
             { title: '上傳 CSV' },
-            { title: '預覽' },
-            { title: 'Google OTP 驗證' },
+            { title: '預覽 & 驗證' },
             { title: '執行結果' },
           ]}
           style={{ marginBottom: 24 }}

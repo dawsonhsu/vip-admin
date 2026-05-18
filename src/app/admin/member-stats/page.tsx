@@ -16,6 +16,7 @@ import {
   Statistic,
   Table,
   Tabs,
+  Tag,
   Typography,
 } from 'antd';
 import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
@@ -47,11 +48,13 @@ interface AggregatedPersonalStat {
   depositFee: number;
   withdrawFee: number;
   totalBet: number;
+  excludedBet: number;
   validBet: number;
   totalPayout: number;
   ggr: number;
   totalBonus: number;
   totalCommission: number;
+  achievedInvitation: boolean;
 }
 
 interface AggregatedInviteStat {
@@ -135,11 +138,13 @@ const aggregatePersonalStats = (rows: PersonalStat[]): AggregatedPersonalStat[] 
         depositFee: 0,
         withdrawFee: 0,
         totalBet: 0,
+        excludedBet: 0,
         validBet: 0,
         totalPayout: 0,
         ggr: 0,
         totalBonus: 0,
         totalCommission: 0,
+        achievedInvitation: row.achievedInvitation,
       };
     }
 
@@ -150,6 +155,7 @@ const aggregatePersonalStats = (rows: PersonalStat[]): AggregatedPersonalStat[] 
     acc[row.uid].depositFee += row.depositFee;
     acc[row.uid].withdrawFee += row.withdrawFee;
     acc[row.uid].totalBet += row.totalBet;
+    acc[row.uid].excludedBet += row.excludedBet;
     acc[row.uid].validBet += row.validBet;
     acc[row.uid].totalPayout += row.totalPayout;
     acc[row.uid].ggr += row.ggr;
@@ -167,10 +173,11 @@ const sumPersonal = (rows: AggregatedPersonalStat[]) => rows.reduce(
     totalDeposit: acc.totalDeposit + row.totalDeposit,
     totalWithdraw: acc.totalWithdraw + row.totalWithdraw,
     totalBet: acc.totalBet + row.totalBet,
+    excludedBet: acc.excludedBet + row.excludedBet,
     validBet: acc.validBet + row.validBet,
     ggr: acc.ggr + row.ggr,
   }),
-  { totalDeposit: 0, totalWithdraw: 0, totalBet: 0, validBet: 0, ggr: 0 }
+  { totalDeposit: 0, totalWithdraw: 0, totalBet: 0, excludedBet: 0, validBet: 0, ggr: 0 }
 );
 
 const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
@@ -318,6 +325,19 @@ function PersonalStatsTab() {
       ) : '-',
     },
     {
+      title: '達標',
+      dataIndex: 'achievedInvitation',
+      width: 80,
+      align: 'center',
+      sorter: (a, b) => Number(a.achievedInvitation) - Number(b.achievedInvitation),
+      render: (value: boolean, record) => {
+        if (!record.inviterUid) return <Text type="secondary">-</Text>;
+        return value
+          ? <Tag color="green">是</Tag>
+          : <Tag>否</Tag>;
+      },
+    },
+    {
       title: '存款次數',
       dataIndex: 'depositCount',
       width: 120,
@@ -371,6 +391,14 @@ function PersonalStatsTab() {
       width: 130,
       align: 'right',
       sorter: (a, b) => a.totalBet - b.totalBet,
+      render: renderAmount,
+    },
+    {
+      title: '排除投注額',
+      dataIndex: 'excludedBet',
+      width: 130,
+      align: 'right',
+      sorter: (a, b) => a.excludedBet - b.excludedBet,
       render: renderAmount,
     },
     {
@@ -435,6 +463,7 @@ function PersonalStatsTab() {
     { title: '存款手續費', dataIndex: 'depositFee', align: 'right', width: 120, render: renderAmount },
     { title: '提款手續費', dataIndex: 'withdrawFee', align: 'right', width: 120, render: renderAmount },
     { title: '總投注', dataIndex: 'totalBet', align: 'right', width: 120, render: renderAmount },
+    { title: '排除投注額', dataIndex: 'excludedBet', align: 'right', width: 120, render: renderAmount },
     { title: '有效流水', dataIndex: 'validBet', align: 'right', width: 120, render: renderAmount },
     { title: '總派獎', dataIndex: 'totalPayout', align: 'right', width: 120, render: renderAmount },
     { title: 'GGR', dataIndex: 'ggr', align: 'right', width: 120, render: renderGgr },
@@ -497,6 +526,7 @@ function PersonalStatsTab() {
           <Col span={4}><Statistic data-e2e-id="member-stats-summary-total-deposit" title="總存款" value={summary.totalDeposit} formatter={value => formatAmount(Number(value || 0))} /></Col>
           <Col span={4}><Statistic data-e2e-id="member-stats-summary-total-withdraw" title="總提款" value={summary.totalWithdraw} formatter={value => formatAmount(Number(value || 0))} /></Col>
           <Col span={4}><Statistic data-e2e-id="member-stats-summary-total-bet" title="總投注" value={summary.totalBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
+          <Col span={4}><Statistic data-e2e-id="member-stats-summary-excluded-bet" title="排除投注額" value={summary.excludedBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
           <Col span={4}><Statistic data-e2e-id="member-stats-summary-valid-bet" title="有效流水" value={summary.validBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
           <Col span={4}><Statistic data-e2e-id="member-stats-summary-ggr" title="GGR" value={summary.ggr} valueStyle={{ color: summary.ggr >= 0 ? '#52c41a' : '#ff4d4f' }} formatter={value => formatAmount(Number(value || 0))} /></Col>
         </Row>
@@ -510,13 +540,14 @@ function PersonalStatsTab() {
             icon={<DownloadOutlined />}
             onClick={() => exportCsv(
               `member-personal-stats-${queryStart}-${queryEnd}.csv`,
-              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '有效流水', '總派獎', 'GGR', '總彩金', '總佣金'],
+              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '達標', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', '總彩金', '總佣金'],
               aggregatedRows.map(row => [
                 dateRangeText,
                 row.uid,
                 row.username,
                 row.inviterUid || '',
                 row.inviterUsername || '',
+                row.inviterUid ? (row.achievedInvitation ? '是' : '否') : '-',
                 row.depositCount,
                 formatAmount(row.totalDeposit),
                 row.withdrawCount,
@@ -524,6 +555,7 @@ function PersonalStatsTab() {
                 formatAmount(row.depositFee),
                 formatAmount(row.withdrawFee),
                 formatAmount(row.totalBet),
+                formatAmount(row.excludedBet),
                 formatAmount(row.validBet),
                 formatAmount(row.totalPayout),
                 formatAmount(row.ggr),

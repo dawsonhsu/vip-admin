@@ -15,11 +15,13 @@ export interface PersonalStat {
   depositFee: number;
   withdrawFee: number;
   totalBet: number;
+  excludedBet: number;        // 排除投注額（不計入有效流水的部分；對應「好友邀請活動」所配置的排除遊戲）
   validBet: number;
   totalPayout: number;
   ggr: number;
   totalBonus: number;
   totalCommission: number;
+  achievedInvitation: boolean; // 此會員是否達成「好友邀請活動」配置的達標條件；若達標則計入其邀請人的「達成人數」
 }
 
 export interface InviteStat {
@@ -137,6 +139,8 @@ const createPersonalStat = (member: MockMember, date: string): PersonalStat => {
   const withdrawFee = totalWithdraw === 0 ? 0 : roundToTwo(totalWithdraw * (pickInt(`${member.uid}-${date}-withdraw-fee`, 0, 30) / 1000));
   const totalBonus = pickAmountWithDecimal(`${member.uid}-${date}-bonus`, 0, 5000);
   const totalCommission = member.inviterUid ? pickAmountWithDecimal(`${member.uid}-${date}-commission`, 0, 2500) : 0;
+  // achievedInvitation：僅有邀請人的會員才可能達標；以 uid hash 決定（同一會員所有日期一致），約 40% 命中
+  const achievedInvitation = !!member.inviterUid && hashString(`${member.uid}-achieved-invitation`) % 10 < 4;
 
   return {
     date,
@@ -151,11 +155,13 @@ const createPersonalStat = (member: MockMember, date: string): PersonalStat => {
     depositFee,
     withdrawFee,
     totalBet,
+    excludedBet,
     validBet,
     totalPayout,
     ggr: roundToTwo(totalBet - totalPayout),
     totalBonus,
     totalCommission,
+    achievedInvitation,
   };
 };
 

@@ -12,8 +12,6 @@ import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import {
   getMembers, type MemberItem,
-  capabilityDict, getCapabilityDictItem,
-  getMemberCapabilityStates,
 } from '@/data/mockData';
 
 const { Title, Text } = Typography;
@@ -91,30 +89,6 @@ export default function MembersPage() {
       if (filters.parentAgentPhone && !item.parentAgentPhone.includes(filters.parentAgentPhone)) return false;
       if (filters.vipLevel !== undefined && filters.vipLevel !== null && item.vipLevel !== filters.vipLevel) return false;
       if (filters.kycStatus && item.kycStatus !== filters.kycStatus) return false;
-      // 能力狀態多選 + 命中模式 + 限制類型
-      const capabilityKeys: string[] = filters.capabilityKeys ?? [];
-      if (capabilityKeys.length > 0 || filters.restrictionType) {
-        const states = getMemberCapabilityStates(item.uid);
-        const now = dayjs();
-        const matchType = (s: ReturnType<typeof getMemberCapabilityStates>[number]) => {
-          if (!s.restricted) return false;
-          const isPermanent = !s.restrictedUntil;
-          const isActiveTemp = s.restrictedUntil ? dayjs(s.restrictedUntil).isAfter(now) : false;
-          if (filters.restrictionType === 'permanent') return isPermanent;
-          if (filters.restrictionType === 'temporary') return isActiveTemp;
-          return isPermanent || isActiveTemp;
-        };
-        const activeKeys = states.filter(matchType).map(s => s.capabilityKey);
-        if (capabilityKeys.length > 0) {
-          if (filters.capabilityMatch === 'all') {
-            if (!capabilityKeys.every(k => activeKeys.includes(k))) return false;
-          } else {
-            if (!capabilityKeys.some(k => activeKeys.includes(k))) return false;
-          }
-        } else if (filters.restrictionType && filters.restrictionType !== 'any') {
-          if (activeKeys.length === 0) return false;
-        }
-      }
       // Dynamic risk filter (風控等級/風控標籤)
       if (filters.riskValue) {
         if (riskType === '風控等級' && item.riskLevel !== filters.riskValue) return false;
@@ -244,46 +218,6 @@ export default function MembersPage() {
           </div>
         </Space>
       ),
-    },
-    {
-      title: '能力狀態',
-      key: 'capabilityStatus',
-      width: 220,
-      render: (_, r) => {
-        const states = getMemberCapabilityStates(r.uid);
-        const now = dayjs();
-        const restricted = states
-          .filter(s => s.restricted && (!s.restrictedUntil || dayjs(s.restrictedUntil).isAfter(now)))
-          .map(s => ({ state: s, dict: getCapabilityDictItem(s.capabilityKey) }))
-          .filter((x): x is { state: typeof x.state; dict: NonNullable<typeof x.dict> } => Boolean(x.dict));
-        if (restricted.length === 0) {
-          return <Tag style={{ fontSize: 11, color: '#52c41a', borderColor: '#b7eb8f', background: '#f6ffed' }}>全部正常</Tag>;
-        }
-        const visible = restricted.slice(0, 3);
-        const hidden = restricted.slice(3);
-        const tooltip = (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {restricted.map(({ state, dict }) => (
-              <div key={dict.key}>
-                <Tag color={dict.color} style={{ fontSize: 11, marginRight: 6 }}>{dict.nameZh}</Tag>
-                <span style={{ fontSize: 11 }}>{state.restrictedUntil ? `至 ${state.restrictedUntil}` : '永久'}</span>
-              </div>
-            ))}
-          </div>
-        );
-        return (
-          <Tooltip title={tooltip} placement="topLeft">
-            <span data-e2e-id={`members-table-capability-tags-${r.uid}`} style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
-              {visible.map(({ dict }) => (
-                <Tag key={dict.key} color={dict.color} style={{ fontSize: 11, marginRight: 0 }}>{dict.nameZh}</Tag>
-              ))}
-              {hidden.length > 0 && (
-                <Tag style={{ fontSize: 11, marginRight: 0 }}>+{hidden.length}</Tag>
-              )}
-            </span>
-          </Tooltip>
-        );
-      },
     },
     {
       title: '風控等級',
@@ -485,41 +419,6 @@ export default function MembersPage() {
                   <Select.Option value="Rejected">Rejected</Select.Option>
                   <Select.Option value="Not Submitted">Not Submitted</Select.Option>
                 </Select>
-              </Form.Item>
-              <Form.Item name="capabilityKeys" label="能力狀態">
-                <Select
-                  data-e2e-id="members-filter-capability-keys-select"
-                  mode="multiple"
-                  placeholder="選擇能力"
-                  allowClear
-                  style={{ minWidth: 220 }}
-                  options={capabilityDict
-                    .filter(c => c.enabled)
-                    .sort((a, b) => a.sortOrder - b.sortOrder)
-                    .map(c => ({ value: c.key, label: c.nameZh }))}
-                  maxTagCount="responsive"
-                />
-              </Form.Item>
-              <Form.Item name="capabilityMatch" label="命中模式" initialValue="any">
-                <Segmented
-                  data-e2e-id="members-filter-capability-match-segmented"
-                  size="small"
-                  options={[
-                    { label: '任一命中', value: 'any' },
-                    { label: '全部命中', value: 'all' },
-                  ]}
-                />
-              </Form.Item>
-              <Form.Item name="restrictionType" label="限制類型" initialValue="any">
-                <Segmented
-                  data-e2e-id="members-filter-restriction-type-segmented"
-                  size="small"
-                  options={[
-                    { label: '全部', value: 'any' },
-                    { label: '永久', value: 'permanent' },
-                    { label: '暫時', value: 'temporary' },
-                  ]}
-                />
               </Form.Item>
               <Form.Item name="riskValue" label={
                 <Select data-e2e-id="members-filter-risk-type-select" value={riskType} onChange={(v) => { setRiskType(v); form.setFieldValue('riskValue', undefined); }} variant="borderless" size="small" style={{ width: 90 }}>

@@ -41,7 +41,7 @@ export interface BatchUploadRow {
   walletBalance: number | null;
   submitAmount: number | null;
   turnoverMultiplier: number | null;
-  venueLimit: string;
+  venueLimit: string[][];
   reason: string;
   valid: boolean;
   errorMessage: string;

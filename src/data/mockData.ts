@@ -759,6 +759,13 @@ export interface MemberItem {
   agentStatus: '未開啟' | '已開啟';
   memberStatus: 'Verified' | 'Unverified' | 'Suspended';
   kycStatus: 'Approved' | 'Pending' | 'Rejected' | 'Not Submitted';
+  // 對應後端 fb_members_extra.block_state / banned_state
+  // block_state=1 → 全鎖（含登入）；banned_state=1 → 黑名單，同樣全鎖
+  blockState: boolean;
+  bannedState: boolean;
+  // 對應後端 modules/members.go:806 Frozen 規則（註冊滿 72 hr 且 KYC ≠ Approved）
+  // mock 不實際計算註冊時間，直接由指定的 UID 列表認定為 Frozen
+  frozen: boolean;
   restrictedStatus: string;
   riskLevel: string;
   riskTag: string;
@@ -852,6 +859,16 @@ const riskLevels = ['無', '低', '中', '高'];
 const riskTags = ['正常', '異常充值', '多帳號', '可疑行為', ''];
 const memberStatuses: MemberItem['memberStatus'][] = ['Verified', 'Unverified', 'Suspended'];
 const kycStatuses: MemberItem['kycStatus'][] = ['Approved', 'Pending', 'Rejected', 'Not Submitted'];
+// ====== Demo UID 配置：每組 UID 強制特定狀態以演示對應自動規則 ======
+// Frozen demo：mock 不計算註冊時間，直接由此名單認定為「註冊 > 72 hr 且 KYC 未通過」
+// 對應後端 modules/members.go:806；這些 UID 在生成時會強制 kycStatus ∈ {Pending, Rejected, Not Submitted}
+const FROZEN_DEMO_UIDS = new Set(['U10003', 'U10007', 'U10015']);
+const frozenKycStatuses: MemberItem['kycStatus'][] = ['Pending', 'Rejected', 'Not Submitted'];
+// Suspended demo：強制 memberStatus='Suspended' + kycStatus='Approved'（避免 KYC 規則干擾，純 demo 「系統」Tag）
+const SUSPENDED_DEMO_UIDS = new Set(['U10010']);
+// Blocked demo：強制 blockState=true + kycStatus='Approved'（純 demo「系統」Tag 全鎖）
+const BLOCKED_DEMO_UIDS = new Set(['U10025']);
+// 黑名單 demo：U10005（已在 bannedState 邏輯中強制）
 const restrictedStatuses = ['正常', '提款限制', '登入封鎖', '全功能封鎖'];
 
 function generatePHPhone(): string {
@@ -890,9 +907,16 @@ export function generateMembers(count: number = 50): MemberItem[] {
     const vipUpgradeAt = dayjs().subtract(vipDaysAgo, 'day').valueOf();
     const keepExpire = dayjs(vipUpgradeAt).add(30, 'day').format('YYYYMMDD');
 
+    const memberUid = statSeed?.uid ?? `U${String(10001 + i)}`;
+    const isFrozenDemo = FROZEN_DEMO_UIDS.has(memberUid);
+    const isSuspendedDemo = SUSPENDED_DEMO_UIDS.has(memberUid);
+    const isBlockedDemo = BLOCKED_DEMO_UIDS.has(memberUid);
+    const isBannedDemo = memberUid === 'U10005';
+    const isAnyAutoRuleDemo = isFrozenDemo || isSuspendedDemo || isBlockedDemo || isBannedDemo;
+
     members.push({
       id: i + 1,
-      uid: statSeed?.uid ?? `U${String(10001 + i)}`,
+      uid: memberUid,
       account: statSeed?.username ?? `filbet_${rand(10000, 99999)}`,
       nickname: `${firstName}${rand(10, 99)}`,
       realName: `${firstName} ${lastName}`,
@@ -902,8 +926,24 @@ export function generateMembers(count: number = 50): MemberItem[] {
       storeName: pick(phStores),
       walletBalance: randDec(0, 100000),
       agentStatus: Math.random() < 0.15 ? '已開啟' : '未開啟',
-      memberStatus: pick(memberStatuses),
-      kycStatus: pick(kycStatuses),
+      // Suspended demo 強制 Suspended；其他 auto-rule demo 強制 Verified 避免規則互相干擾；一般會員隨機
+      memberStatus: isSuspendedDemo
+        ? 'Suspended'
+        : isAnyAutoRuleDemo
+          ? 'Verified'
+          : pick(memberStatuses),
+      // KYC：Frozen demo 強制非 Approved；其他 auto-rule demo 強制 Approved 隔離 KYC 規則；一般會員隨機
+      kycStatus: isFrozenDemo
+        ? pick(frozenKycStatuses)
+        : isAnyAutoRuleDemo
+          ? 'Approved'
+          : pick(kycStatuses),
+      // 黑名單 ~6%；U10005 強制 banned
+      bannedState: isBannedDemo ? true : Math.random() < 0.06,
+      // 封禁 ~3%；BLOCKED_DEMO_UIDS 強制 blockState=true
+      blockState: isBlockedDemo ? true : Math.random() < 0.03,
+      // Frozen：由 FROZEN_DEMO_UIDS 認定（不依時間計算），對應後端 Frozen 規則
+      frozen: isFrozenDemo,
       restrictedStatus: pick(restrictedStatuses),
       riskLevel: pick(riskLevels),
       riskTag: pick(riskTags),
@@ -1051,8 +1091,16 @@ export function appendVipHistory(uid: string, item: VipLevelHistoryItem) {
 }
 
 // ==================== 會員能力（功能限制）字典與狀態 ====================
+// vip-admin 的 capability key 與後端 modules/members.go 的 MemberState 對應：
+//   login    → ProhibitLogin
+//   deposit  → ProhibitDeposit
+//   withdraw → ProhibitWithdraw
+//   bet      → ProhibitGame   (UI 用「投注」更貼近運營語言，底層 = 進入遊戲)
+// 後端是「OR 疊加」：自動規則(KYC/state/banned) OR 手動鎖 → 最終限制
 export type CapabilityCategory = '財務' | '行為' | '風控' | '行銷';
-export type CapabilitySource = 'manual' | 'risk_engine' | 'kyc_flow' | 'system';
+// source 區分鎖的來源：manual=後台手動加；其餘為自動規則衍生（衍生來源不會出現在手動鎖記錄中）
+// blacklist 專指後端 banned_state=1 觸發的黑名單規則，獨立於 risk_engine 以便 UI 顯示「黑名單」Tag
+export type CapabilitySource = 'manual' | 'risk_engine' | 'kyc_flow' | 'system' | 'blacklist';
 export type CapabilityAction = 'open' | 'close' | 'update';
 
 export interface CapabilityDictItem {
@@ -1087,12 +1135,18 @@ export interface MemberCapabilityLog {
   operator: string;
 }
 
+// 自動規則衍生鎖（不入庫，由 deriveAutoRestrictions 從會員狀態計算）
+export interface AutoRestriction {
+  capabilityKey: string;
+  reason: string;          // 觸發描述
+  source: Exclude<CapabilitySource, 'manual'>; // 自動鎖不會是 manual
+  triggerField: string;    // 觸發欄位（memberStatus / kycStatus / bannedState ...）
+}
+
 export const capabilityDict: CapabilityDictItem[] = [
   { key: 'deposit',  nameZh: '存款',     nameEn: 'Deposit',  category: '財務', color: 'red',     sortOrder: 10, enabled: true, description: '會員儲值' },
   { key: 'withdraw', nameZh: '提現',     nameEn: 'Withdraw', category: '財務', color: 'orange',  sortOrder: 20, enabled: true, description: '會員提款' },
-  { key: 'bet',      nameZh: '投注',     nameEn: 'Bet',      category: '行為', color: 'purple',  sortOrder: 30, enabled: true, description: '所有遊戲投注' },
-  { key: 'promo',    nameZh: '領取優惠', nameEn: 'Promo',    category: '行銷', color: 'magenta', sortOrder: 40, enabled: true, description: '活動禮金 / Free Spin 領取' },
-  { key: 'chat',     nameZh: '站內聊天', nameEn: 'Chat',     category: '行為', color: 'cyan',    sortOrder: 50, enabled: true, description: '會員聊天 / 留言' },
+  { key: 'bet',      nameZh: '投注',     nameEn: 'Bet',      category: '行為', color: 'purple',  sortOrder: 30, enabled: true, description: '所有遊戲投注（後端 ProhibitGame）' },
   { key: 'login',    nameZh: '登入',     nameEn: 'Login',    category: '風控', color: 'volcano', sortOrder: 60, enabled: true, description: 'APP / H5 登入' },
 ];
 
@@ -1108,6 +1162,7 @@ export const capabilitySourceLabel: Record<CapabilitySource, string> = {
   risk_engine: '風控引擎',
   kyc_flow: 'KYC 流程',
   system: '系統',
+  blacklist: '黑名單',
 };
 
 export const capabilitySourceColor: Record<CapabilitySource, string> = {
@@ -1115,6 +1170,7 @@ export const capabilitySourceColor: Record<CapabilitySource, string> = {
   risk_engine: 'volcano',
   kyc_flow: 'gold',
   system: 'blue',
+  blacklist: 'red',
 };
 
 export function getCapabilityDictItem(key: string): CapabilityDictItem | undefined {
@@ -1137,38 +1193,28 @@ const capabilitySeeds: CapabilitySeed[] = [
   {
     uidSuffix: 'U10020',
     states: [
-      { capabilityKey: 'deposit',  restricted: true,  reason: '短時間內多次異常充值，暫停存款待人工複核', source: 'risk_engine', restrictedAt: '2026-04-29 10:18:00', restrictedUntil: '2026-05-06 10:18:00', operator: 'risk.ops@filbet.com' },
+      { capabilityKey: 'deposit',  restricted: true,  reason: '短時間內多次異常充值，暫停存款待人工複核', source: 'manual', restrictedAt: '2026-04-29 10:18:00', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
       { capabilityKey: 'bet',      restricted: false, reason: '風險排查完成，恢復投注功能',               source: 'manual',      restrictedAt: '2026-04-28 13:25:00', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
       { capabilityKey: 'withdraw', restricted: true,  reason: 'KYC 補件中，暫時限制提現',                 source: 'kyc_flow',    restrictedAt: '2026-04-28 16:45:00', restrictedUntil: null,                 operator: 'kyc.audit@filbet.com' },
     ],
     logs: [
-      { createdAt: '2026-04-29 10:18:00', capabilityKey: 'deposit',  action: 'close', reason: '短時間內多次異常充值，暫停存款待人工複核', source: 'risk_engine', restrictedUntil: '2026-05-06 10:18:00', operator: 'risk.ops@filbet.com' },
+      { createdAt: '2026-04-29 10:18:00', capabilityKey: 'deposit',  action: 'close', reason: '短時間內多次異常充值，暫停存款待人工複核', source: 'manual', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
       { createdAt: '2026-04-29 09:42:00', capabilityKey: 'withdraw', action: 'open',  reason: '銀行卡複核完成，暫時恢復提現',             source: 'manual',      restrictedUntil: null,                 operator: 'ops.supervisor@filbet.com' },
       { createdAt: '2026-04-28 16:45:00', capabilityKey: 'withdraw', action: 'close', reason: 'KYC 補件中，暫時限制提現',                 source: 'kyc_flow',    restrictedUntil: null,                 operator: 'kyc.audit@filbet.com' },
       { createdAt: '2026-04-28 13:25:00', capabilityKey: 'bet',      action: 'open',  reason: '風險排查完成，恢復投注功能',               source: 'manual',      restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
-      { createdAt: '2026-04-28 09:15:00', capabilityKey: 'bet',      action: 'close', reason: '投注行為命中套利規則，先行限制投注',       source: 'risk_engine', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
+      { createdAt: '2026-04-28 09:15:00', capabilityKey: 'bet',      action: 'close', reason: '投注行為命中套利規則，先行限制投注',       source: 'manual', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
       { createdAt: '2026-04-27 21:10:00', capabilityKey: 'deposit',  action: 'open',  reason: '會員補充說明完成，恢復存款功能',           source: 'manual',      restrictedUntil: null,                 operator: 'ops.supervisor@filbet.com' },
-      { createdAt: '2026-04-27 20:05:00', capabilityKey: 'deposit',  action: 'close', reason: '同裝置多帳號風險待查，先關閉存款',         source: 'risk_engine', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
+      { createdAt: '2026-04-27 20:05:00', capabilityKey: 'deposit',  action: 'close', reason: '同裝置多帳號風險待查，先關閉存款',         source: 'manual', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
     ],
   },
   // U10005：登入被風控封鎖（永久）
   {
     uidSuffix: 'U10005',
     states: [
-      { capabilityKey: 'login', restricted: true, reason: '異地登入 + 多帳號重疊裝置，永久封鎖待查', source: 'risk_engine', restrictedAt: '2026-04-22 03:21:00', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
+      { capabilityKey: 'login', restricted: true, reason: '異地登入 + 多帳號重疊裝置，永久封鎖待查', source: 'manual', restrictedAt: '2026-04-22 03:21:00', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
     ],
     logs: [
-      { createdAt: '2026-04-22 03:21:00', capabilityKey: 'login', action: 'close', reason: '異地登入 + 多帳號重疊裝置，永久封鎖待查', source: 'risk_engine', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
-    ],
-  },
-  // U10012：領取優惠暫時限制（套利清查）
-  {
-    uidSuffix: 'U10012',
-    states: [
-      { capabilityKey: 'promo', restricted: true, reason: '活動套利疑慮，限制 7 天領取優惠', source: 'risk_engine', restrictedAt: '2026-04-30 15:00:00', restrictedUntil: '2026-05-07 15:00:00', operator: 'risk.ops@filbet.com' },
-    ],
-    logs: [
-      { createdAt: '2026-04-30 15:00:00', capabilityKey: 'promo', action: 'close', reason: '活動套利疑慮，限制 7 天領取優惠', source: 'risk_engine', restrictedUntil: '2026-05-07 15:00:00', operator: 'risk.ops@filbet.com' },
+      { createdAt: '2026-04-22 03:21:00', capabilityKey: 'login', action: 'close', reason: '異地登入 + 多帳號重疊裝置，永久封鎖待查', source: 'manual', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
     ],
   },
   // U10033：提現被限制
@@ -1181,16 +1227,14 @@ const capabilitySeeds: CapabilitySeed[] = [
       { createdAt: '2026-04-27 11:08:00', capabilityKey: 'withdraw', action: 'close', reason: '提款資料與 KYC 主檔不一致，暫停提現', source: 'kyc_flow', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
     ],
   },
-  // U10041：站內聊天 + 投注雙限制
+  // U10041：投注手動鎖（風控人員）
   {
     uidSuffix: 'U10041',
     states: [
-      { capabilityKey: 'chat', restricted: true, reason: '聊天頻繁洗版宣傳第三方平台',         source: 'manual',      restrictedAt: '2026-05-02 09:30:00', restrictedUntil: '2026-05-09 09:30:00', operator: 'ops.supervisor@filbet.com' },
-      { capabilityKey: 'bet',  restricted: true, reason: '異常對沖投注模式偵測，限制投注待查', source: 'risk_engine', restrictedAt: '2026-05-03 18:00:00', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
+      { capabilityKey: 'bet', restricted: true, reason: '異常對沖投注模式偵測，限制投注待查', source: 'manual', restrictedAt: '2026-05-03 18:00:00', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
     ],
     logs: [
-      { createdAt: '2026-05-03 18:00:00', capabilityKey: 'bet',  action: 'close', reason: '異常對沖投注模式偵測，限制投注待查', source: 'risk_engine', restrictedUntil: null,                 operator: 'risk.ops@filbet.com' },
-      { createdAt: '2026-05-02 09:30:00', capabilityKey: 'chat', action: 'close', reason: '聊天頻繁洗版宣傳第三方平台',         source: 'manual',      restrictedUntil: '2026-05-09 09:30:00', operator: 'ops.supervisor@filbet.com' },
+      { createdAt: '2026-05-03 18:00:00', capabilityKey: 'bet', action: 'close', reason: '異常對沖投注模式偵測，限制投注待查', source: 'manual', restrictedUntil: null, operator: 'risk.ops@filbet.com' },
     ],
   },
 ];
@@ -1247,4 +1291,71 @@ export function getActiveRestrictedCapabilityKeys(uid: string, now: dayjs.Dayjs 
   return getMemberCapabilityStates(uid)
     .filter(s => s.restricted && (!s.restrictedUntil || dayjs(s.restrictedUntil).isAfter(now)))
     .map(s => s.capabilityKey);
+}
+
+// ============== 自動規則衍生（mirror 後端 FetchMemberState 邏輯） ==============
+// 對應 modules/members.go:785-861，由會員當前狀態欄位即時推導出自動限制
+// （這些限制不入庫，後端每次請求現算；前端 mock 用同樣邏輯生成 UI）
+export function deriveAutoRestrictions(member: MemberItem): AutoRestriction[] {
+  const list: AutoRestriction[] = [];
+  const lockBundle = (keys: string[], reason: string, source: AutoRestriction['source'], triggerField: string) => {
+    for (const k of keys) {
+      // 同一 capabilityKey 可被多條規則命中，全部保留以便 UI 顯示所有觸發來源
+      list.push({ capabilityKey: k, reason, source, triggerField });
+    }
+  };
+
+  // ─ Frozen 規則 ─ 對應後端 modules/members.go:806
+  // 後端條件：KycStatus != Approved 且 註冊滿 72 hr → 凍結資金/投注
+  // mock 不計算註冊時間，由 member.frozen 直接認定（FROZEN_DEMO_UIDS 名單）
+  if (member.frozen && member.kycStatus !== 'Approved') {
+    lockBundle(
+      ['deposit', 'withdraw', 'bet'],
+      'Frozen：註冊滿 72 小時且 KYC 未通過，凍結資金 / 投注',
+      'kyc_flow',
+      'frozen',
+    );
+  }
+
+  // ─ KYC 規則 ─ 對應後端 KycStatus switch (line 814-828)
+  switch (member.kycStatus) {
+    case 'Not Submitted':
+      lockBundle(['deposit', 'withdraw', 'bet'], 'KYC 未提交，鎖定資金 / 投注', 'kyc_flow', 'kycStatus');
+      break;
+    case 'Rejected':
+      lockBundle(['deposit', 'withdraw', 'bet'], 'KYC 已拒絕，鎖定資金 / 投注', 'kyc_flow', 'kycStatus');
+      break;
+    case 'Pending':
+      // 後端 KYC=2 至少鎖提現；合規開關開時連帶鎖其他（mock 假設合規開）
+      lockBundle(['deposit', 'withdraw', 'bet'], 'KYC 審核中（合規開關開啟），暫鎖各功能', 'kyc_flow', 'kycStatus');
+      break;
+    case 'Approved':
+      // 通過 → KYC 規則不加鎖
+      break;
+  }
+
+  // ─ 帳號停用規則 ─ 對應後端 m.State==1 (line 846-850)
+  if (member.memberStatus === 'Suspended') {
+    lockBundle(['withdraw', 'bet'], '帳號停用，鎖定提現 / 投注', 'system', 'memberStatus');
+  }
+
+  // ─ 封禁規則 ─ 對應後端 m.BlockState==1 (line 852-858)
+  if (member.blockState) {
+    lockBundle(['login', 'deposit', 'withdraw', 'bet'], '帳號封禁（block_state=1），全面鎖定', 'system', 'blockState');
+  }
+
+  // ─ 黑名單規則 ─ 對應後端 m.BannedState==1 (line 852-858)
+  if (member.bannedState) {
+    lockBundle(['login', 'deposit', 'withdraw', 'bet'], '黑名單（banned_state=1），全面鎖定', 'blacklist', 'bannedState');
+  }
+
+  return list;
+}
+
+// 衍生 + 手動聯集後的「最終限制」key 集合（OR）
+export function getEffectiveRestrictedCapabilityKeys(member: MemberItem, now: dayjs.Dayjs = dayjs()): string[] {
+  const auto = new Set(deriveAutoRestrictions(member).map(a => a.capabilityKey));
+  const manual = getActiveRestrictedCapabilityKeys(member.uid, now);
+  for (const k of manual) auto.add(k);
+  return Array.from(auto);
 }

@@ -20,8 +20,9 @@ import {
   getCapabilityDictItem,
   getMemberCapabilityStates, setMemberCapabilityState,
   getMemberCapabilityLogs, appendMemberCapabilityLog,
+  deriveAutoRestrictions,
   type CapabilityDictItem, type MemberCapabilityState, type MemberCapabilityLog,
-  type CapabilitySource, type CapabilityAction,
+  type CapabilitySource, type CapabilityAction, type AutoRestriction,
 } from '@/data/mockData';
 import { gameStats, inviteStats, personalStats, gameTypes, type GameStat, type GameType, type InviteStat, type PersonalStat } from '@/data/memberStatsData';
 
@@ -313,7 +314,6 @@ export default function MemberDetailPage() {
   const [kycUploadHistory, setKycUploadHistory] = useState<KycUploadHistoryRecord[]>([]);
   const [restrictionStates, setRestrictionStates] = useState<MemberCapabilityState[]>([]);
   const [restrictionHistory, setRestrictionHistory] = useState<MemberCapabilityLog[]>([]);
-  const [showAllCapabilities, setShowAllCapabilities] = useState(false);
   const [photoModal, setPhotoModal] = useState<KycPhotoModalState>({ open: false, mode: 'create', category: null, record: null });
   const [photoDeleteModal, setPhotoDeleteModal] = useState<KycDeleteModalState>({ open: false, record: null });
   const [photoPreviewModal, setPhotoPreviewModal] = useState<KycPreviewModalState>({ open: false, record: null });
@@ -348,7 +348,6 @@ export default function MemberDetailPage() {
       setKycUploadHistory(getKycHistorySeed(nextMember));
       setRestrictionStates([...getMemberCapabilityStates(uid)]);
       setRestrictionHistory([...getMemberCapabilityLogs(uid)]);
-      setShowAllCapabilities(false);
       setPhotoModal({ open: false, mode: 'create', category: null, record: null });
       setPhotoDeleteModal({ open: false, record: null });
       setPhotoPreviewModal({ open: false, record: null });
@@ -715,15 +714,21 @@ export default function MemberDetailPage() {
       totalDeposit: acc.totalDeposit + row.totalDeposit,
       totalWithdraw: acc.totalWithdraw + row.totalWithdraw,
       totalBet: acc.totalBet + row.totalBet,
+      excludedBet: acc.excludedBet + row.excludedBet,
       validBet: acc.validBet + row.validBet,
       ggr: acc.ggr + row.ggr,
     }), {
       totalDeposit: 0,
       totalWithdraw: 0,
       totalBet: 0,
+      excludedBet: 0,
       validBet: 0,
       ggr: 0,
     }), [summaryRows]);
+
+    // 達成邀請條件：此會員所有日資料的 achievedInvitation 一致；取第一筆即可
+    const achievedInvitation = rows.length > 0 ? rows[0].achievedInvitation : false;
+    const hasInviter = !!(rows.length > 0 && rows[0].inviterUid);
 
     const columns: ColumnsType<PersonalStat> = [
       { title: '統計日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
@@ -734,6 +739,7 @@ export default function MemberDetailPage() {
       { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
       { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
       { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
+      { title: '排除投注額', dataIndex: 'excludedBet', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
       { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
       { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
       { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right', render: (value: number) => renderGgrText(value) },
@@ -781,21 +787,32 @@ export default function MemberDetailPage() {
         <MemberStatCard
           title="摘要"
           extra={(
-            <Segmented<SummaryMode>
-              data-e2e-id="member-detail-personal-summary-mode"
-              value={summaryMode}
-              onChange={value => setSummaryMode(value)}
-              options={[
-                { label: '小計', value: 'page' },
-                { label: '總計', value: 'all' },
-              ]}
-            />
+            <Space size={12}>
+              {hasInviter && (
+                <Tag
+                  data-e2e-id="member-detail-personal-summary-achieved-tag"
+                  color={achievedInvitation ? 'green' : 'default'}
+                >
+                  好友邀請：{achievedInvitation ? '已達標' : '未達標'}
+                </Tag>
+              )}
+              <Segmented<SummaryMode>
+                data-e2e-id="member-detail-personal-summary-mode"
+                value={summaryMode}
+                onChange={value => setSummaryMode(value)}
+                options={[
+                  { label: '小計', value: 'page' },
+                  { label: '總計', value: 'all' },
+                ]}
+              />
+            </Space>
           )}
         >
           <Row gutter={16}>
             <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-total-deposit" title="總存款" value={summary.totalDeposit} formatter={value => formatAmount(Number(value || 0))} /></Col>
             <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-total-withdraw" title="總提款" value={summary.totalWithdraw} formatter={value => formatAmount(Number(value || 0))} /></Col>
             <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-total-bet" title="總投注" value={summary.totalBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
+            <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-excluded-bet" title="排除投注額" value={summary.excludedBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
             <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-valid-bet" title="有效流水" value={summary.validBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
             <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-ggr" title="GGR" value={summary.ggr} valueStyle={{ color: summary.ggr >= 0 ? '#52c41a' : '#ff4d4f' }} formatter={value => formatAmount(Number(value || 0))} /></Col>
           </Row>
@@ -807,11 +824,12 @@ export default function MemberDetailPage() {
               data-e2e-id="member-detail-personal-toolbar-export-btn"
               onClick={() => exportCsv(
                 `member-${uid}-personal-daily-${queryStart}-${queryEnd}.csv`,
-                ['統計日期', '會員 UID', '會員帳號', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '有效流水', '總派獎', 'GGR', '總彩金', '總佣金'],
+                ['統計日期', '會員 UID', '會員帳號', '達標', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', '總彩金', '總佣金'],
                 rows.map(row => [
                   row.date,
                   row.uid,
                   row.username,
+                  row.inviterUid ? (row.achievedInvitation ? '是' : '否') : '-',
                   row.depositCount,
                   formatAmount(row.totalDeposit),
                   row.withdrawCount,
@@ -819,6 +837,7 @@ export default function MemberDetailPage() {
                   formatAmount(row.depositFee),
                   formatAmount(row.withdrawFee),
                   formatAmount(row.totalBet),
+                  formatAmount(row.excludedBet),
                   formatAmount(row.validBet),
                   formatAmount(row.totalPayout),
                   formatAmount(row.ggr),
@@ -1280,7 +1299,6 @@ export default function MemberDetailPage() {
 
   const openCreateRestrictionModal = () => {
     restrictionForm.resetFields();
-    restrictionForm.setFieldsValue({ durationType: 'permanent' });
     setRestrictionModal({ open: true, mode: 'create', capabilityKey: null });
   };
 
@@ -1289,8 +1307,6 @@ export default function MemberDetailPage() {
     restrictionForm.setFieldsValue({
       capabilityKey: state.capabilityKey,
       reason: state.reason,
-      durationType: state.restrictedUntil ? 'until' : 'permanent',
-      restrictedUntil: state.restrictedUntil ? dayjs(state.restrictedUntil) : null,
     });
     setRestrictionModal({ open: true, mode: 'edit', capabilityKey: state.capabilityKey });
   };
@@ -1309,9 +1325,8 @@ export default function MemberDetailPage() {
   const handleRestrictionSubmit = async () => {
     if (!uid) return;
     const values = await restrictionForm.validateFields();
-    const targetKey: string | undefined = restrictionModal.mode === 'create'
-      ? values.capabilityKey
-      : restrictionModal.capabilityKey ?? undefined;
+    // modal.capabilityKey 已預填時優先使用（row 加鎖入口），fallback 到 form 值（總覽級新增入口）
+    const targetKey: string | undefined = restrictionModal.capabilityKey ?? values.capabilityKey;
     if (!targetKey) return;
     const dictItem = getCapabilityDictItem(targetKey);
     if (!dictItem) return;
@@ -1348,9 +1363,8 @@ export default function MemberDetailPage() {
       return;
     }
 
-    const restrictedUntil: string | null = values.durationType === 'until' && values.restrictedUntil
-      ? dayjs(values.restrictedUntil).format('YYYY-MM-DD HH:mm:ss')
-      : null;
+    // 不再提供暫時限制，所有手動鎖一律永久（restrictedUntil=null）
+    const restrictedUntil: string | null = null;
 
     const nextState: MemberCapabilityState = {
       capabilityKey: targetKey,
@@ -1410,7 +1424,7 @@ export default function MemberDetailPage() {
     { title: '時間', dataIndex: 'createdAt', width: 170 },
     { title: '操作員', dataIndex: 'operator', width: 200 },
     {
-      title: '能力',
+      title: '功能',
       dataIndex: 'capabilityKey',
       width: 120,
       render: (value: string) => {
@@ -1429,12 +1443,6 @@ export default function MemberDetailPage() {
       dataIndex: 'source',
       width: 110,
       render: (value: CapabilitySource) => <Tag color={capabilitySourceColor[value]}>{capabilitySourceLabel[value]}</Tag>,
-    },
-    {
-      title: '限制至',
-      dataIndex: 'restrictedUntil',
-      width: 170,
-      render: (value: string | null) => value ?? <Text type="secondary">-</Text>,
     },
     { title: '限制原因 / 備註', dataIndex: 'reason' },
   ];
@@ -1557,159 +1565,193 @@ export default function MemberDetailPage() {
   );
 
   const renderRestrictionsTab = () => {
+    if (!member) return <Empty description="會員不存在" />;
+
     const enabledDict = capabilityDict.filter(c => c.enabled).slice().sort((a, b) => a.sortOrder - b.sortOrder);
     const stateMap = new Map(restrictionStates.map(s => [s.capabilityKey, s] as const));
     const nowTs = dayjs();
     const isActiveRestriction = (s: MemberCapabilityState) =>
       s.restricted && (!s.restrictedUntil || dayjs(s.restrictedUntil).isAfter(nowTs));
 
-    const restrictedDict = enabledDict.filter((c) => {
-      const s = stateMap.get(c.key);
-      return s ? isActiveRestriction(s) : false;
+    // 衍生自動規則鎖：依會員當前狀態 (memberStatus / kycStatus / blockState / bannedState) 推導
+    const autoRestrictions = deriveAutoRestrictions(member);
+    const autoByKey = new Map<string, AutoRestriction[]>();
+    for (const a of autoRestrictions) {
+      const arr = autoByKey.get(a.capabilityKey) ?? [];
+      arr.push(a);
+      autoByKey.set(a.capabilityKey, arr);
+    }
+
+    type Row = {
+      capability: CapabilityDictItem;
+      autoLocks: AutoRestriction[];
+      manualLock: MemberCapabilityState | null; // 僅顯示 active 的
+      finalLocked: boolean;
+    };
+
+    const rows: Row[] = enabledDict.map((cap) => {
+      const autoLocks = autoByKey.get(cap.key) ?? [];
+      const state = stateMap.get(cap.key);
+      const manualLock = state && isActiveRestriction(state) ? state : null;
+      const finalLocked = autoLocks.length > 0 || !!manualLock;
+      return { capability: cap, autoLocks, manualLock, finalLocked };
     });
-    const otherDict = enabledDict.filter(c => !restrictedDict.includes(c));
+
     const totalCount = enabledDict.length;
-    const restrictedCount = restrictedDict.length;
-    const noKeyTaken = (key: string) => !stateMap.get(key) || !isActiveRestriction(stateMap.get(key)!);
+    const finalLockedCount = rows.filter(r => r.finalLocked).length;
+    const autoLockedCount = rows.filter(r => r.autoLocks.length > 0).length;
+    const manualLockedCount = rows.filter(r => r.manualLock).length;
+    const allManualBlocked = rows.every(r => r.manualLock);
+
+    const renderAutoCell = (autoLocks: AutoRestriction[]) => {
+      if (autoLocks.length === 0) return <Text type="secondary">—</Text>;
+      // 同 source 同 capability 多條規則合併為單一 Tag，Tooltip 列出所有 reason
+      const grouped = new Map<CapabilitySource, string[]>();
+      for (const lock of autoLocks) {
+        const arr = grouped.get(lock.source) ?? [];
+        arr.push(lock.reason);
+        grouped.set(lock.source, arr);
+      }
+      return (
+        <Space size={4} wrap>
+          {Array.from(grouped.entries()).map(([source, reasons]) => (
+            <Tooltip
+              key={source}
+              title={
+                <Space direction="vertical" size={2}>
+                  {reasons.map((r, i) => <Text key={i} style={{ color: '#fff' }}>• {r}</Text>)}
+                </Space>
+              }
+            >
+              <Tag color={capabilitySourceColor[source]} icon={<WarningOutlined />} style={{ cursor: 'help' }}>
+                {capabilitySourceLabel[source]}{reasons.length > 1 ? ` ×${reasons.length}` : ''}
+              </Tag>
+            </Tooltip>
+          ))}
+        </Space>
+      );
+    };
+
+    const renderManualCell = (row: Row) => {
+      if (!row.manualLock) {
+        return (
+          <Button
+            data-e2e-id={`member-detail-restriction-set-btn-${row.capability.key}`}
+            type="link"
+            size="small"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              restrictionForm.resetFields();
+              restrictionForm.setFieldsValue({ capabilityKey: row.capability.key });
+              setRestrictionModal({ open: true, mode: 'create', capabilityKey: row.capability.key });
+            }}
+          >
+            加鎖
+          </Button>
+        );
+      }
+      const s = row.manualLock;
+      return (
+        <Tooltip title={s.reason}>
+          <Tag color="blue">已加鎖</Tag>
+        </Tooltip>
+      );
+    };
+
+    const renderFinalCell = (row: Row) => (
+      <Tag color={row.finalLocked ? 'red' : 'green'}>
+        {row.finalLocked ? '❌ 禁止' : '✅ 允許'}
+      </Tag>
+    );
+
+    const columns: ColumnsType<Row> = [
+      {
+        title: '功能',
+        key: 'capability',
+        width: 120,
+        render: (_: unknown, r: Row) => (
+          <Tag color={r.capability.color}>{r.capability.nameZh}</Tag>
+        ),
+      },
+      {
+        title: <Tooltip title="由 KYC / 帳號狀態 / 風控標籤推導，無法在此處取消">自動規則</Tooltip>,
+        key: 'auto',
+        width: 280,
+        render: (_: unknown, r: Row) => renderAutoCell(r.autoLocks),
+      },
+      {
+        title: <Tooltip title="後台單獨設置，與自動規則 OR 疊加">手動鎖</Tooltip>,
+        key: 'manual',
+        width: 180,
+        render: (_: unknown, r: Row) => renderManualCell(r),
+      },
+      {
+        title: '最終結果',
+        key: 'final',
+        width: 140,
+        render: (_: unknown, r: Row) => renderFinalCell(r),
+      },
+      {
+        title: '操作',
+        key: 'actions',
+        width: 120,
+        render: (_: unknown, r: Row) => {
+          if (!r.manualLock) return <Text type="secondary" style={{ fontSize: 12 }}>—</Text>;
+          return (
+            <Button
+              data-e2e-id={`member-detail-restriction-release-btn-${r.capability.key}`}
+              size="small"
+              danger
+              onClick={() => openReleaseRestrictionModal(r.capability.key)}
+            >
+              解除
+            </Button>
+          );
+        },
+      },
+    ];
+
+    const bannerType: 'error' | 'warning' | 'info' | 'success' =
+      finalLockedCount === 0 ? 'success' : autoLockedCount > 0 ? 'warning' : 'info';
+    const bannerMessage = (
+      <Space wrap>
+        <span>會員當前狀態：</span>
+        <Tag color={memberStatusColor[member.memberStatus]}>{member.memberStatus}</Tag>
+        <Tag color={kycStatusColor[member.kycStatus]}>KYC {member.kycStatus}</Tag>
+        {member.bannedState && <Tag color="red">黑名單</Tag>}
+        {member.blockState && <Tag color="volcano">封禁</Tag>}
+        <span style={{ marginLeft: 12 }}>
+          自動鎖 <Tag color={autoLockedCount > 0 ? 'orange' : 'default'}>{autoLockedCount}</Tag>
+          手動鎖 <Tag color={manualLockedCount > 0 ? 'blue' : 'default'}>{manualLockedCount}</Tag>
+          最終受限 <Tag color={finalLockedCount > 0 ? 'red' : 'green'}>{finalLockedCount} / {totalCount}</Tag>
+        </span>
+      </Space>
+    );
 
     return (
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Card size="small">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <Space>
-              <Text strong>目前限制</Text>
-              <Tag color={restrictedCount > 0 ? 'red' : 'green'}>{restrictedCount} / {totalCount}</Tag>
-            </Space>
-            <Button
-              data-e2e-id="member-detail-restriction-add-btn"
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={openCreateRestrictionModal}
-              disabled={restrictedDict.length === enabledDict.length}
-            >
-              新增限制
-            </Button>
-          </div>
-          {restrictedCount === 0 ? (
-            <Empty description="目前所有功能正常" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          ) : (
-            <Row gutter={[16, 16]}>
-              {restrictedDict.map((cap) => {
-                const state = stateMap.get(cap.key)!;
-                return (
-                  <Col xs={24} md={12} xl={8} key={cap.key}>
-                    <Card
-                      size="small"
-                      style={{ borderColor: '#ffa39e' }}
-                      title={
-                        <Space>
-                          <Tag color={cap.color} style={{ marginRight: 0 }}>{cap.nameZh}</Tag>
-                          <Tag color={capabilitySourceColor[state.source]}>{capabilitySourceLabel[state.source]}</Tag>
-                        </Space>
-                      }
-                      extra={<Tag color="red">已限制</Tag>}
-                    >
-                      <Space direction="vertical" size={6} style={{ width: '100%' }}>
-                        <div>
-                          <Text type="secondary">限制原因：</Text>
-                          <Text>{state.reason}</Text>
-                        </div>
-                        <div>
-                          <Text type="secondary">限制時間：</Text>
-                          <Text>{state.restrictedAt}</Text>
-                        </div>
-                        <div>
-                          <Text type="secondary">限制至：</Text>
-                          <Text>{state.restrictedUntil ?? '永久'}</Text>
-                        </div>
-                        <div>
-                          <Text type="secondary">操作員：</Text>
-                          <Text>{state.operator}</Text>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
-                          <Button
-                            data-e2e-id={`member-detail-restriction-edit-btn-${cap.key}`}
-                            size="small"
-                            icon={<EditOutlined />}
-                            onClick={() => openEditRestrictionModal(state)}
-                          >
-                            編輯
-                          </Button>
-                          <Button
-                            data-e2e-id={`member-detail-restriction-release-btn-${cap.key}`}
-                            size="small"
-                            danger
-                            onClick={() => openReleaseRestrictionModal(cap.key)}
-                          >
-                            解除限制
-                          </Button>
-                        </div>
-                      </Space>
-                    </Card>
-                  </Col>
-                );
-              })}
-            </Row>
-          )}
-        </Card>
+        <Alert
+          data-e2e-id="member-detail-restriction-status-banner"
+          type={bannerType}
+          showIcon
+          message={bannerMessage}
+        />
 
         <Card
           size="small"
-          title={
-            <Space>
-              <Text>顯示其他能力</Text>
-              <Tag>{otherDict.length}</Tag>
-            </Space>
-          }
-          extra={
-            <Button
-              data-e2e-id="member-detail-restriction-toggle-others-btn"
-              type="link"
-              size="small"
-              onClick={() => setShowAllCapabilities(v => !v)}
-            >
-              {showAllCapabilities ? '收起' : '展開'}
-            </Button>
-          }
+          title="功能限制總覽"
         >
-          {showAllCapabilities ? (
-            otherDict.length === 0 ? (
-              <Empty description="所有能力皆已限制" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            ) : (
-              <Row gutter={[12, 12]}>
-                {otherDict.map((cap) => (
-                  <Col xs={24} md={12} xl={8} key={cap.key}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 12px', background: '#fafafa', borderRadius: 4 }}>
-                      <Space>
-                        <Tag color={cap.color} style={{ marginRight: 0 }}>{cap.nameZh}</Tag>
-                        <Text type="secondary" style={{ fontSize: 12 }}>{cap.description}</Text>
-                      </Space>
-                      <Button
-                        data-e2e-id={`member-detail-restriction-set-btn-${cap.key}`}
-                        type="link"
-                        size="small"
-                        disabled={!noKeyTaken(cap.key)}
-                        onClick={() => {
-                          restrictionForm.resetFields();
-                          restrictionForm.setFieldsValue({ capabilityKey: cap.key, durationType: 'permanent' });
-                          setRestrictionModal({ open: true, mode: 'create', capabilityKey: cap.key });
-                        }}
-                      >
-                        設為限制
-                      </Button>
-                    </div>
-                  </Col>
-                ))}
-              </Row>
-            )
-          ) : (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              點擊右側「展開」可檢視全部 {totalCount} 種能力的當前狀態。
-            </Text>
-          )}
+          <Table
+            data-e2e-id="member-detail-restriction-table"
+            rowKey={(r) => r.capability.key}
+            columns={columns}
+            dataSource={rows}
+            pagination={false}
+            size="small"
+          />
         </Card>
 
-        <Card size="small" title="操作歷史">
+        <Card size="small" title="手動鎖操作歷史">
           <Table
             rowKey="id"
             columns={restrictionHistoryColumns}
@@ -1718,23 +1760,6 @@ export default function MemberDetailPage() {
             pagination={{ pageSize: 12, showTotal: total => `共 ${total} 筆` }}
             size="small"
           />
-        </Card>
-
-        <Card size="small" title="玩家端體驗預覽">
-          {restrictedDict.length === 0 ? (
-            <Empty description="無限制 → 玩家端不會出現拒絕提示" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          ) : (
-            <Row gutter={[12, 12]}>
-              {restrictedDict.map((cap) => (
-                <Col xs={24} md={12} xl={8} key={cap.key}>
-                  <Card size="small" style={{ background: '#fafafa' }}>
-                    <Tag color={cap.color}>{cap.nameZh}</Tag>
-                    <Text style={{ marginLeft: 4 }}>{capabilityDeniedMessage(cap)}</Text>
-                  </Card>
-                </Col>
-              ))}
-            </Row>
-          )}
         </Card>
       </Space>
     );
@@ -1929,13 +1954,15 @@ export default function MemberDetailPage() {
         onOk={handleRestrictionSubmit}
         okText="確認"
         cancelText="取消"
+        destroyOnClose
       >
         <Form
           form={restrictionForm}
           layout="vertical"
-          initialValues={{ durationType: 'permanent' }}
+          initialValues={{}}
+          preserve={false}
         >
-          {restrictionModal.mode === 'create' ? (
+          {restrictionModal.mode === 'create' && !restrictionModal.capabilityKey ? (
             <Form.Item
               label="能力"
               name="capabilityKey"
@@ -1984,44 +2011,6 @@ export default function MemberDetailPage() {
               showCount
             />
           </Form.Item>
-
-          {restrictionModal.mode !== 'release' && (
-            <>
-              <Form.Item
-                label="限制時間"
-                name="durationType"
-                rules={[{ required: true }]}
-              >
-                <Segmented
-                  data-e2e-id="member-detail-restriction-modal-duration-segmented"
-                  options={[
-                    { label: '永久', value: 'permanent' },
-                    { label: '至指定時間', value: 'until' },
-                  ]}
-                />
-              </Form.Item>
-              <Form.Item
-                noStyle
-                shouldUpdate={(prev, cur) => prev.durationType !== cur.durationType}
-              >
-                {() => restrictionForm.getFieldValue('durationType') === 'until' ? (
-                  <Form.Item
-                    label="限制至"
-                    name="restrictedUntil"
-                    rules={[{ required: true, message: '請選擇限制截止時間' }]}
-                  >
-                    <DatePicker
-                      data-e2e-id="member-detail-restriction-modal-until-picker"
-                      showTime
-                      format="YYYY-MM-DD HH:mm:ss"
-                      style={{ width: '100%' }}
-                      disabledDate={(d) => d.isBefore(dayjs().startOf('day'))}
-                    />
-                  </Form.Item>
-                ) : null}
-              </Form.Item>
-            </>
-          )}
 
           <Form.Item
             label="Google 驗證碼"
