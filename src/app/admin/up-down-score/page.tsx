@@ -146,7 +146,6 @@ function parseCsv(
     const turnoverMultiplier = isUp ? (turnoverText ? Number(turnoverText) : NaN) : null;
     const errors: string[] = [];
 
-    if (index >= 200) errors.push('超過單次匯入上限 200 名會員');
     if (!keyValue) errors.push(keyType === 'phone' ? '缺少手機號' : '缺少會員UID');
     if (keyValue && !profile) errors.push('會員不存在');
     if (!parsedAmount || Number.isNaN(parsedAmount) || parsedAmount < 0.01) errors.push('調整金額需大於 0.01');
@@ -689,12 +688,13 @@ export default function UpDownScorePage() {
       const hasVenueLimit = !isUp || (!!batchModal.sharedVenueLimit && batchModal.sharedVenueLimit.length > 0);
       const hasRows = batchModal.rows.length > 0;
       const keyHeader = batchModal.csvKeyType === 'phone' ? '手機號' : '會員UID';
+      const exceedsLimit = batchModal.rows.length > 2000;
       return (
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Alert
             type="info"
             showIcon
-            message="單次匯入最多 200 名會員，超出部分將標為「不合法」並排除於本批"
+            message="單次匯入最多 2000 名會員"
           />
           <Form layout="vertical">
             <Row gutter={[24, 16]}>
@@ -762,18 +762,25 @@ export default function UpDownScorePage() {
                     </p>
                     <p className="ant-upload-text">拖曳 CSV 到此處，或點擊上傳</p>
                     <p className="ant-upload-hint">
-                      模板欄位：{keyHeader}, 調整金額{isUp ? ', 流水倍數' : ''}, 調整理由 · 單次最多 200 名會員
+                      模板欄位：{keyHeader}, 調整金額{isUp ? ', 流水倍數' : ''}, 調整理由 · 單次最多 2000 名會員
                     </p>
                   </Dragger>
                 </Form.Item>
               </Col>
             </Row>
           </Form>
-          {hasRows && (
+          {hasRows && !exceedsLimit && (
             <Alert
               type="success"
               showIcon
               message={`已解析 ${batchModal.rows.length} 筆資料（合法 ${validCount} 筆 / 不合法 ${invalidCount} 筆）`}
+            />
+          )}
+          {exceedsLimit && (
+            <Alert
+              type="error"
+              showIcon
+              message={`已上傳 ${batchModal.rows.length} 筆，超過單次匯入上限 2000 名會員，請刪減後重新上傳`}
             />
           )}
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -781,7 +788,7 @@ export default function UpDownScorePage() {
               <Button onClick={() => setBatchModal((prev) => ({ ...prev, open: false }))}>取消</Button>
               <Button
                 type="primary"
-                disabled={!hasVenueLimit || !hasRows}
+                disabled={!hasVenueLimit || !hasRows || exceedsLimit}
                 onClick={() => setBatchModal((prev) => ({ ...prev, currentStep: 1 }))}
               >
                 下一步
