@@ -389,13 +389,13 @@ export default function MemberGameStatsPage() {
             const summaryTableData = [{ key: 'all', label: '合計', ...summary }];
             const summaryColumns = [
               { title: '類型', dataIndex: 'label', width: 60 },
-              { title: '總投注額', dataIndex: 'totalBet', align: 'right' as const, render: renderAmount },
-              { title: '排除投注額', dataIndex: 'excludedBet', align: 'right' as const, render: renderAmount },
-              { title: '有效投注額', dataIndex: 'validBet', align: 'right' as const, render: renderAmount },
-              { title: '總派獎', dataIndex: 'totalPayout', align: 'right' as const, render: renderAmount },
-              { title: 'GGR', dataIndex: 'ggr', align: 'right' as const, render: renderGgr },
+              { title: '總投注額', dataIndex: 'totalBet', width: 140, align: 'right' as const, render: renderAmount },
+              { title: '排除投注額', dataIndex: 'excludedBet', width: 140, align: 'right' as const, render: renderAmount },
+              { title: '有效投注額', dataIndex: 'validBet', width: 140, align: 'right' as const, render: renderAmount },
+              { title: '總派獎', dataIndex: 'totalPayout', width: 140, align: 'right' as const, render: renderAmount },
+              { title: 'GGR', dataIndex: 'ggr', width: 140, align: 'right' as const, render: renderGgr },
             ];
-            return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" />;
+            return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" scroll={{ x: 'max-content' }} />;
           })()}
         </Card>
 

@@ -172,6 +172,8 @@ const aggregatePersonalStats = (rows: PersonalStat[]): AggregatedPersonalStat[] 
 
 const sumPersonal = (rows: AggregatedPersonalStat[]) => rows.reduce(
   (acc, row) => ({
+    memberCount: acc.memberCount + 1,
+    achievedCount: acc.achievedCount + (row.achievedInvitation ? 1 : 0),
     depositCount: acc.depositCount + row.depositCount,
     totalDeposit: acc.totalDeposit + row.totalDeposit,
     withdrawCount: acc.withdrawCount + row.withdrawCount,
@@ -186,7 +188,7 @@ const sumPersonal = (rows: AggregatedPersonalStat[]) => rows.reduce(
     totalBonus: acc.totalBonus + row.totalBonus,
     totalCommission: acc.totalCommission + row.totalCommission,
   }),
-  { depositCount: 0, totalDeposit: 0, withdrawCount: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, totalBonus: 0, totalCommission: 0 }
+  { memberCount: 0, achievedCount: 0, depositCount: 0, totalDeposit: 0, withdrawCount: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, totalBonus: 0, totalCommission: 0 }
 );
 
 const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
@@ -589,21 +591,23 @@ function PersonalStatsTab() {
           ];
           const summaryColumns = [
             { title: '類型', dataIndex: 'label', width: 60 },
-            { title: '存款次數', dataIndex: 'depositCount', align: 'right' as const, render: renderInteger },
-            { title: '總存款', dataIndex: 'totalDeposit', align: 'right' as const, render: renderAmount },
-            { title: '提款次數', dataIndex: 'withdrawCount', align: 'right' as const, render: renderInteger },
-            { title: '總提款', dataIndex: 'totalWithdraw', align: 'right' as const, render: renderAmount },
-            { title: '存款手續費', dataIndex: 'depositFee', align: 'right' as const, render: renderAmount },
-            { title: '提款手續費', dataIndex: 'withdrawFee', align: 'right' as const, render: renderAmount },
-            { title: '總投注', dataIndex: 'totalBet', align: 'right' as const, render: renderAmount },
-            { title: '排除投注額', dataIndex: 'excludedBet', align: 'right' as const, render: renderAmount },
-            { title: '有效流水', dataIndex: 'validBet', align: 'right' as const, render: renderAmount },
-            { title: '總派獎', dataIndex: 'totalPayout', align: 'right' as const, render: renderAmount },
-            { title: 'GGR', dataIndex: 'ggr', align: 'right' as const, render: renderGgr },
-            { title: '總彩金', dataIndex: 'totalBonus', align: 'right' as const, render: renderAmount },
-            { title: '總佣金', dataIndex: 'totalCommission', align: 'right' as const, render: renderAmount },
+            { title: '總人數', dataIndex: 'memberCount', width: 90, align: 'right' as const, render: renderInteger },
+            { title: '達標人數', dataIndex: 'achievedCount', width: 90, align: 'right' as const, render: renderInteger },
+            { title: '存款次數', dataIndex: 'depositCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '提款次數', dataIndex: 'withdrawCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '排除投注額', dataIndex: 'excludedBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right' as const, render: renderAmount },
+            { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right' as const, render: renderGgr },
+            { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right' as const, render: renderAmount },
           ];
-          return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" />;
+          return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" scroll={{ x: 'max-content' }} />;
         })()}
       </Card>
 
@@ -918,23 +922,23 @@ function InviteStatsTab() {
           ];
           const summaryColumns = [
             { title: '類型', dataIndex: 'label', width: 60 },
-            { title: '邀請人數', dataIndex: 'inviteCount', align: 'right' as const, render: renderInteger },
-            { title: '達成人數', dataIndex: 'achieveCount', align: 'right' as const, render: renderInteger },
-            { title: '投注人數', dataIndex: 'betUserCount', align: 'right' as const, render: renderInteger },
-            { title: '存款人數', dataIndex: 'depositUserCount', align: 'right' as const, render: renderInteger },
-            { title: '總存款', dataIndex: 'totalDeposit', align: 'right' as const, render: renderAmount },
-            { title: '總提款', dataIndex: 'totalWithdraw', align: 'right' as const, render: renderAmount },
-            { title: '存款手續費', dataIndex: 'depositFee', align: 'right' as const, render: renderAmount },
-            { title: '提款手續費', dataIndex: 'withdrawFee', align: 'right' as const, render: renderAmount },
-            { title: '總投注', dataIndex: 'totalBet', align: 'right' as const, render: renderAmount },
-            { title: '排除投注額', dataIndex: 'excludedBet', align: 'right' as const, render: renderAmount },
-            { title: '有效流水', dataIndex: 'validBet', align: 'right' as const, render: renderAmount },
-            { title: '總派獎', dataIndex: 'totalPayout', align: 'right' as const, render: renderAmount },
-            { title: 'GGR', dataIndex: 'ggr', align: 'right' as const, render: renderGgr },
-            { title: '總彩金', dataIndex: 'totalBonus', align: 'right' as const, render: renderAmount },
-            { title: '總佣金', dataIndex: 'totalCommission', align: 'right' as const, render: renderAmount },
+            { title: '邀請人數', dataIndex: 'inviteCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '達成人數', dataIndex: 'achieveCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '投注人數', dataIndex: 'betUserCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '存款人數', dataIndex: 'depositUserCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '排除投注額', dataIndex: 'excludedBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right' as const, render: renderAmount },
+            { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right' as const, render: renderGgr },
+            { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right' as const, render: renderAmount },
           ];
-          return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" />;
+          return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" scroll={{ x: 'max-content' }} />;
         })()}
       </Card>
 
