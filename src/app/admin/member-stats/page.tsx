@@ -391,8 +391,6 @@ function PersonalStatsTab() {
       title: '帳號',
       dataIndex: 'username',
       width: 140,
-      sorter: (a, b) => a.username.localeCompare(b.username),
-      defaultSortOrder: 'ascend',
       render: (_, record) => (
         <a data-e2e-id={`member-stats-table-member-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.uid}`)}>
           {record.username}
@@ -829,8 +827,6 @@ function InviteStatsTab() {
       title: '帳號',
       dataIndex: 'username',
       width: 140,
-      sorter: (a, b) => a.username.localeCompare(b.username),
-      defaultSortOrder: 'ascend',
       render: (_, record) => (
         <a data-e2e-id={`member-stats-invite-table-member-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.uid}`)}>
           {record.username}
