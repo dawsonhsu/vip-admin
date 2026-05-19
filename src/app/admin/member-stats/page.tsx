@@ -172,14 +172,21 @@ const aggregatePersonalStats = (rows: PersonalStat[]): AggregatedPersonalStat[] 
 
 const sumPersonal = (rows: AggregatedPersonalStat[]) => rows.reduce(
   (acc, row) => ({
+    depositCount: acc.depositCount + row.depositCount,
     totalDeposit: acc.totalDeposit + row.totalDeposit,
+    withdrawCount: acc.withdrawCount + row.withdrawCount,
     totalWithdraw: acc.totalWithdraw + row.totalWithdraw,
+    depositFee: acc.depositFee + row.depositFee,
+    withdrawFee: acc.withdrawFee + row.withdrawFee,
     totalBet: acc.totalBet + row.totalBet,
     excludedBet: acc.excludedBet + row.excludedBet,
     validBet: acc.validBet + row.validBet,
+    totalPayout: acc.totalPayout + row.totalPayout,
     ggr: acc.ggr + row.ggr,
+    totalBonus: acc.totalBonus + row.totalBonus,
+    totalCommission: acc.totalCommission + row.totalCommission,
   }),
-  { totalDeposit: 0, totalWithdraw: 0, totalBet: 0, excludedBet: 0, validBet: 0, ggr: 0 }
+  { depositCount: 0, totalDeposit: 0, withdrawCount: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, totalBonus: 0, totalCommission: 0 }
 );
 
 const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
@@ -235,13 +242,20 @@ const sumInvite = (rows: AggregatedInviteStat[]) => rows.reduce(
     inviteCount: acc.inviteCount + row.inviteCount,
     achieveCount: acc.achieveCount + row.achieveCount,
     betUserCount: acc.betUserCount + row.betUserCount,
+    depositUserCount: acc.depositUserCount + row.depositUserCount,
     totalDeposit: acc.totalDeposit + row.totalDeposit,
-    ggr: acc.ggr + row.ggr,
+    totalWithdraw: acc.totalWithdraw + row.totalWithdraw,
+    depositFee: acc.depositFee + row.depositFee,
+    withdrawFee: acc.withdrawFee + row.withdrawFee,
+    totalBet: acc.totalBet + row.totalBet,
     excludedBet: acc.excludedBet + row.excludedBet,
+    validBet: acc.validBet + row.validBet,
+    totalPayout: acc.totalPayout + row.totalPayout,
+    ggr: acc.ggr + row.ggr,
     totalBonus: acc.totalBonus + row.totalBonus,
     totalCommission: acc.totalCommission + row.totalCommission,
   }),
-  { inviteCount: 0, achieveCount: 0, betUserCount: 0, totalDeposit: 0, ggr: 0, excludedBet: 0, totalBonus: 0, totalCommission: 0 }
+  { inviteCount: 0, achieveCount: 0, betUserCount: 0, depositUserCount: 0, totalDeposit: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, totalBonus: 0, totalCommission: 0 }
 );
 
 function PersonalStatsTab() {
@@ -575,12 +589,19 @@ function PersonalStatsTab() {
           ];
           const summaryColumns = [
             { title: '類型', dataIndex: 'label', width: 60 },
+            { title: '存款次數', dataIndex: 'depositCount', align: 'right' as const, render: renderInteger },
             { title: '總存款', dataIndex: 'totalDeposit', align: 'right' as const, render: renderAmount },
+            { title: '提款次數', dataIndex: 'withdrawCount', align: 'right' as const, render: renderInteger },
             { title: '總提款', dataIndex: 'totalWithdraw', align: 'right' as const, render: renderAmount },
+            { title: '存款手續費', dataIndex: 'depositFee', align: 'right' as const, render: renderAmount },
+            { title: '提款手續費', dataIndex: 'withdrawFee', align: 'right' as const, render: renderAmount },
             { title: '總投注', dataIndex: 'totalBet', align: 'right' as const, render: renderAmount },
             { title: '排除投注額', dataIndex: 'excludedBet', align: 'right' as const, render: renderAmount },
             { title: '有效流水', dataIndex: 'validBet', align: 'right' as const, render: renderAmount },
+            { title: '總派獎', dataIndex: 'totalPayout', align: 'right' as const, render: renderAmount },
             { title: 'GGR', dataIndex: 'ggr', align: 'right' as const, render: renderGgr },
+            { title: '總彩金', dataIndex: 'totalBonus', align: 'right' as const, render: renderAmount },
+            { title: '總佣金', dataIndex: 'totalCommission', align: 'right' as const, render: renderAmount },
           ];
           return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" />;
         })()}
@@ -900,8 +921,18 @@ function InviteStatsTab() {
             { title: '邀請人數', dataIndex: 'inviteCount', align: 'right' as const, render: renderInteger },
             { title: '達成人數', dataIndex: 'achieveCount', align: 'right' as const, render: renderInteger },
             { title: '投注人數', dataIndex: 'betUserCount', align: 'right' as const, render: renderInteger },
+            { title: '存款人數', dataIndex: 'depositUserCount', align: 'right' as const, render: renderInteger },
             { title: '總存款', dataIndex: 'totalDeposit', align: 'right' as const, render: renderAmount },
+            { title: '總提款', dataIndex: 'totalWithdraw', align: 'right' as const, render: renderAmount },
+            { title: '存款手續費', dataIndex: 'depositFee', align: 'right' as const, render: renderAmount },
+            { title: '提款手續費', dataIndex: 'withdrawFee', align: 'right' as const, render: renderAmount },
+            { title: '總投注', dataIndex: 'totalBet', align: 'right' as const, render: renderAmount },
+            { title: '排除投注額', dataIndex: 'excludedBet', align: 'right' as const, render: renderAmount },
+            { title: '有效流水', dataIndex: 'validBet', align: 'right' as const, render: renderAmount },
+            { title: '總派獎', dataIndex: 'totalPayout', align: 'right' as const, render: renderAmount },
             { title: 'GGR', dataIndex: 'ggr', align: 'right' as const, render: renderGgr },
+            { title: '總彩金', dataIndex: 'totalBonus', align: 'right' as const, render: renderAmount },
+            { title: '總佣金', dataIndex: 'totalCommission', align: 'right' as const, render: renderAmount },
           ];
           return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" />;
         })()}
