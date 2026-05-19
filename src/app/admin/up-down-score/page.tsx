@@ -591,7 +591,9 @@ export default function UpDownScorePage() {
   };
 
   const failedResultColumns: ColumnsType<BatchUploadRow> = [
-    { title: '手機號', dataIndex: 'memberPhone', width: 130 },
+    batchModal.csvKeyType === 'phone'
+      ? { title: '手機號', dataIndex: 'memberPhone', width: 130 }
+      : { title: '會員UID', dataIndex: 'memberUid', width: 130 },
     {
       title: '調整金額',
       dataIndex: 'submitAmount',
@@ -771,9 +773,11 @@ export default function UpDownScorePage() {
             icon={<DownloadOutlined />}
             disabled={!batchModal.result?.failedRows.length}
             onClick={() => {
-              const header = '手機號,調整金額,失敗原因\n';
+              const isPhone = batchModal.csvKeyType === 'phone';
+              const keyHeader = isPhone ? '手機號' : '會員UID';
+              const header = `${keyHeader},調整金額,失敗原因\n`;
               const rows = (batchModal.result?.failedRows ?? [])
-                .map((row) => `${row.memberPhone},${row.submitAmount ?? ''},${row.errorMessage}`)
+                .map((row) => `${isPhone ? row.memberPhone : row.memberUid},${row.submitAmount ?? ''},${row.errorMessage}`)
                 .join('\n');
               downloadCsv(`批量${batchModal.batchType}_失敗清單.csv`, header + rows);
             }}
