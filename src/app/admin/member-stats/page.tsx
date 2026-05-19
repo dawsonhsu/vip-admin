@@ -12,10 +12,8 @@ import {
   Input,
   Popover,
   Row,
-  Segmented,
   Select,
   Space,
-  Statistic,
   Table,
   Tabs,
   Tag,
@@ -29,8 +27,6 @@ import { inviteStats, personalStats, getInviterChain, memberStatMembers } from '
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
-
-type SummaryMode = 'page' | 'all';
 
 interface PersonalFilters {
   uid?: string;
@@ -77,6 +73,9 @@ interface AggregatedInviteStat {
   validBet: number;
   totalPayout: number;
   ggr: number;
+  excludedBet: number;
+  totalBonus: number;
+  totalCommission: number;
 }
 
 const defaultRange = (): [Dayjs, Dayjs] => [dayjs(), dayjs()];
@@ -203,6 +202,9 @@ const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
         validBet: 0,
         totalPayout: 0,
         ggr: 0,
+        excludedBet: 0,
+        totalBonus: 0,
+        totalCommission: 0,
       };
     }
 
@@ -218,6 +220,9 @@ const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
     acc[row.uid].validBet += row.validBet;
     acc[row.uid].totalPayout += row.totalPayout;
     acc[row.uid].ggr += row.ggr;
+    acc[row.uid].excludedBet += row.excludedBet;
+    acc[row.uid].totalBonus += row.totalBonus;
+    acc[row.uid].totalCommission += row.totalCommission;
 
     return acc;
   }, {});
@@ -232,15 +237,17 @@ const sumInvite = (rows: AggregatedInviteStat[]) => rows.reduce(
     betUserCount: acc.betUserCount + row.betUserCount,
     totalDeposit: acc.totalDeposit + row.totalDeposit,
     ggr: acc.ggr + row.ggr,
+    excludedBet: acc.excludedBet + row.excludedBet,
+    totalBonus: acc.totalBonus + row.totalBonus,
+    totalCommission: acc.totalCommission + row.totalCommission,
   }),
-  { inviteCount: 0, achieveCount: 0, betUserCount: 0, totalDeposit: 0, ggr: 0 }
+  { inviteCount: 0, achieveCount: 0, betUserCount: 0, totalDeposit: 0, ggr: 0, excludedBet: 0, totalBonus: 0, totalCommission: 0 }
 );
 
 function PersonalStatsTab() {
   const router = useRouter();
   const [form] = Form.useForm<PersonalFilters>();
   const [filters, setFilters] = useState<PersonalFilters>({ inviterLevel: 1, dateRange: defaultRange() });
-  const [summaryMode, setSummaryMode] = useState<SummaryMode>('page');
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 20,
@@ -282,9 +289,6 @@ function PersonalStatsTab() {
     const startIndex = (current - 1) * pageSize;
     return aggregatedRows.slice(startIndex, startIndex + pageSize);
   }, [aggregatedRows, pagination]);
-
-  const summarySource = summaryMode === 'page' ? pagedRows : aggregatedRows;
-  const summary = useMemo(() => sumPersonal(summarySource), [summarySource]);
 
   const handleSearch = () => {
     const values = form.getFieldsValue();
@@ -561,29 +565,25 @@ function PersonalStatsTab() {
         </Form>
       </Card>
 
-      <Card
-        size="small"
-        title="摘要"
-        extra={(
-          <Segmented<SummaryMode>
-            data-e2e-id="member-stats-summary-mode"
-            value={summaryMode}
-            onChange={value => setSummaryMode(value)}
-            options={[
-              { label: '小計', value: 'page' },
-              { label: '總計', value: 'all' },
-            ]}
-          />
-        )}
-      >
-        <Row gutter={16}>
-          <Col span={4}><Statistic data-e2e-id="member-stats-summary-total-deposit" title="總存款" value={summary.totalDeposit} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          <Col span={4}><Statistic data-e2e-id="member-stats-summary-total-withdraw" title="總提款" value={summary.totalWithdraw} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          <Col span={4}><Statistic data-e2e-id="member-stats-summary-total-bet" title="總投注" value={summary.totalBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          <Col span={4}><Statistic data-e2e-id="member-stats-summary-excluded-bet" title="排除投注額" value={summary.excludedBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          <Col span={4}><Statistic data-e2e-id="member-stats-summary-valid-bet" title="有效流水" value={summary.validBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          <Col span={4}><Statistic data-e2e-id="member-stats-summary-ggr" title="GGR" value={summary.ggr} valueStyle={{ color: summary.ggr >= 0 ? '#52c41a' : '#ff4d4f' }} formatter={value => formatAmount(Number(value || 0))} /></Col>
-        </Row>
+      <Card size="small" title="統計">
+        {(() => {
+          const pageSums = sumPersonal(pagedRows);
+          const allSums = sumPersonal(aggregatedRows);
+          const summaryTableData = [
+            { key: 'page', label: '小計', ...pageSums },
+            { key: 'all', label: '總計', ...allSums },
+          ];
+          const summaryColumns = [
+            { title: '類型', dataIndex: 'label', width: 60 },
+            { title: '總存款', dataIndex: 'totalDeposit', align: 'right' as const, render: renderAmount },
+            { title: '總提款', dataIndex: 'totalWithdraw', align: 'right' as const, render: renderAmount },
+            { title: '總投注', dataIndex: 'totalBet', align: 'right' as const, render: renderAmount },
+            { title: '排除投注額', dataIndex: 'excludedBet', align: 'right' as const, render: renderAmount },
+            { title: '有效流水', dataIndex: 'validBet', align: 'right' as const, render: renderAmount },
+            { title: 'GGR', dataIndex: 'ggr', align: 'right' as const, render: renderGgr },
+          ];
+          return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" />;
+        })()}
       </Card>
 
       <Card
@@ -667,7 +667,6 @@ function InviteStatsTab() {
   const router = useRouter();
   const [form] = Form.useForm<PersonalFilters>();
   const [filters, setFilters] = useState<PersonalFilters>({ inviterLevel: 1, dateRange: defaultRange() });
-  const [summaryMode, setSummaryMode] = useState<SummaryMode>('page');
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 20,
@@ -709,9 +708,6 @@ function InviteStatsTab() {
     const startIndex = (current - 1) * pageSize;
     return aggregatedRows.slice(startIndex, startIndex + pageSize);
   }, [aggregatedRows, pagination]);
-
-  const summarySource = summaryMode === 'page' ? pagedRows : aggregatedRows;
-  const summary = useMemo(() => sumInvite(summarySource), [summarySource]);
 
   const handleSearch = () => {
     const values = form.getFieldsValue();
@@ -806,9 +802,12 @@ function InviteStatsTab() {
     { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right', sorter: (a, b) => a.depositFee - b.depositFee, render: renderAmount },
     { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right', sorter: (a, b) => a.withdrawFee - b.withdrawFee, render: renderAmount },
     { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right', sorter: (a, b) => a.totalBet - b.totalBet, render: renderAmount },
+    { title: '排除投注額', dataIndex: 'excludedBet', width: 120, align: 'right', sorter: (a, b) => a.excludedBet - b.excludedBet, render: renderAmount },
     { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right', sorter: (a, b) => a.validBet - b.validBet, render: renderAmount },
     { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right', sorter: (a, b) => a.totalPayout - b.totalPayout, render: renderAmount },
     { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right', sorter: (a, b) => a.ggr - b.ggr, render: renderGgr },
+    { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right', sorter: (a, b) => a.totalBonus - b.totalBonus, render: renderAmount },
+    { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right', sorter: (a, b) => a.totalCommission - b.totalCommission, render: renderAmount },
     {
       title: '詳情',
       key: 'action',
@@ -833,9 +832,12 @@ function InviteStatsTab() {
     { title: '存款手續費', dataIndex: 'depositFee', align: 'right', width: 120, render: renderAmount },
     { title: '提款手續費', dataIndex: 'withdrawFee', align: 'right', width: 120, render: renderAmount },
     { title: '總投注', dataIndex: 'totalBet', align: 'right', width: 120, render: renderAmount },
+    { title: '排除投注額', dataIndex: 'excludedBet', align: 'right', width: 120, render: renderAmount },
     { title: '有效流水', dataIndex: 'validBet', align: 'right', width: 120, render: renderAmount },
     { title: '總派獎', dataIndex: 'totalPayout', align: 'right', width: 120, render: renderAmount },
     { title: 'GGR', dataIndex: 'ggr', align: 'right', width: 120, render: renderGgr },
+    { title: '總彩金', dataIndex: 'totalBonus', align: 'right', width: 120, render: renderAmount },
+    { title: '總佣金', dataIndex: 'totalCommission', align: 'right', width: 120, render: renderAmount },
   ];
 
   return (
@@ -885,28 +887,24 @@ function InviteStatsTab() {
         </Form>
       </Card>
 
-      <Card
-        size="small"
-        title="摘要"
-        extra={(
-          <Segmented<SummaryMode>
-            data-e2e-id="member-stats-invite-summary-mode"
-            value={summaryMode}
-            onChange={value => setSummaryMode(value)}
-            options={[
-              { label: '小計', value: 'page' },
-              { label: '總計', value: 'all' },
-            ]}
-          />
-        )}
-      >
-        <Row gutter={16}>
-          <Col span={4}><Statistic data-e2e-id="member-stats-invite-summary-invite-count" title="邀請人數" value={summary.inviteCount} formatter={value => formatInteger(Number(value || 0))} /></Col>
-          <Col span={4}><Statistic data-e2e-id="member-stats-invite-summary-achieve-count" title="達成人數" value={summary.achieveCount} formatter={value => formatInteger(Number(value || 0))} /></Col>
-          <Col span={4}><Statistic data-e2e-id="member-stats-invite-summary-bet-user-count" title="投注人數" value={summary.betUserCount} formatter={value => formatInteger(Number(value || 0))} /></Col>
-          <Col span={4}><Statistic data-e2e-id="member-stats-invite-summary-total-deposit" title="總存款" value={summary.totalDeposit} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          <Col span={4}><Statistic data-e2e-id="member-stats-invite-summary-ggr" title="GGR" value={summary.ggr} valueStyle={{ color: summary.ggr >= 0 ? '#52c41a' : '#ff4d4f' }} formatter={value => formatAmount(Number(value || 0))} /></Col>
-        </Row>
+      <Card size="small" title="統計">
+        {(() => {
+          const pageSums = sumInvite(pagedRows);
+          const allSums = sumInvite(aggregatedRows);
+          const summaryTableData = [
+            { key: 'page', label: '小計', ...pageSums },
+            { key: 'all', label: '總計', ...allSums },
+          ];
+          const summaryColumns = [
+            { title: '類型', dataIndex: 'label', width: 60 },
+            { title: '邀請人數', dataIndex: 'inviteCount', align: 'right' as const, render: renderInteger },
+            { title: '達成人數', dataIndex: 'achieveCount', align: 'right' as const, render: renderInteger },
+            { title: '投注人數', dataIndex: 'betUserCount', align: 'right' as const, render: renderInteger },
+            { title: '總存款', dataIndex: 'totalDeposit', align: 'right' as const, render: renderAmount },
+            { title: 'GGR', dataIndex: 'ggr', align: 'right' as const, render: renderGgr },
+          ];
+          return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" />;
+        })()}
       </Card>
 
       <Card
@@ -917,7 +915,7 @@ function InviteStatsTab() {
             icon={<DownloadOutlined />}
             onClick={() => exportCsv(
               `member-invite-stats-${queryStart}-${queryEnd}.csv`,
-              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '邀請人數', '達成人數', '投注人數', '存款人數', '總存款', '總提款', '存款手續費', '提款手續費', '總投注', '有效流水', '總派獎', 'GGR'],
+              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '邀請人數', '達成人數', '投注人數', '存款人數', '總存款', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', '總彩金', '總佣金'],
               aggregatedRows.map(row => [
                 dateRangeText,
                 row.uid,
@@ -933,9 +931,12 @@ function InviteStatsTab() {
                 formatAmount(row.depositFee),
                 formatAmount(row.withdrawFee),
                 formatAmount(row.totalBet),
+                formatAmount(row.excludedBet),
                 formatAmount(row.validBet),
                 formatAmount(row.totalPayout),
                 formatAmount(row.ggr),
+                formatAmount(row.totalBonus),
+                formatAmount(row.totalCommission),
               ])
             )}
           >

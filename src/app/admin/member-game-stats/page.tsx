@@ -14,7 +14,6 @@ import {
   Row,
   Select,
   Space,
-  Statistic,
   Table,
   Typography,
 } from 'antd';
@@ -385,14 +384,19 @@ export default function MemberGameStatsPage() {
           </Form>
         </Card>
 
-        <Card size="small" title="摘要">
-          <Row gutter={16}>
-            <Col span={4}><Statistic data-e2e-id="member-game-stats-summary-total-bet" title="總投注" value={summary.totalBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-game-stats-summary-excluded-bet" title="排除投注" value={summary.excludedBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-game-stats-summary-valid-bet" title="有效投注" value={summary.validBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-game-stats-summary-total-payout" title="總派獎" value={summary.totalPayout} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-game-stats-summary-ggr" title="GGR" value={summary.ggr} valueStyle={{ color: summary.ggr >= 0 ? '#52c41a' : '#ff4d4f' }} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          </Row>
+        <Card size="small" title="統計">
+          {(() => {
+            const summaryTableData = [{ key: 'all', label: '合計', ...summary }];
+            const summaryColumns = [
+              { title: '類型', dataIndex: 'label', width: 60 },
+              { title: '總投注', dataIndex: 'totalBet', align: 'right' as const, render: renderAmount },
+              { title: '排除投注', dataIndex: 'excludedBet', align: 'right' as const, render: renderAmount },
+              { title: '有效投注', dataIndex: 'validBet', align: 'right' as const, render: renderAmount },
+              { title: '總派獎', dataIndex: 'totalPayout', align: 'right' as const, render: renderAmount },
+              { title: 'GGR', dataIndex: 'ggr', align: 'right' as const, render: renderGgr },
+            ];
+            return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" />;
+          })()}
         </Card>
 
         <Card

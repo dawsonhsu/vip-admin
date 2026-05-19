@@ -42,6 +42,9 @@ export interface InviteStat {
   validBet: number;
   totalPayout: number;
   ggr: number;
+  totalBonus: number;      // 此會員邀請的會員當日獲得彩金加總
+  totalCommission: number; // 此會員邀請的會員當日獲得佣金加總
+  excludedBet: number;     // 此會員邀請的會員當日排除投注額加總
 }
 
 export interface GameStat {
@@ -191,6 +194,9 @@ const createInviteStat = (member: MockMember, date: string): InviteStat => {
   const depositFee = totalDeposit === 0 ? 0 : roundToTwo(totalDeposit * (pickInt(`${member.uid}-${date}-invite-deposit-fee`, 0, 18) / 1000));
   const withdrawFee = totalWithdraw === 0 ? 0 : roundToTwo(totalWithdraw * (pickInt(`${member.uid}-${date}-invite-withdraw-fee`, 0, 20) / 1000));
 
+  const totalBonus = pickAmountWithDecimal(`${member.uid}-${date}-invite-bonus`, 0, 2000);
+  const totalCommission = pickAmountWithDecimal(`${member.uid}-${date}-invite-commission`, 0, 1500);
+
   return {
     date,
     uid: member.uid,
@@ -206,9 +212,12 @@ const createInviteStat = (member: MockMember, date: string): InviteStat => {
     depositFee,
     withdrawFee,
     totalBet,
+    excludedBet,
     validBet,
     totalPayout,
     ggr: roundToTwo(totalBet - totalPayout),
+    totalBonus,
+    totalCommission,
   };
 };
 
