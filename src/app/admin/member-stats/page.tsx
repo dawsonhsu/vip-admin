@@ -336,20 +336,9 @@ function PersonalStatsTab() {
     {
       title: '邀請人',
       dataIndex: 'inviterUsername',
-      width: 140,
-      render: (_, record) => record.inviterUid && record.inviterUsername ? (
-        <a data-e2e-id={`member-stats-table-inviter-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.inviterUid}`)}>
-          {record.inviterUsername}
-        </a>
-      ) : '-',
-    },
-    {
-      title: '邀請人結構',
-      key: 'inviterChain',
-      width: 120,
-      align: 'center',
+      width: 160,
       render: (_, record) => {
-        if (!record.inviterUid) return <Text type="secondary">-</Text>;
+        if (!record.inviterUid || !record.inviterUsername) return '-';
         const chain = getInviterChain(record.uid);
         const allNodes = [...chain, { uid: record.uid, username: record.username }];
         const content = (
@@ -370,9 +359,14 @@ function PersonalStatsTab() {
           </div>
         );
         return (
-          <Popover content={content} title="邀請人結構" trigger="click">
-            <TeamOutlined style={{ cursor: 'pointer', color: '#1677ff' }} />
-          </Popover>
+          <Space size={4}>
+            <a data-e2e-id={`member-stats-table-inviter-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.inviterUid}`)}>
+              {record.inviterUsername}
+            </a>
+            <Popover content={content} title="邀請人結構" trigger="click">
+              <TeamOutlined style={{ cursor: 'pointer', color: '#1677ff' }} />
+            </Popover>
+          </Space>
         );
       },
     },
@@ -382,12 +376,9 @@ function PersonalStatsTab() {
       width: 80,
       align: 'center',
       sorter: (a, b) => Number(a.achievedInvitation) - Number(b.achievedInvitation),
-      render: (value: boolean, record) => {
-        if (!record.inviterUid) return <Text type="secondary">-</Text>;
-        return value
-          ? <Tag color="green">是</Tag>
-          : <Tag>否</Tag>;
-      },
+      render: (value: boolean) => value
+        ? <Tag color="green">是</Tag>
+        : <Tag>否</Tag>,
     },
     {
       title: '存款次數',
@@ -610,7 +601,7 @@ function PersonalStatsTab() {
                 row.username,
                 row.inviterUid || '',
                 row.inviterUsername || '',
-                row.inviterUid ? (row.achievedInvitation ? '是' : '否') : '-',
+                row.achievedInvitation ? '是' : '否',
                 row.depositCount,
                 formatAmount(row.totalDeposit),
                 row.withdrawCount,
@@ -772,20 +763,9 @@ function InviteStatsTab() {
     {
       title: '邀請人',
       dataIndex: 'inviterUsername',
-      width: 140,
-      render: (_, record) => record.inviterUid && record.inviterUsername ? (
-        <a data-e2e-id={`member-stats-invite-table-inviter-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.inviterUid}`)}>
-          {record.inviterUsername}
-        </a>
-      ) : '-',
-    },
-    {
-      title: '邀請人結構',
-      key: 'inviterChain',
-      width: 120,
-      align: 'center',
+      width: 160,
       render: (_, record) => {
-        if (!record.inviterUid) return <Text type="secondary">-</Text>;
+        if (!record.inviterUid || !record.inviterUsername) return '-';
         const chain = getInviterChain(record.uid);
         const allNodes = [...chain, { uid: record.uid, username: record.username }];
         const content = (
@@ -806,9 +786,14 @@ function InviteStatsTab() {
           </div>
         );
         return (
-          <Popover content={content} title="邀請人結構" trigger="click">
-            <TeamOutlined style={{ cursor: 'pointer', color: '#1677ff' }} />
-          </Popover>
+          <Space size={4}>
+            <a data-e2e-id={`member-stats-invite-table-inviter-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.inviterUid}`)}>
+              {record.inviterUsername}
+            </a>
+            <Popover content={content} title="邀請人結構" trigger="click">
+              <TeamOutlined style={{ cursor: 'pointer', color: '#1677ff' }} />
+            </Popover>
+          </Space>
         );
       },
     },

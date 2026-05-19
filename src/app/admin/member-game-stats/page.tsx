@@ -250,20 +250,9 @@ export default function MemberGameStatsPage() {
     {
       title: '邀請人',
       dataIndex: 'inviterUsername',
-      width: 140,
-      render: (_, record) => record.inviterUid && record.inviterUsername ? (
-        <a data-e2e-id={`member-game-stats-table-inviter-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.inviterUid}`)}>
-          {record.inviterUsername}
-        </a>
-      ) : '-',
-    },
-    {
-      title: '邀請人結構',
-      key: 'inviterChain',
-      width: 120,
-      align: 'center',
+      width: 160,
       render: (_, record) => {
-        if (!record.inviterUid) return <Text type="secondary">-</Text>;
+        if (!record.inviterUid || !record.inviterUsername) return '-';
         const chain = getInviterChain(record.uid);
         const allNodes = [...chain, { uid: record.uid, username: record.username }];
         const content = (
@@ -284,9 +273,14 @@ export default function MemberGameStatsPage() {
           </div>
         );
         return (
-          <Popover content={content} title="邀請人結構" trigger="click">
-            <TeamOutlined style={{ cursor: 'pointer', color: '#1677ff' }} />
-          </Popover>
+          <Space size={4}>
+            <a data-e2e-id={`member-game-stats-table-inviter-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.inviterUid}`)}>
+              {record.inviterUsername}
+            </a>
+            <Popover content={content} title="邀請人結構" trigger="click">
+              <TeamOutlined style={{ cursor: 'pointer', color: '#1677ff' }} />
+            </Popover>
+          </Space>
         );
       },
     },
