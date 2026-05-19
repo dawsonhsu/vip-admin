@@ -72,7 +72,6 @@ interface BatchModalState {
   sharedVenueLimit?: string[][];
   csvKeyType: CsvKeyType;
   rows: BatchUploadRow[];
-  otp: string;
   result: {
     successRows: BatchUploadRow[];
     failedRows: BatchUploadRow[];
@@ -413,7 +412,6 @@ export default function UpDownScorePage() {
     sharedVenueLimit: undefined,
     csvKeyType: 'phone',
     rows: [],
-    otp: '',
     result: null,
   });
 
@@ -548,7 +546,6 @@ export default function UpDownScorePage() {
       sharedVenueLimit: undefined,
       csvKeyType: 'phone',
       rows: [],
-      otp: '',
       result: null,
     });
   };
@@ -593,45 +590,6 @@ export default function UpDownScorePage() {
     showUploadList: false,
   };
 
-  const previewColumns: ColumnsType<BatchUploadRow> = [
-    { title: '會員UID', dataIndex: 'memberUid', width: 120, render: (value: string) => value || <Text type="secondary">—</Text> },
-    { title: '手機號', dataIndex: 'memberPhone', width: 130, render: (value: string) => value || <Text type="secondary">—</Text> },
-    { title: '會員帳號ID', dataIndex: 'memberAccountId', width: 140, render: (value: string) => value || <Text type="secondary">—</Text> },
-    {
-      title: '提交時錢包餘額',
-      dataIndex: 'walletBalance',
-      width: 150,
-      render: (value: number | null) => (typeof value === 'number' ? formatCurrency(value) : <Text type="secondary">—</Text>),
-    },
-    {
-      title: '調整金額',
-      dataIndex: 'submitAmount',
-      width: 120,
-      render: (value: number | null) => (value ? formatCurrency(value) : <Text type="secondary">—</Text>),
-    },
-    ...(batchModal.batchType === '上分'
-      ? [{
-          title: '流水倍數',
-          dataIndex: 'turnoverMultiplier',
-          width: 100,
-          render: (value: number | null) => (value ? `${value} 倍` : <Text type="secondary">—</Text>),
-        } as ColumnsType<BatchUploadRow>[number]]
-      : []),
-    { title: '調整理由', dataIndex: 'reason', width: 220 },
-    {
-      title: '校驗結果',
-      dataIndex: 'valid',
-      width: 120,
-      render: (value: boolean) => <Tag color={value ? 'success' : 'error'}>{value ? '合法' : '不合法'}</Tag>,
-    },
-    {
-      title: '錯誤訊息',
-      dataIndex: 'errorMessage',
-      width: 260,
-      render: (value: string, record) => (record.valid ? <Text type="secondary">—</Text> : value),
-    },
-  ];
-
   const failedResultColumns: ColumnsType<BatchUploadRow> = [
     { title: '手機號', dataIndex: 'memberPhone', width: 130 },
     {
@@ -642,9 +600,6 @@ export default function UpDownScorePage() {
     },
     { title: '失敗原因', dataIndex: 'errorMessage', width: 300 },
   ];
-
-  const validCount = batchModal.rows.filter((row) => row.valid).length;
-  const invalidCount = batchModal.rows.length - validCount;
 
   const executeBatch = () => {
     const successRows = batchModal.rows.filter((row) => row.valid);
@@ -676,7 +631,7 @@ export default function UpDownScorePage() {
     setActiveTab(batchType === '上分' ? '上分' : '下分');
     setBatchModal((prev) => ({
       ...prev,
-      currentStep: 2,
+      currentStep: 1,
       result: { successRows, failedRows },
     }));
     message.success(`批量${batchType}已建立 ${successRows.length} 筆申請`);
@@ -773,7 +728,7 @@ export default function UpDownScorePage() {
             <Alert
               type="success"
               showIcon
-              message={`已解析 ${batchModal.rows.length} 筆資料（合法 ${validCount} 筆 / 不合法 ${invalidCount} 筆）`}
+              message={`已解析 ${batchModal.rows.length} 筆資料，點擊「確認執行」立即處理`}
             />
           )}
           {exceedsLimit && (
@@ -789,56 +744,6 @@ export default function UpDownScorePage() {
               <Button
                 type="primary"
                 disabled={!hasVenueLimit || !hasRows || exceedsLimit}
-                onClick={() => setBatchModal((prev) => ({ ...prev, currentStep: 1 }))}
-              >
-                下一步
-              </Button>
-            </Space>
-          </div>
-        </Space>
-      );
-    }
-
-    if (batchModal.currentStep === 1) {
-      const validAmountSum = batchModal.rows
-        .filter((row) => row.valid)
-        .reduce((sum, row) => sum + (row.submitAmount ?? 0), 0);
-      return (
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          <Space size={24} wrap>
-            <Text strong>校驗摘要：合法 {validCount} 筆 / 不合法 {invalidCount} 筆</Text>
-            <Text strong>{batchModal.batchType}金額合計：{formatCurrency(validAmountSum)}</Text>
-          </Space>
-          {invalidCount > 0 && (
-            <Alert
-              type="warning"
-              showIcon
-              message={`校驗結果為「不合法」的 ${invalidCount} 筆資料不會進行調整，請確認後再執行`}
-            />
-          )}
-          <Table rowKey="key" columns={previewColumns} dataSource={batchModal.rows} pagination={{ pageSize: 10 }} scroll={{ x: 1800 }} />
-          <Form layout="vertical">
-            <Form.Item
-              label="Google 驗證碼"
-              required
-              extra="整批一次驗證，請輸入您的 Google Authenticator 6 位驗證碼"
-              style={{ marginBottom: 0 }}
-            >
-              <Input
-                value={batchModal.otp}
-                onChange={(event) => setBatchModal((prev) => ({ ...prev, otp: event.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                placeholder="請輸入 6 位數字"
-                maxLength={6}
-                style={{ maxWidth: 240 }}
-              />
-            </Form.Item>
-          </Form>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Space>
-              <Button onClick={() => setBatchModal((prev) => ({ ...prev, currentStep: 0 }))}>上一步</Button>
-              <Button
-                type="primary"
-                disabled={validCount === 0 || batchModal.otp.length !== 6}
                 onClick={executeBatch}
               >
                 確認執行
@@ -1075,7 +980,6 @@ export default function UpDownScorePage() {
           current={batchModal.currentStep}
           items={[
             { title: '上傳 CSV' },
-            { title: '預覽 & 驗證' },
             { title: '執行結果' },
           ]}
           style={{ marginBottom: 24 }}
