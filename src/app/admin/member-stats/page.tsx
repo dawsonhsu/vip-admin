@@ -38,6 +38,7 @@ interface PersonalFilters {
 interface AggregatedPersonalStat {
   uid: string;
   username: string;
+  phone: string;
   inviterUid?: string;
   inviterUsername?: string;
   depositCount: number;
@@ -59,6 +60,7 @@ interface AggregatedPersonalStat {
 interface AggregatedInviteStat {
   uid: string;
   username: string;
+  phone: string;
   inviterUid?: string;
   inviterUsername?: string;
   inviteCount: number;
@@ -131,6 +133,7 @@ const aggregatePersonalStats = (rows: PersonalStat[]): AggregatedPersonalStat[] 
       acc[row.uid] = {
         uid: row.uid,
         username: row.username,
+        phone: row.phone,
         inviterUid: row.inviterUid,
         inviterUsername: row.inviterUsername,
         depositCount: 0,
@@ -197,6 +200,7 @@ const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
       acc[row.uid] = {
         uid: row.uid,
         username: row.username,
+        phone: row.phone,
         inviterUid: row.inviterUid,
         inviterUsername: row.inviterUsername,
         inviteCount: 0,
@@ -342,18 +346,6 @@ function PersonalStatsTab() {
       render: () => <span style={{ whiteSpace: 'nowrap' }}>{dateRangeText}</span>,
     },
     {
-      title: '會員',
-      dataIndex: 'username',
-      width: 140,
-      sorter: (a, b) => a.username.localeCompare(b.username),
-      defaultSortOrder: 'ascend',
-      render: (_, record) => (
-        <a data-e2e-id={`member-stats-table-member-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.uid}`)}>
-          {record.username}
-        </a>
-      ),
-    },
-    {
       title: '邀請人',
       dataIndex: 'inviterUsername',
       width: 160,
@@ -389,6 +381,28 @@ function PersonalStatsTab() {
           </Space>
         );
       },
+    },
+    {
+      title: 'UID',
+      dataIndex: 'uid',
+      width: 100,
+    },
+    {
+      title: '帳號',
+      dataIndex: 'username',
+      width: 140,
+      sorter: (a, b) => a.username.localeCompare(b.username),
+      defaultSortOrder: 'ascend',
+      render: (_, record) => (
+        <a data-e2e-id={`member-stats-table-member-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.uid}`)}>
+          {record.username}
+        </a>
+      ),
+    },
+    {
+      title: '手機號',
+      dataIndex: 'phone',
+      width: 130,
     },
     {
       title: '達標',
@@ -770,18 +784,6 @@ function InviteStatsTab() {
       render: () => <span style={{ whiteSpace: 'nowrap' }}>{dateRangeText}</span>,
     },
     {
-      title: '會員',
-      dataIndex: 'username',
-      width: 140,
-      sorter: (a, b) => a.username.localeCompare(b.username),
-      defaultSortOrder: 'ascend',
-      render: (_, record) => (
-        <a data-e2e-id={`member-stats-invite-table-member-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.uid}`)}>
-          {record.username}
-        </a>
-      ),
-    },
-    {
       title: '邀請人',
       dataIndex: 'inviterUsername',
       width: 160,
@@ -817,6 +819,28 @@ function InviteStatsTab() {
           </Space>
         );
       },
+    },
+    {
+      title: 'UID',
+      dataIndex: 'uid',
+      width: 100,
+    },
+    {
+      title: '帳號',
+      dataIndex: 'username',
+      width: 140,
+      sorter: (a, b) => a.username.localeCompare(b.username),
+      defaultSortOrder: 'ascend',
+      render: (_, record) => (
+        <a data-e2e-id={`member-stats-invite-table-member-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.uid}`)}>
+          {record.username}
+        </a>
+      ),
+    },
+    {
+      title: '手機號',
+      dataIndex: 'phone',
+      width: 130,
     },
     { title: '邀請人數', dataIndex: 'inviteCount', width: 110, align: 'right', sorter: (a, b) => a.inviteCount - b.inviteCount, render: renderInteger },
     { title: '達成人數', dataIndex: 'achieveCount', width: 110, align: 'right', sorter: (a, b) => a.achieveCount - b.achieveCount, render: renderInteger },

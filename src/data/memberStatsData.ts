@@ -6,6 +6,7 @@ export interface PersonalStat {
   date: string;
   uid: string;
   username: string;
+  phone: string;
   inviterUid?: string;
   inviterUsername?: string;
   depositCount: number;
@@ -28,6 +29,7 @@ export interface InviteStat {
   date: string;
   uid: string;
   username: string;
+  phone: string;
   inviterUid?: string;
   inviterUsername?: string;
   inviteCount: number;
@@ -51,6 +53,7 @@ export interface GameStat {
   date: string;
   uid: string;
   username: string;
+  phone: string;
   inviterUid?: string;
   inviterUsername?: string;
   gameType: GameType;
@@ -64,6 +67,7 @@ export interface GameStat {
 interface MockMember {
   uid: string;
   username: string;
+  phone: string;
   inviterUid?: string;
   inviterUsername?: string;
 }
@@ -103,10 +107,12 @@ const buildMembers = (): MockMember[] => (
   Array.from({ length: TOTAL_MEMBERS }, (_, index) => {
     const uid = `U${String(10001 + index)}`;
     const username = `${usernameSeeds[index % usernameSeeds.length]}_${String(index + 1).padStart(2, '0')}`;
+    const phoneBody = pickInt(`${uid}-phone`, 10000000, 99999999);
+    const phone = `09${phoneBody}`;
     const inviterEnabled = index > 0 && hashString(`${uid}-inviter-enabled`) % 10 < 3;
 
     if (!inviterEnabled) {
-      return { uid, username };
+      return { uid, username, phone };
     }
 
     const inviterIndex = hashString(`${uid}-inviter`) % index;
@@ -116,6 +122,7 @@ const buildMembers = (): MockMember[] => (
     return {
       uid,
       username,
+      phone,
       inviterUid,
       inviterUsername,
     };
@@ -161,6 +168,7 @@ const createPersonalStat = (member: MockMember, date: string): PersonalStat => {
     date,
     uid: member.uid,
     username: member.username,
+    phone: member.phone,
     inviterUid: member.inviterUid,
     inviterUsername: member.inviterUsername,
     depositCount,
@@ -201,6 +209,7 @@ const createInviteStat = (member: MockMember, date: string): InviteStat => {
     date,
     uid: member.uid,
     username: member.username,
+    phone: member.phone,
     inviterUid: member.inviterUid,
     inviterUsername: member.inviterUsername,
     inviteCount,
@@ -236,6 +245,7 @@ const createGameStat = (member: MockMember, date: string, gameType: GameType): G
     date,
     uid: member.uid,
     username: member.username,
+    phone: member.phone,
     inviterUid: member.inviterUid,
     inviterUsername: member.inviterUsername,
     gameType,

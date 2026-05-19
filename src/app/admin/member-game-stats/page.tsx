@@ -36,6 +36,7 @@ interface GameFilters {
 interface AggregatedGameStat {
   uid: string;
   username: string;
+  phone: string;
   inviterUid?: string;
   inviterUsername?: string;
   totalBet: number;
@@ -104,6 +105,7 @@ const aggregateByMember = (rows: GameStat[]): AggregatedGameStat[] => {
       acc[row.uid] = {
         uid: row.uid,
         username: row.username,
+        phone: row.phone,
         inviterUid: row.inviterUid,
         inviterUsername: row.inviterUsername,
         totalBet: 0,
@@ -142,6 +144,7 @@ const aggregateByMemberAndGameType = (rows: GameStat[]): Record<string, ExpandGa
     acc[row.uid].push({
       uid: row.uid,
       username: row.username,
+      phone: row.phone,
       inviterUid: row.inviterUid,
       inviterUsername: row.inviterUsername,
       gameType: row.gameType,
@@ -235,18 +238,6 @@ export default function MemberGameStatsPage() {
       render: () => <span style={{ whiteSpace: 'nowrap' }}>{dateRangeText}</span>,
     },
     {
-      title: '會員',
-      dataIndex: 'username',
-      width: 140,
-      sorter: (a, b) => a.username.localeCompare(b.username),
-      defaultSortOrder: 'ascend',
-      render: (_, record) => (
-        <a data-e2e-id={`member-game-stats-table-member-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.uid}`)}>
-          {record.username}
-        </a>
-      ),
-    },
-    {
       title: '邀請人',
       dataIndex: 'inviterUsername',
       width: 160,
@@ -282,6 +273,28 @@ export default function MemberGameStatsPage() {
           </Space>
         );
       },
+    },
+    {
+      title: 'UID',
+      dataIndex: 'uid',
+      width: 100,
+    },
+    {
+      title: '帳號',
+      dataIndex: 'username',
+      width: 140,
+      sorter: (a, b) => a.username.localeCompare(b.username),
+      defaultSortOrder: 'ascend',
+      render: (_, record) => (
+        <a data-e2e-id={`member-game-stats-table-member-link-${record.uid}`} onClick={() => router.push(`/admin/members/${record.uid}`)}>
+          {record.username}
+        </a>
+      ),
+    },
+    {
+      title: '手機號',
+      dataIndex: 'phone',
+      width: 130,
     },
     { title: '總投注額', dataIndex: 'totalBet', width: 140, align: 'right', sorter: (a, b) => a.totalBet - b.totalBet, render: renderAmount },
     { title: '排除投注額', dataIndex: 'excludedBet', width: 140, align: 'right', sorter: (a, b) => a.excludedBet - b.excludedBet, render: renderAmount },
