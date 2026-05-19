@@ -123,6 +123,18 @@ const mockMembers = buildMembers();
 
 export const memberStatMembers = mockMembers;
 
+export function getInviterChain(uid: string): Array<{ uid: string; username: string }> {
+  const chain: Array<{ uid: string; username: string }> = [];
+  let current: { uid: string; username: string; inviterUid?: string; inviterUsername?: string } | undefined = mockMembers.find(m => m.uid === uid);
+  while (current?.inviterUid && chain.length < 3) {
+    const inviter = mockMembers.find(m => m.uid === current!.inviterUid);
+    if (!inviter) break;
+    chain.unshift({ uid: inviter.uid, username: inviter.username });
+    current = inviter;
+  }
+  return chain; // ordered top-to-bottom, immediate inviter is last
+}
+
 const dates = Array.from({ length: TOTAL_DAYS }, (_, index) => dayjs().subtract(index, 'day').format('YYYY-MM-DD'));
 
 const createPersonalStat = (member: MockMember, date: string): PersonalStat => {

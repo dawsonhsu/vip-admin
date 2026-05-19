@@ -10,6 +10,7 @@ import {
   Drawer,
   Form,
   Input,
+  Popover,
   Row,
   Select,
   Space,
@@ -17,10 +18,10 @@ import {
   Table,
   Typography,
 } from 'antd';
-import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { DownloadOutlined, ReloadOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
-import { gameStats, gameTypes, type GameStat, type GameType } from '@/data/memberStatsData';
+import { gameStats, gameTypes, getInviterChain, memberStatMembers, type GameStat, type GameType } from '@/data/memberStatsData';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
@@ -28,6 +29,7 @@ const { Title, Text } = Typography;
 interface GameFilters {
   uid?: string;
   inviterUid?: string;
+  inviterLevel: 1 | 2 | 3;
   gameType: 'ALL' | GameType;
   dateRange: [Dayjs, Dayjs];
 }
@@ -159,7 +161,7 @@ const aggregateByMemberAndGameType = (rows: GameStat[]): Record<string, ExpandGa
 export default function MemberGameStatsPage() {
   const router = useRouter();
   const [form] = Form.useForm<GameFilters>();
-  const [filters, setFilters] = useState<GameFilters>({ gameType: 'ALL', dateRange: defaultRange() });
+  const [filters, setFilters] = useState<GameFilters>({ inviterLevel: 1, gameType: 'ALL', dateRange: defaultRange() });
   const [drawerTarget, setDrawerTarget] = useState<AggregatedGameStat | null>(null);
 
   const queryStart = filters.dateRange[0].format('YYYY-MM-DD');
@@ -167,13 +169,28 @@ export default function MemberGameStatsPage() {
   const dateRangeText = formatDateRange(queryStart, queryEnd);
   const isAllMode = filters.gameType === 'ALL';
 
-  const filteredRows = useMemo(() => gameStats.filter((row) => (
-    row.date >= queryStart
-    && row.date <= queryEnd
-    && (filters.uid ? row.uid === filters.uid.trim() : true)
-    && (filters.inviterUid ? row.inviterUid === filters.inviterUid.trim() : true)
-    && (filters.gameType === 'ALL' ? true : row.gameType === filters.gameType)
-  )), [filters, queryEnd, queryStart]);
+  const filteredRows = useMemo(() => gameStats.filter((row) => {
+    if (row.date < queryStart || row.date > queryEnd) return false;
+    if (filters.uid && row.uid !== filters.uid.trim()) return false;
+    if (filters.gameType !== 'ALL' && row.gameType !== filters.gameType) return false;
+    if (filters.inviterUid) {
+      const target = filters.inviterUid.trim();
+      const level = filters.inviterLevel;
+      if (level === 1) {
+        if (row.inviterUid !== target) return false;
+      } else if (level === 2) {
+        const member = memberStatMembers.find(m => m.uid === row.uid);
+        const l1 = member?.inviterUid ? memberStatMembers.find(m => m.uid === member.inviterUid) : undefined;
+        if (l1?.inviterUid !== target) return false;
+      } else {
+        const member = memberStatMembers.find(m => m.uid === row.uid);
+        const l1 = member?.inviterUid ? memberStatMembers.find(m => m.uid === member.inviterUid) : undefined;
+        const l2 = l1?.inviterUid ? memberStatMembers.find(m => m.uid === l1.inviterUid) : undefined;
+        if (l2?.inviterUid !== target) return false;
+      }
+    }
+    return true;
+  }), [filters, queryEnd, queryStart]);
 
   const aggregatedRows = useMemo(() => aggregateByMember(filteredRows), [filteredRows]);
   const expandedRows = useMemo(() => aggregateByMemberAndGameType(filteredRows), [filteredRows]);
@@ -198,6 +215,7 @@ export default function MemberGameStatsPage() {
     setFilters({
       uid: values.uid?.trim() || undefined,
       inviterUid: values.inviterUid?.trim() || undefined,
+      inviterLevel: (values.inviterLevel as 1 | 2 | 3) || 1,
       gameType: values.gameType || 'ALL',
       dateRange: values.dateRange || defaultRange(),
     });
@@ -205,8 +223,8 @@ export default function MemberGameStatsPage() {
 
   const handleReset = () => {
     const nextRange = defaultRange();
-    form.setFieldsValue({ uid: undefined, inviterUid: undefined, gameType: 'ALL', dateRange: nextRange });
-    setFilters({ gameType: 'ALL', dateRange: nextRange });
+    form.setFieldsValue({ uid: undefined, inviterUid: undefined, inviterLevel: 1, gameType: 'ALL', dateRange: nextRange });
+    setFilters({ inviterLevel: 1, gameType: 'ALL', dateRange: nextRange });
   };
 
   const columns: ColumnsType<AggregatedGameStat> = [
@@ -238,6 +256,39 @@ export default function MemberGameStatsPage() {
           {record.inviterUsername}
         </a>
       ) : '-',
+    },
+    {
+      title: '邀請人結構',
+      key: 'inviterChain',
+      width: 120,
+      align: 'center',
+      render: (_, record) => {
+        if (!record.inviterUid) return <Text type="secondary">-</Text>;
+        const chain = getInviterChain(record.uid);
+        const allNodes = [...chain, { uid: record.uid, username: record.username }];
+        const content = (
+          <div style={{ maxWidth: 320 }}>
+            {chain.length > 0 && <Text type="secondary">… &gt; </Text>}
+            {allNodes.map((node, idx) => (
+              <span key={node.uid}>
+                {idx > 0 && <Text type="secondary"> &gt; </Text>}
+                {node.uid !== record.uid ? (
+                  <a onClick={() => { form.setFieldsValue({ inviterUid: node.uid }); handleSearch(); }}>
+                    {node.username}
+                  </a>
+                ) : (
+                  <Text>{node.username}</Text>
+                )}
+              </span>
+            ))}
+          </div>
+        );
+        return (
+          <Popover content={content} title="邀請人結構" trigger="click">
+            <TeamOutlined style={{ cursor: 'pointer', color: '#1677ff' }} />
+          </Popover>
+        );
+      },
     },
     { title: '總投注額', dataIndex: 'totalBet', width: 140, align: 'right', sorter: (a, b) => a.totalBet - b.totalBet, render: renderAmount },
     { title: '排除投注額', dataIndex: 'excludedBet', width: 140, align: 'right', sorter: (a, b) => a.excludedBet - b.excludedBet, render: renderAmount },
@@ -297,8 +348,19 @@ export default function MemberGameStatsPage() {
                 </Form.Item>
               </Col>
               <Col span={5}>
-                <Form.Item label="邀請人帳號" name="inviterUid">
-                  <Input data-e2e-id="member-game-stats-filter-inviter-uid-input" placeholder="輸入邀請人帳號" />
+                <Form.Item label="邀請人帳號">
+                  <Space.Compact block>
+                    <Form.Item name="inviterLevel" noStyle initialValue={1}>
+                      <Select style={{ width: 80 }} options={[
+                        { label: '一級', value: 1 },
+                        { label: '二級', value: 2 },
+                        { label: '三級', value: 3 },
+                      ]} />
+                    </Form.Item>
+                    <Form.Item name="inviterUid" noStyle>
+                      <Input data-e2e-id="member-game-stats-filter-inviter-uid-input" placeholder="輸入邀請人帳號" style={{ width: 'calc(100% - 80px)' }} />
+                    </Form.Item>
+                  </Space.Compact>
                 </Form.Item>
               </Col>
               <Col span={4}>

@@ -10,8 +10,10 @@ import {
   Drawer,
   Form,
   Input,
+  Popover,
   Row,
   Segmented,
+  Select,
   Space,
   Statistic,
   Table,
@@ -19,11 +21,11 @@ import {
   Tag,
   Typography,
 } from 'antd';
-import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { DownloadOutlined, ReloadOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { PersonalStat, InviteStat } from '@/data/memberStatsData';
-import { inviteStats, personalStats } from '@/data/memberStatsData';
+import { inviteStats, personalStats, getInviterChain, memberStatMembers } from '@/data/memberStatsData';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
@@ -33,6 +35,7 @@ type SummaryMode = 'page' | 'all';
 interface PersonalFilters {
   uid?: string;
   inviterUid?: string;
+  inviterLevel: 1 | 2 | 3;
   dateRange: [Dayjs, Dayjs];
 }
 
@@ -236,7 +239,7 @@ const sumInvite = (rows: AggregatedInviteStat[]) => rows.reduce(
 function PersonalStatsTab() {
   const router = useRouter();
   const [form] = Form.useForm<PersonalFilters>();
-  const [filters, setFilters] = useState<PersonalFilters>({ dateRange: defaultRange() });
+  const [filters, setFilters] = useState<PersonalFilters>({ inviterLevel: 1, dateRange: defaultRange() });
   const [summaryMode, setSummaryMode] = useState<SummaryMode>('page');
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
@@ -249,12 +252,27 @@ function PersonalStatsTab() {
   const [queryStart, queryEnd] = getDateRangeStrings(filters.dateRange);
   const dateRangeText = formatDateRange(queryStart, queryEnd);
 
-  const filteredRows = useMemo(() => personalStats.filter((row) => (
-    row.date >= queryStart
-    && row.date <= queryEnd
-    && (filters.uid ? row.uid === filters.uid.trim() : true)
-    && (filters.inviterUid ? row.inviterUid === filters.inviterUid.trim() : true)
-  )), [filters, queryEnd, queryStart]);
+  const filteredRows = useMemo(() => personalStats.filter((row) => {
+    if (row.date < queryStart || row.date > queryEnd) return false;
+    if (filters.uid && row.uid !== filters.uid.trim()) return false;
+    if (filters.inviterUid) {
+      const target = filters.inviterUid.trim();
+      const level = filters.inviterLevel;
+      if (level === 1) {
+        if (row.inviterUid !== target) return false;
+      } else if (level === 2) {
+        const member = memberStatMembers.find(m => m.uid === row.uid);
+        const l1 = member?.inviterUid ? memberStatMembers.find(m => m.uid === member.inviterUid) : undefined;
+        if (l1?.inviterUid !== target) return false;
+      } else {
+        const member = memberStatMembers.find(m => m.uid === row.uid);
+        const l1 = member?.inviterUid ? memberStatMembers.find(m => m.uid === member.inviterUid) : undefined;
+        const l2 = l1?.inviterUid ? memberStatMembers.find(m => m.uid === l1.inviterUid) : undefined;
+        if (l2?.inviterUid !== target) return false;
+      }
+    }
+    return true;
+  }), [filters, queryEnd, queryStart]);
 
   const aggregatedRows = useMemo(() => aggregatePersonalStats(filteredRows), [filteredRows]);
 
@@ -273,6 +291,7 @@ function PersonalStatsTab() {
     setFilters({
       uid: values.uid?.trim() || undefined,
       inviterUid: values.inviterUid?.trim() || undefined,
+      inviterLevel: (values.inviterLevel as 1 | 2 | 3) || 1,
       dateRange: values.dateRange || defaultRange(),
     });
     setPagination(prev => ({ ...prev, current: 1 }));
@@ -280,8 +299,8 @@ function PersonalStatsTab() {
 
   const handleReset = () => {
     const nextRange = defaultRange();
-    form.setFieldsValue({ uid: undefined, inviterUid: undefined, dateRange: nextRange });
-    setFilters({ dateRange: nextRange });
+    form.setFieldsValue({ uid: undefined, inviterUid: undefined, inviterLevel: 1, dateRange: nextRange });
+    setFilters({ inviterLevel: 1, dateRange: nextRange });
     setPagination(prev => ({ ...prev, current: 1 }));
   };
 
@@ -323,6 +342,39 @@ function PersonalStatsTab() {
           {record.inviterUsername}
         </a>
       ) : '-',
+    },
+    {
+      title: '邀請人結構',
+      key: 'inviterChain',
+      width: 120,
+      align: 'center',
+      render: (_, record) => {
+        if (!record.inviterUid) return <Text type="secondary">-</Text>;
+        const chain = getInviterChain(record.uid);
+        const allNodes = [...chain, { uid: record.uid, username: record.username }];
+        const content = (
+          <div style={{ maxWidth: 320 }}>
+            {chain.length > 0 && <Text type="secondary">… &gt; </Text>}
+            {allNodes.map((node, idx) => (
+              <span key={node.uid}>
+                {idx > 0 && <Text type="secondary"> &gt; </Text>}
+                {node.uid !== record.uid ? (
+                  <a onClick={() => { form.setFieldsValue({ inviterUid: node.uid }); handleSearch(); }}>
+                    {node.username}
+                  </a>
+                ) : (
+                  <Text>{node.username}</Text>
+                )}
+              </span>
+            ))}
+          </div>
+        );
+        return (
+          <Popover content={content} title="邀請人結構" trigger="click">
+            <TeamOutlined style={{ cursor: 'pointer', color: '#1677ff' }} />
+          </Popover>
+        );
+      },
     },
     {
       title: '達標',
@@ -486,8 +538,19 @@ function PersonalStatsTab() {
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item label="邀請人帳號" name="inviterUid">
-                <Input data-e2e-id="member-stats-filter-inviter-uid-input" placeholder="輸入邀請人帳號" />
+              <Form.Item label="邀請人帳號">
+                <Space.Compact block>
+                  <Form.Item name="inviterLevel" noStyle initialValue={1}>
+                    <Select style={{ width: 80 }} options={[
+                      { label: '一級', value: 1 },
+                      { label: '二級', value: 2 },
+                      { label: '三級', value: 3 },
+                    ]} />
+                  </Form.Item>
+                  <Form.Item name="inviterUid" noStyle>
+                    <Input data-e2e-id="member-stats-filter-inviter-uid-input" placeholder="輸入邀請人帳號" style={{ width: 'calc(100% - 80px)' }} />
+                  </Form.Item>
+                </Space.Compact>
               </Form.Item>
             </Col>
             <Col span={8}>
@@ -612,7 +675,7 @@ function PersonalStatsTab() {
 function InviteStatsTab() {
   const router = useRouter();
   const [form] = Form.useForm<PersonalFilters>();
-  const [filters, setFilters] = useState<PersonalFilters>({ dateRange: defaultRange() });
+  const [filters, setFilters] = useState<PersonalFilters>({ inviterLevel: 1, dateRange: defaultRange() });
   const [summaryMode, setSummaryMode] = useState<SummaryMode>('page');
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
@@ -625,12 +688,27 @@ function InviteStatsTab() {
   const [queryStart, queryEnd] = getDateRangeStrings(filters.dateRange);
   const dateRangeText = formatDateRange(queryStart, queryEnd);
 
-  const filteredRows = useMemo(() => inviteStats.filter((row) => (
-    row.date >= queryStart
-    && row.date <= queryEnd
-    && (filters.uid ? row.uid === filters.uid.trim() : true)
-    && (filters.inviterUid ? row.inviterUid === filters.inviterUid.trim() : true)
-  )), [filters, queryEnd, queryStart]);
+  const filteredRows = useMemo(() => inviteStats.filter((row) => {
+    if (row.date < queryStart || row.date > queryEnd) return false;
+    if (filters.uid && row.uid !== filters.uid.trim()) return false;
+    if (filters.inviterUid) {
+      const target = filters.inviterUid.trim();
+      const level = filters.inviterLevel;
+      if (level === 1) {
+        if (row.inviterUid !== target) return false;
+      } else if (level === 2) {
+        const member = memberStatMembers.find(m => m.uid === row.uid);
+        const l1 = member?.inviterUid ? memberStatMembers.find(m => m.uid === member.inviterUid) : undefined;
+        if (l1?.inviterUid !== target) return false;
+      } else {
+        const member = memberStatMembers.find(m => m.uid === row.uid);
+        const l1 = member?.inviterUid ? memberStatMembers.find(m => m.uid === member.inviterUid) : undefined;
+        const l2 = l1?.inviterUid ? memberStatMembers.find(m => m.uid === l1.inviterUid) : undefined;
+        if (l2?.inviterUid !== target) return false;
+      }
+    }
+    return true;
+  }), [filters, queryEnd, queryStart]);
 
   const aggregatedRows = useMemo(() => aggregateInviteStats(filteredRows), [filteredRows]);
 
@@ -649,6 +727,7 @@ function InviteStatsTab() {
     setFilters({
       uid: values.uid?.trim() || undefined,
       inviterUid: values.inviterUid?.trim() || undefined,
+      inviterLevel: (values.inviterLevel as 1 | 2 | 3) || 1,
       dateRange: values.dateRange || defaultRange(),
     });
     setPagination(prev => ({ ...prev, current: 1 }));
@@ -656,8 +735,8 @@ function InviteStatsTab() {
 
   const handleReset = () => {
     const nextRange = defaultRange();
-    form.setFieldsValue({ uid: undefined, inviterUid: undefined, dateRange: nextRange });
-    setFilters({ dateRange: nextRange });
+    form.setFieldsValue({ uid: undefined, inviterUid: undefined, inviterLevel: 1, dateRange: nextRange });
+    setFilters({ inviterLevel: 1, dateRange: nextRange });
     setPagination(prev => ({ ...prev, current: 1 }));
   };
 
@@ -699,6 +778,39 @@ function InviteStatsTab() {
           {record.inviterUsername}
         </a>
       ) : '-',
+    },
+    {
+      title: '邀請人結構',
+      key: 'inviterChain',
+      width: 120,
+      align: 'center',
+      render: (_, record) => {
+        if (!record.inviterUid) return <Text type="secondary">-</Text>;
+        const chain = getInviterChain(record.uid);
+        const allNodes = [...chain, { uid: record.uid, username: record.username }];
+        const content = (
+          <div style={{ maxWidth: 320 }}>
+            {chain.length > 0 && <Text type="secondary">… &gt; </Text>}
+            {allNodes.map((node, idx) => (
+              <span key={node.uid}>
+                {idx > 0 && <Text type="secondary"> &gt; </Text>}
+                {node.uid !== record.uid ? (
+                  <a onClick={() => { form.setFieldsValue({ inviterUid: node.uid }); handleSearch(); }}>
+                    {node.username}
+                  </a>
+                ) : (
+                  <Text>{node.username}</Text>
+                )}
+              </span>
+            ))}
+          </div>
+        );
+        return (
+          <Popover content={content} title="邀請人結構" trigger="click">
+            <TeamOutlined style={{ cursor: 'pointer', color: '#1677ff' }} />
+          </Popover>
+        );
+      },
     },
     { title: '邀請人數', dataIndex: 'inviteCount', width: 110, align: 'right', sorter: (a, b) => a.inviteCount - b.inviteCount, render: renderInteger },
     { title: '達成人數', dataIndex: 'achieveCount', width: 110, align: 'right', sorter: (a, b) => a.achieveCount - b.achieveCount, render: renderInteger },
@@ -756,8 +868,19 @@ function InviteStatsTab() {
               </Form.Item>
             </Col>
             <Col span={6}>
-              <Form.Item label="邀請人帳號" name="inviterUid">
-                <Input data-e2e-id="member-stats-invite-filter-inviter-uid-input" placeholder="輸入邀請人帳號" />
+              <Form.Item label="邀請人帳號">
+                <Space.Compact block>
+                  <Form.Item name="inviterLevel" noStyle initialValue={1}>
+                    <Select style={{ width: 80 }} options={[
+                      { label: '一級', value: 1 },
+                      { label: '二級', value: 2 },
+                      { label: '三級', value: 3 },
+                    ]} />
+                  </Form.Item>
+                  <Form.Item name="inviterUid" noStyle>
+                    <Input data-e2e-id="member-stats-invite-filter-inviter-uid-input" placeholder="輸入邀請人帳號" style={{ width: 'calc(100% - 80px)' }} />
+                  </Form.Item>
+                </Space.Compact>
               </Form.Item>
             </Col>
             <Col span={8}>
