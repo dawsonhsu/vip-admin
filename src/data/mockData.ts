@@ -787,8 +787,11 @@ export interface MemberItem {
   registerIP: string;
   totalDeposit: number;
   depositCount: number;
+  firstDepositTime: string | null;
+  lastDepositTime: string | null;
   totalWithdraw: number;
   withdrawCount: number;
+  lastWithdrawTime: string | null;
   depositWithdrawDiff: number;
   ggr: number;
   totalBet: number;
@@ -896,6 +899,19 @@ export function generateMembers(count: number = 50): MemberItem[] {
     const activityBonus = +(rand(0, 5000) + Math.random() * 1000).toFixed(2);
     const daysAgo = rand(0, 365);
     const loginDaysAgo = rand(0, daysAgo);
+    const depositCount = rand(0, 200);
+    const withdrawCount = rand(0, 100);
+    let firstDepositTime: string | null = null;
+    let lastDepositTime: string | null = null;
+    if (depositCount > 0) {
+      const firstAgo = rand(0, daysAgo);
+      const lastAgo = rand(0, firstAgo);
+      firstDepositTime = dayjs().subtract(firstAgo, 'day').subtract(rand(0, 23), 'hour').format('YYYY-MM-DD HH:mm:ss');
+      lastDepositTime = dayjs().subtract(lastAgo, 'day').subtract(rand(0, 23), 'hour').format('YYYY-MM-DD HH:mm:ss');
+    }
+    const lastWithdrawTime = withdrawCount > 0
+      ? dayjs().subtract(rand(0, daysAgo), 'day').subtract(rand(0, 23), 'hour').format('YYYY-MM-DD HH:mm:ss')
+      : null;
     const firstName = pick(phFirstNames);
     const lastName = pick(phLastNames);
 
@@ -963,9 +979,12 @@ export function generateMembers(count: number = 50): MemberItem[] {
       registerTime: dayjs().subtract(daysAgo, 'day').format('YYYY-MM-DD HH:mm:ss'),
       registerIP: generateIP(),
       totalDeposit,
-      depositCount: rand(0, 200),
+      depositCount,
+      firstDepositTime,
+      lastDepositTime,
       totalWithdraw,
-      withdrawCount: rand(0, 100),
+      withdrawCount,
+      lastWithdrawTime,
       depositWithdrawDiff,
       ggr,
       totalBet,

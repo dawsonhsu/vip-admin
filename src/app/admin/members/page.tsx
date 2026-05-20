@@ -2,11 +2,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Card, Table, Tag, Input, Select, DatePicker, Button, Space, Typography, Form, Badge, InputNumber, Modal, Alert, message, Checkbox, Descriptions, Segmented, Tooltip,
+  Card, Table, Tag, Input, Select, DatePicker, Button, Space, Typography, Form, Badge, InputNumber, Modal, Alert, message, Checkbox, Descriptions, Segmented, Tooltip, Radio, Upload,
 } from 'antd';
 import {
-  ReloadOutlined, FolderOpenOutlined, ColumnHeightOutlined, SettingOutlined, CopyOutlined, TeamOutlined, PlusOutlined,
+  ReloadOutlined, FolderOpenOutlined, ColumnHeightOutlined, SettingOutlined, CopyOutlined, TeamOutlined, PlusOutlined, UnorderedListOutlined, InboxOutlined,
 } from '@ant-design/icons';
+import type { UploadProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
@@ -58,6 +59,16 @@ export default function MembersPage() {
   const [dateType, setDateType] = useState<string>('註冊時間');
   const [riskType, setRiskType] = useState<string>('風控等級');
   const [countType, setCountType] = useState<string>('存款次數');
+  const [batchModal, setBatchModal] = useState<{
+    open: boolean;
+    inputMode: 'text' | 'csv';
+    keyType: 'phone' | 'uid';
+    rawText: string;
+    csvParsed: string[];
+    csvFileName: string;
+  }>({ open: false, inputMode: 'text', keyType: 'phone', rawText: '', csvParsed: [], csvFileName: '' });
+  // 套用後的批量會員清單；null = 未套用批量篩選；{keyType, keys, notFound} = 已套用
+  const [batchUids, setBatchUids] = useState<{ keyType: 'phone' | 'uid'; keys: string[]; matched: number; notFound: string[] } | null>(null);
 
   useEffect(() => {
     setAllMembers(getMembers());
@@ -107,14 +118,41 @@ export default function MembersPage() {
       if (filters.inviterType === '有邀請人') {
         if (item.inviterPhone === '-') return false;
         if (filters.inviterPhone && !item.inviterPhone.includes(filters.inviterPhone)) return false;
+        // 層級為純 UI 篩選（mock 不含層級樹），不在此處實際過濾
       }
       if (filters.inviterType === '無邀請人' && item.inviterPhone !== '-') return false;
+      // 首存時間 / 最後存款時間 / 最後提款時間
+      if (filters.firstDepositRange && filters.firstDepositRange.length === 2) {
+        if (!item.firstDepositTime) return false;
+        const t = dayjs(item.firstDepositTime);
+        if (t.isBefore(filters.firstDepositRange[0]) || t.isAfter(filters.firstDepositRange[1])) return false;
+      }
+      if (filters.lastDepositRange && filters.lastDepositRange.length === 2) {
+        if (!item.lastDepositTime) return false;
+        const t = dayjs(item.lastDepositTime);
+        if (t.isBefore(filters.lastDepositRange[0]) || t.isAfter(filters.lastDepositRange[1])) return false;
+      }
+      if (filters.lastWithdrawRange && filters.lastWithdrawRange.length === 2) {
+        if (!item.lastWithdrawTime) return false;
+        const t = dayjs(item.lastWithdrawTime);
+        if (t.isBefore(filters.lastWithdrawRange[0]) || t.isAfter(filters.lastWithdrawRange[1])) return false;
+      }
+      // 批量查詢匹配（套用後）
+      if (batchUids && batchUids.keys.length > 0) {
+        const set = new Set(batchUids.keys.map(k => k.toLowerCase().trim()));
+        const field = batchUids.keyType === 'phone' ? item.phone : item.uid;
+        if (!set.has(field.toLowerCase().trim())) return false;
+      }
       return true;
     });
-  }, [filters, allMembers, searchType, riskType, countType]);
+  }, [filters, allMembers, searchType, riskType, countType, batchUids]);
 
   const onSearch = () => {
     const values = form.getFieldsValue();
+    if (values.inviterType === '有邀請人' && values.inviterLevel && !values.inviterPhone) {
+      message.error('請先輸入邀請人手機，才能依層級篩選');
+      return;
+    }
     setFilters(values);
   };
 
@@ -125,6 +163,7 @@ export default function MembersPage() {
     setDateType('註冊時間');
     setRiskType('風控等級');
     setCountType('存款次數');
+    setBatchUids(null);
   };
 
   const columns: ColumnsType<MemberItem> = [
@@ -275,12 +314,13 @@ export default function MembersPage() {
     {
       title: '存款',
       key: 'deposit',
-      width: 130,
+      width: 200,
       render: (_, r) => (
         <div style={{ fontSize: 12, lineHeight: '20px' }}>
-          <div><Text type="secondary">累計存款: </Text></div>
-          <div>₱{r.totalDeposit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div><Text type="secondary">存款次數: </Text><span>{r.depositCount}</span></div>
+          <div><Text type="secondary">累計存款: </Text>₱{r.totalDeposit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div><Text type="secondary">存款次數: </Text>{r.depositCount}</div>
+          <div><Text type="secondary">首存時間: </Text>{r.firstDepositTime ?? <Text type="secondary">—</Text>}</div>
+          <div><Text type="secondary">最後存款: </Text>{r.lastDepositTime ?? <Text type="secondary">—</Text>}</div>
         </div>
       ),
       sorter: (a, b) => a.totalDeposit - b.totalDeposit,
@@ -288,12 +328,12 @@ export default function MembersPage() {
     {
       title: '提款',
       key: 'withdraw',
-      width: 130,
+      width: 200,
       render: (_, r) => (
         <div style={{ fontSize: 12, lineHeight: '20px' }}>
-          <div><Text type="secondary">累計提現: </Text></div>
-          <div>₱{r.totalWithdraw.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div><Text type="secondary">提現次數: </Text><span>{r.withdrawCount}</span></div>
+          <div><Text type="secondary">累計提現: </Text>₱{r.totalWithdraw.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div><Text type="secondary">提現次數: </Text>{r.withdrawCount}</div>
+          <div><Text type="secondary">最後提現: </Text>{r.lastWithdrawTime ?? <Text type="secondary">—</Text>}</div>
         </div>
       ),
       sorter: (a, b) => a.totalWithdraw - b.totalWithdraw,
@@ -481,10 +521,28 @@ export default function MembersPage() {
               </Form.Item>
               <Form.Item noStyle shouldUpdate={(prev, cur) => prev.inviterType !== cur.inviterType}>
                 {() => form.getFieldValue('inviterType') === '有邀請人' ? (
-                  <Form.Item name="inviterPhone" label="邀請人手機">
-                    <Input data-e2e-id="members-filter-inviter-phone-input" placeholder="輸入手機號" allowClear style={{ width: 140 }} />
-                  </Form.Item>
+                  <>
+                    <Form.Item name="inviterPhone" label="邀請人手機">
+                      <Input data-e2e-id="members-filter-inviter-phone-input" placeholder="輸入手機號" allowClear style={{ width: 140 }} />
+                    </Form.Item>
+                    <Form.Item name="inviterLevel" label="層級" initialValue="一級">
+                      <Select data-e2e-id="members-filter-inviter-level-select" style={{ width: 100 }}>
+                        <Select.Option value="一級">一級</Select.Option>
+                        <Select.Option value="二級">二級</Select.Option>
+                        <Select.Option value="三級">三級</Select.Option>
+                      </Select>
+                    </Form.Item>
+                  </>
                 ) : null}
+              </Form.Item>
+              <Form.Item name="firstDepositRange" label="首存時間">
+                <RangePicker data-e2e-id="members-filter-first-deposit-range" style={{ width: 260 }} />
+              </Form.Item>
+              <Form.Item name="lastDepositRange" label="最後存款時間">
+                <RangePicker data-e2e-id="members-filter-last-deposit-range" style={{ width: 260 }} />
+              </Form.Item>
+              <Form.Item name="lastWithdrawRange" label="最後提款時間">
+                <RangePicker data-e2e-id="members-filter-last-withdraw-range" style={{ width: 260 }} />
               </Form.Item>
             </>
           )}
@@ -492,6 +550,13 @@ export default function MembersPage() {
             <Space>
               <Button data-e2e-id="members-filter-query-btn" type="primary" onClick={onSearch}>查詢</Button>
               <Button data-e2e-id="members-filter-reset-btn" onClick={onReset}>重置</Button>
+              <Button
+                data-e2e-id="members-filter-batch-query-btn"
+                icon={<UnorderedListOutlined />}
+                onClick={() => setBatchModal({ open: true, inputMode: 'text', keyType: 'phone', rawText: '', csvParsed: [], csvFileName: '' })}
+              >
+                批量查詢
+              </Button>
               <Button data-e2e-id="members-filter-toggle-btn" type="link" onClick={() => setCollapsed(v => !v)}>
                 {collapsed ? '展開' : '收起'}
               </Button>
@@ -511,6 +576,24 @@ export default function MembersPage() {
             <Button data-e2e-id="members-toolbar-settings-btn" icon={<SettingOutlined />} />
           </Space>
         </div>
+        {batchUids && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message={
+              <Space wrap>
+                <span>批量查詢中 ({batchUids.keyType === 'phone' ? '手機號' : '會員UID'})：輸入 {batchUids.keys.length} 筆，命中 {batchUids.matched} 筆，未找到 {batchUids.notFound.length} 筆</span>
+                {batchUids.notFound.length > 0 && (
+                  <Tooltip title={batchUids.notFound.slice(0, 50).join('、') + (batchUids.notFound.length > 50 ? ` …（共 ${batchUids.notFound.length} 筆）` : '')}>
+                    <a>查看未找到清單</a>
+                  </Tooltip>
+                )}
+                <Button size="small" onClick={() => setBatchUids(null)}>清除批量篩選</Button>
+              </Space>
+            }
+          />
+        )}
         <Table
           columns={columns}
           dataSource={filteredData}
@@ -606,6 +689,112 @@ export default function MembersPage() {
             </Form.Item>
           </Form>
         </div>
+      </Modal>
+
+      {/* Batch Query Modal */}
+      <Modal
+        title="批量查詢會員"
+        open={batchModal.open}
+        width={680}
+        onCancel={() => setBatchModal((prev) => ({ ...prev, open: false }))}
+        okText="套用篩選"
+        cancelText="取消"
+        onOk={() => {
+          const rawKeys = batchModal.inputMode === 'text'
+            ? batchModal.rawText
+                .split(/[,，\n\r]+/)
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : batchModal.csvParsed;
+          if (rawKeys.length === 0) {
+            message.error('請輸入或上傳至少 1 筆會員資料');
+            return;
+          }
+          if (rawKeys.length > 2000) {
+            message.error(`已輸入 ${rawKeys.length} 筆，超過單次查詢上限 2000 筆`);
+            return;
+          }
+          const dedup = Array.from(new Set(rawKeys.map((k) => k.toLowerCase().trim())));
+          const dataset = allMembers.map((m) => (batchModal.keyType === 'phone' ? m.phone : m.uid).toLowerCase().trim());
+          const datasetSet = new Set(dataset);
+          const matched = dedup.filter((k) => datasetSet.has(k)).length;
+          const notFound = dedup.filter((k) => !datasetSet.has(k));
+          setBatchUids({ keyType: batchModal.keyType, keys: dedup, matched, notFound });
+          setBatchModal((prev) => ({ ...prev, open: false }));
+          message.success(`批量篩選已套用：命中 ${matched} 筆 / 未找到 ${notFound.length} 筆`);
+        }}
+      >
+        <Space direction="vertical" size={16} style={{ width: '100%' }}>
+          <Alert
+            type="info"
+            showIcon
+            message="單次查詢最多 2000 筆會員，超出將提示並中止"
+          />
+          <Form layout="vertical">
+            <Form.Item label="識別欄位">
+              <Radio.Group
+                value={batchModal.keyType}
+                onChange={(e) => setBatchModal((prev) => ({ ...prev, keyType: e.target.value, rawText: '', csvParsed: [], csvFileName: '' }))}
+                optionType="button"
+                buttonStyle="solid"
+                options={[
+                  { label: '手機號', value: 'phone' },
+                  { label: '會員 UID', value: 'uid' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item label="輸入方式">
+              <Radio.Group
+                value={batchModal.inputMode}
+                onChange={(e) => setBatchModal((prev) => ({ ...prev, inputMode: e.target.value, rawText: '', csvParsed: [], csvFileName: '' }))}
+                optionType="button"
+                buttonStyle="solid"
+                options={[
+                  { label: '文字輸入', value: 'text' },
+                  { label: 'CSV 上傳', value: 'csv' },
+                ]}
+              />
+            </Form.Item>
+            {batchModal.inputMode === 'text' ? (
+              <Form.Item label={`貼上${batchModal.keyType === 'phone' ? '手機號' : '會員 UID'}（逗號或換行分隔）`}>
+                <Input.TextArea
+                  rows={6}
+                  showCount
+                  value={batchModal.rawText}
+                  onChange={(e) => setBatchModal((prev) => ({ ...prev, rawText: e.target.value }))}
+                  placeholder={batchModal.keyType === 'phone'
+                    ? '09xxxxxxxxx, 09xxxxxxxxx\n09xxxxxxxxx'
+                    : 'U10001, U10002\nU10003'}
+                />
+              </Form.Item>
+            ) : (
+              <Form.Item label={`CSV 上傳（第 1 欄為${batchModal.keyType === 'phone' ? '手機號' : '會員 UID'}，可有 header）`}>
+                <Upload.Dragger
+                  accept=".csv"
+                  maxCount={1}
+                  showUploadList={false}
+                  beforeUpload={async (file) => {
+                    const content = await file.text();
+                    const lines = content.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+                    const dataLines = lines.length > 1 && /[a-zA-Z一-龥]/.test(lines[0]) ? lines.slice(1) : lines;
+                    const keys = dataLines.map((l) => l.split(',')[0].trim()).filter(Boolean);
+                    setBatchModal((prev) => ({ ...prev, csvParsed: keys, csvFileName: file.name }));
+                    message.success(`已解析 ${keys.length} 筆`);
+                    return false;
+                  }}
+                >
+                  <p className="ant-upload-drag-icon"><InboxOutlined /></p>
+                  <p className="ant-upload-text">拖曳 CSV 到此或點擊上傳</p>
+                  <p className="ant-upload-hint">
+                    {batchModal.csvFileName
+                      ? `已上傳：${batchModal.csvFileName}（${batchModal.csvParsed.length} 筆）`
+                      : '單次最多 2000 筆會員'}
+                  </p>
+                </Upload.Dragger>
+              </Form.Item>
+            )}
+          </Form>
+        </Space>
       </Modal>
     </div>
   );
