@@ -52,6 +52,10 @@ interface AggregatedPersonalStat {
   validBet: number;
   totalPayout: number;
   ggr: number;
+  fsBet: number;
+  fsGgr: number;
+  jpBet: number;
+  jpGgr: number;
   totalBonus: number;
   totalCommission: number;
   achievedInvitation: boolean;
@@ -75,6 +79,10 @@ interface AggregatedInviteStat {
   validBet: number;
   totalPayout: number;
   ggr: number;
+  fsBet: number;
+  fsGgr: number;
+  jpBet: number;
+  jpGgr: number;
   excludedBet: number;
   totalBonus: number;
   totalCommission: number;
@@ -147,6 +155,10 @@ const aggregatePersonalStats = (rows: PersonalStat[]): AggregatedPersonalStat[] 
         validBet: 0,
         totalPayout: 0,
         ggr: 0,
+        fsBet: 0,
+        fsGgr: 0,
+        jpBet: 0,
+        jpGgr: 0,
         totalBonus: 0,
         totalCommission: 0,
         achievedInvitation: row.achievedInvitation,
@@ -164,6 +176,10 @@ const aggregatePersonalStats = (rows: PersonalStat[]): AggregatedPersonalStat[] 
     acc[row.uid].validBet += row.validBet;
     acc[row.uid].totalPayout += row.totalPayout;
     acc[row.uid].ggr += row.ggr;
+    acc[row.uid].fsBet += row.fsBet;
+    acc[row.uid].fsGgr += row.fsGgr;
+    acc[row.uid].jpBet += row.jpBet;
+    acc[row.uid].jpGgr += row.jpGgr;
     acc[row.uid].totalBonus += row.totalBonus;
     acc[row.uid].totalCommission += row.totalCommission;
 
@@ -188,10 +204,14 @@ const sumPersonal = (rows: AggregatedPersonalStat[]) => rows.reduce(
     validBet: acc.validBet + row.validBet,
     totalPayout: acc.totalPayout + row.totalPayout,
     ggr: acc.ggr + row.ggr,
+    fsBet: acc.fsBet + row.fsBet,
+    fsGgr: acc.fsGgr + row.fsGgr,
+    jpBet: acc.jpBet + row.jpBet,
+    jpGgr: acc.jpGgr + row.jpGgr,
     totalBonus: acc.totalBonus + row.totalBonus,
     totalCommission: acc.totalCommission + row.totalCommission,
   }),
-  { memberCount: 0, achievedCount: 0, depositCount: 0, totalDeposit: 0, withdrawCount: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, totalBonus: 0, totalCommission: 0 }
+  { memberCount: 0, achievedCount: 0, depositCount: 0, totalDeposit: 0, withdrawCount: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, fsBet: 0, fsGgr: 0, jpBet: 0, jpGgr: 0, totalBonus: 0, totalCommission: 0 }
 );
 
 const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
@@ -215,6 +235,10 @@ const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
         validBet: 0,
         totalPayout: 0,
         ggr: 0,
+        fsBet: 0,
+        fsGgr: 0,
+        jpBet: 0,
+        jpGgr: 0,
         excludedBet: 0,
         totalBonus: 0,
         totalCommission: 0,
@@ -233,6 +257,10 @@ const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
     acc[row.uid].validBet += row.validBet;
     acc[row.uid].totalPayout += row.totalPayout;
     acc[row.uid].ggr += row.ggr;
+    acc[row.uid].fsBet += row.fsBet;
+    acc[row.uid].fsGgr += row.fsGgr;
+    acc[row.uid].jpBet += row.jpBet;
+    acc[row.uid].jpGgr += row.jpGgr;
     acc[row.uid].excludedBet += row.excludedBet;
     acc[row.uid].totalBonus += row.totalBonus;
     acc[row.uid].totalCommission += row.totalCommission;
@@ -258,10 +286,14 @@ const sumInvite = (rows: AggregatedInviteStat[]) => rows.reduce(
     validBet: acc.validBet + row.validBet,
     totalPayout: acc.totalPayout + row.totalPayout,
     ggr: acc.ggr + row.ggr,
+    fsBet: acc.fsBet + row.fsBet,
+    fsGgr: acc.fsGgr + row.fsGgr,
+    jpBet: acc.jpBet + row.jpBet,
+    jpGgr: acc.jpGgr + row.jpGgr,
     totalBonus: acc.totalBonus + row.totalBonus,
     totalCommission: acc.totalCommission + row.totalCommission,
   }),
-  { inviteCount: 0, achieveCount: 0, betUserCount: 0, depositUserCount: 0, totalDeposit: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, totalBonus: 0, totalCommission: 0 }
+  { inviteCount: 0, achieveCount: 0, betUserCount: 0, depositUserCount: 0, totalDeposit: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, fsBet: 0, fsGgr: 0, jpBet: 0, jpGgr: 0, totalBonus: 0, totalCommission: 0 }
 );
 
 function PersonalStatsTab() {
@@ -501,6 +533,38 @@ function PersonalStatsTab() {
       render: renderGgr,
     },
     {
+      title: 'FS 投注額',
+      dataIndex: 'fsBet',
+      width: 130,
+      align: 'right',
+      sorter: (a, b) => a.fsBet - b.fsBet,
+      render: renderAmount,
+    },
+    {
+      title: 'FS GGR',
+      dataIndex: 'fsGgr',
+      width: 130,
+      align: 'right',
+      sorter: (a, b) => a.fsGgr - b.fsGgr,
+      render: renderGgr,
+    },
+    {
+      title: 'JP 投注額',
+      dataIndex: 'jpBet',
+      width: 130,
+      align: 'right',
+      sorter: (a, b) => a.jpBet - b.jpBet,
+      render: renderAmount,
+    },
+    {
+      title: 'JP GGR',
+      dataIndex: 'jpGgr',
+      width: 130,
+      align: 'right',
+      sorter: (a, b) => a.jpGgr - b.jpGgr,
+      render: renderGgr,
+    },
+    {
       title: '總彩金',
       dataIndex: 'totalBonus',
       width: 130,
@@ -542,6 +606,10 @@ function PersonalStatsTab() {
     { title: '有效流水', dataIndex: 'validBet', align: 'right', width: 120, render: renderAmount },
     { title: '總派獎', dataIndex: 'totalPayout', align: 'right', width: 120, render: renderAmount },
     { title: 'GGR', dataIndex: 'ggr', align: 'right', width: 120, render: renderGgr },
+    { title: 'FS 投注額', dataIndex: 'fsBet', align: 'right', width: 120, render: renderAmount },
+    { title: 'FS GGR', dataIndex: 'fsGgr', align: 'right', width: 120, render: renderGgr },
+    { title: 'JP 投注額', dataIndex: 'jpBet', align: 'right', width: 120, render: renderAmount },
+    { title: 'JP GGR', dataIndex: 'jpGgr', align: 'right', width: 120, render: renderGgr },
     { title: '總彩金', dataIndex: 'totalBonus', align: 'right', width: 120, render: renderAmount },
     { title: '總佣金', dataIndex: 'totalCommission', align: 'right', width: 120, render: renderAmount },
   ];
@@ -616,6 +684,10 @@ function PersonalStatsTab() {
             { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right' as const, render: renderAmount },
             { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right' as const, render: renderAmount },
             { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right' as const, render: renderGgr },
+            { title: 'FS 投注額', dataIndex: 'fsBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: 'FS GGR', dataIndex: 'fsGgr', width: 120, align: 'right' as const, render: renderGgr },
+            { title: 'JP 投注額', dataIndex: 'jpBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: 'JP GGR', dataIndex: 'jpGgr', width: 120, align: 'right' as const, render: renderGgr },
             { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right' as const, render: renderAmount },
             { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right' as const, render: renderAmount },
           ];
@@ -631,7 +703,7 @@ function PersonalStatsTab() {
             icon={<DownloadOutlined />}
             onClick={() => exportCsv(
               `member-personal-stats-${queryStart}-${queryEnd}.csv`,
-              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '達標', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', '總彩金', '總佣金'],
+              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '達標', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR', '總彩金', '總佣金'],
               aggregatedRows.map(row => [
                 dateRangeText,
                 row.uid,
@@ -650,6 +722,10 @@ function PersonalStatsTab() {
                 formatAmount(row.validBet),
                 formatAmount(row.totalPayout),
                 formatAmount(row.ggr),
+                formatAmount(row.fsBet),
+                formatAmount(row.fsGgr),
+                formatAmount(row.jpBet),
+                formatAmount(row.jpGgr),
                 formatAmount(row.totalBonus),
                 formatAmount(row.totalCommission),
               ])
@@ -851,6 +927,10 @@ function InviteStatsTab() {
     { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right', sorter: (a, b) => a.validBet - b.validBet, render: renderAmount },
     { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right', sorter: (a, b) => a.totalPayout - b.totalPayout, render: renderAmount },
     { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right', sorter: (a, b) => a.ggr - b.ggr, render: renderGgr },
+    { title: 'FS 投注額', dataIndex: 'fsBet', width: 130, align: 'right', sorter: (a, b) => a.fsBet - b.fsBet, render: renderAmount },
+    { title: 'FS GGR', dataIndex: 'fsGgr', width: 130, align: 'right', sorter: (a, b) => a.fsGgr - b.fsGgr, render: renderGgr },
+    { title: 'JP 投注額', dataIndex: 'jpBet', width: 130, align: 'right', sorter: (a, b) => a.jpBet - b.jpBet, render: renderAmount },
+    { title: 'JP GGR', dataIndex: 'jpGgr', width: 130, align: 'right', sorter: (a, b) => a.jpGgr - b.jpGgr, render: renderGgr },
     { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right', sorter: (a, b) => a.totalBonus - b.totalBonus, render: renderAmount },
     { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right', sorter: (a, b) => a.totalCommission - b.totalCommission, render: renderAmount },
     {
@@ -881,6 +961,10 @@ function InviteStatsTab() {
     { title: '有效流水', dataIndex: 'validBet', align: 'right', width: 120, render: renderAmount },
     { title: '總派獎', dataIndex: 'totalPayout', align: 'right', width: 120, render: renderAmount },
     { title: 'GGR', dataIndex: 'ggr', align: 'right', width: 120, render: renderGgr },
+    { title: 'FS 投注額', dataIndex: 'fsBet', align: 'right', width: 120, render: renderAmount },
+    { title: 'FS GGR', dataIndex: 'fsGgr', align: 'right', width: 120, render: renderGgr },
+    { title: 'JP 投注額', dataIndex: 'jpBet', align: 'right', width: 120, render: renderAmount },
+    { title: 'JP GGR', dataIndex: 'jpGgr', align: 'right', width: 120, render: renderGgr },
     { title: '總彩金', dataIndex: 'totalBonus', align: 'right', width: 120, render: renderAmount },
     { title: '總佣金', dataIndex: 'totalCommission', align: 'right', width: 120, render: renderAmount },
   ];
@@ -955,6 +1039,10 @@ function InviteStatsTab() {
             { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right' as const, render: renderAmount },
             { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right' as const, render: renderAmount },
             { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right' as const, render: renderGgr },
+            { title: 'FS 投注額', dataIndex: 'fsBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: 'FS GGR', dataIndex: 'fsGgr', width: 120, align: 'right' as const, render: renderGgr },
+            { title: 'JP 投注額', dataIndex: 'jpBet', width: 120, align: 'right' as const, render: renderAmount },
+            { title: 'JP GGR', dataIndex: 'jpGgr', width: 120, align: 'right' as const, render: renderGgr },
             { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right' as const, render: renderAmount },
             { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right' as const, render: renderAmount },
           ];
@@ -970,7 +1058,7 @@ function InviteStatsTab() {
             icon={<DownloadOutlined />}
             onClick={() => exportCsv(
               `member-invite-stats-${queryStart}-${queryEnd}.csv`,
-              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '邀請人數', '達成人數', '投注人數', '存款人數', '總存款', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', '總彩金', '總佣金'],
+              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '邀請人數', '達成人數', '投注人數', '存款人數', '總存款', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR', '總彩金', '總佣金'],
               aggregatedRows.map(row => [
                 dateRangeText,
                 row.uid,
@@ -990,6 +1078,10 @@ function InviteStatsTab() {
                 formatAmount(row.validBet),
                 formatAmount(row.totalPayout),
                 formatAmount(row.ggr),
+                formatAmount(row.fsBet),
+                formatAmount(row.fsGgr),
+                formatAmount(row.jpBet),
+                formatAmount(row.jpGgr),
                 formatAmount(row.totalBonus),
                 formatAmount(row.totalCommission),
               ])

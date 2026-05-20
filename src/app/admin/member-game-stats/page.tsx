@@ -44,6 +44,10 @@ interface AggregatedGameStat {
   validBet: number;
   totalPayout: number;
   ggr: number;
+  fsBet: number;
+  fsGgr: number;
+  jpBet: number;
+  jpGgr: number;
 }
 
 const defaultRange = (): [Dayjs, Dayjs] => [dayjs(), dayjs()];
@@ -91,8 +95,12 @@ const sumGameRows = (rows: AggregatedGameStat[]) => rows.reduce(
     validBet: acc.validBet + row.validBet,
     totalPayout: acc.totalPayout + row.totalPayout,
     ggr: acc.ggr + row.ggr,
+    fsBet: acc.fsBet + row.fsBet,
+    fsGgr: acc.fsGgr + row.fsGgr,
+    jpBet: acc.jpBet + row.jpBet,
+    jpGgr: acc.jpGgr + row.jpGgr,
   }),
-  { totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0 }
+  { totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, fsBet: 0, fsGgr: 0, jpBet: 0, jpGgr: 0 }
 );
 
 const aggregateByMember = (rows: GameStat[]): AggregatedGameStat[] => {
@@ -109,6 +117,10 @@ const aggregateByMember = (rows: GameStat[]): AggregatedGameStat[] => {
         validBet: 0,
         totalPayout: 0,
         ggr: 0,
+        fsBet: 0,
+        fsGgr: 0,
+        jpBet: 0,
+        jpGgr: 0,
       };
     }
 
@@ -117,6 +129,10 @@ const aggregateByMember = (rows: GameStat[]): AggregatedGameStat[] => {
     acc[row.uid].validBet += row.validBet;
     acc[row.uid].totalPayout += row.totalPayout;
     acc[row.uid].ggr += row.ggr;
+    acc[row.uid].fsBet += row.fsBet;
+    acc[row.uid].fsGgr += row.fsGgr;
+    acc[row.uid].jpBet += row.jpBet;
+    acc[row.uid].jpGgr += row.jpGgr;
 
     return acc;
   }, {});
@@ -279,6 +295,10 @@ export default function MemberGameStatsPage() {
     { title: '有效投注額', dataIndex: 'validBet', width: 140, align: 'right', sorter: (a, b) => a.validBet - b.validBet, render: renderAmount },
     { title: '總派獎', dataIndex: 'totalPayout', width: 140, align: 'right', sorter: (a, b) => a.totalPayout - b.totalPayout, render: renderAmount },
     { title: 'GGR', dataIndex: 'ggr', width: 140, align: 'right', sorter: (a, b) => a.ggr - b.ggr, render: renderGgr },
+    { title: 'FS 投注額', dataIndex: 'fsBet', width: 140, align: 'right', sorter: (a, b) => a.fsBet - b.fsBet, render: renderAmount },
+    { title: 'FS GGR', dataIndex: 'fsGgr', width: 140, align: 'right', sorter: (a, b) => a.fsGgr - b.fsGgr, render: renderGgr },
+    { title: 'JP 投注額', dataIndex: 'jpBet', width: 140, align: 'right', sorter: (a, b) => a.jpBet - b.jpBet, render: renderAmount },
+    { title: 'JP GGR', dataIndex: 'jpGgr', width: 140, align: 'right', sorter: (a, b) => a.jpGgr - b.jpGgr, render: renderGgr },
     {
       title: '詳情',
       key: 'action',
@@ -300,6 +320,10 @@ export default function MemberGameStatsPage() {
     { title: '有效投注額', dataIndex: 'validBet', width: 140, align: 'right', render: renderAmount },
     { title: '總派獎', dataIndex: 'totalPayout', width: 140, align: 'right', render: renderAmount },
     { title: 'GGR', dataIndex: 'ggr', width: 140, align: 'right', render: renderGgr },
+    { title: 'FS 投注額', dataIndex: 'fsBet', width: 140, align: 'right', render: renderAmount },
+    { title: 'FS GGR', dataIndex: 'fsGgr', width: 140, align: 'right', render: renderGgr },
+    { title: 'JP 投注額', dataIndex: 'jpBet', width: 140, align: 'right', render: renderAmount },
+    { title: 'JP GGR', dataIndex: 'jpGgr', width: 140, align: 'right', render: renderGgr },
   ];
 
   return (
@@ -379,6 +403,10 @@ export default function MemberGameStatsPage() {
               { title: '有效投注額', dataIndex: 'validBet', width: 140, align: 'right' as const, render: renderAmount },
               { title: '總派獎', dataIndex: 'totalPayout', width: 140, align: 'right' as const, render: renderAmount },
               { title: 'GGR', dataIndex: 'ggr', width: 140, align: 'right' as const, render: renderGgr },
+              { title: 'FS 投注額', dataIndex: 'fsBet', width: 140, align: 'right' as const, render: renderAmount },
+              { title: 'FS GGR', dataIndex: 'fsGgr', width: 140, align: 'right' as const, render: renderGgr },
+              { title: 'JP 投注額', dataIndex: 'jpBet', width: 140, align: 'right' as const, render: renderAmount },
+              { title: 'JP GGR', dataIndex: 'jpGgr', width: 140, align: 'right' as const, render: renderGgr },
             ];
             return <Table dataSource={summaryTableData} columns={summaryColumns} pagination={false} size="small" rowKey="key" scroll={{ x: 'max-content' }} />;
           })()}
@@ -392,7 +420,7 @@ export default function MemberGameStatsPage() {
               icon={<DownloadOutlined />}
               onClick={() => exportCsv(
                 `member-game-stats-${queryStart}-${queryEnd}-${filters.gameType}.csv`,
-                ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '遊戲類型', '總投注額', '排除投注額', '有效投注額', '總派獎', 'GGR'],
+                ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '遊戲類型', '總投注額', '排除投注額', '有效投注額', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR'],
                 filteredRows.map(row => [
                   row.date,
                   row.uid,
@@ -405,6 +433,10 @@ export default function MemberGameStatsPage() {
                   formatAmount(row.validBet),
                   formatAmount(row.totalPayout),
                   formatAmount(row.ggr),
+                  formatAmount(row.fsBet),
+                  formatAmount(row.fsGgr),
+                  formatAmount(row.jpBet),
+                  formatAmount(row.jpGgr),
                 ])
               )}
             >

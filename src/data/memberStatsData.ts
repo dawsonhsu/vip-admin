@@ -20,6 +20,10 @@ export interface PersonalStat {
   validBet: number;
   totalPayout: number;
   ggr: number;
+  fsBet: number;
+  fsGgr: number;
+  jpBet: number;
+  jpGgr: number;
   totalBonus: number;
   totalCommission: number;
   achievedInvitation: boolean; // 此會員是否達成「好友邀請活動」配置的達標條件；若達標則計入其邀請人的「達成人數」
@@ -44,6 +48,10 @@ export interface InviteStat {
   validBet: number;
   totalPayout: number;
   ggr: number;
+  fsBet: number;
+  fsGgr: number;
+  jpBet: number;
+  jpGgr: number;
   totalBonus: number;      // 此會員邀請的會員當日獲得彩金加總
   totalCommission: number; // 此會員邀請的會員當日獲得佣金加總
   excludedBet: number;     // 此會員邀請的會員當日排除投注額加總
@@ -62,6 +70,10 @@ export interface GameStat {
   validBet: number;
   totalPayout: number;
   ggr: number;
+  fsBet: number;
+  fsGgr: number;
+  jpBet: number;
+  jpGgr: number;
 }
 
 interface MockMember {
@@ -163,6 +175,10 @@ const createPersonalStat = (member: MockMember, date: string): PersonalStat => {
   const totalCommission = member.inviterUid ? pickAmountWithDecimal(`${member.uid}-${date}-commission`, 0, 2500) : 0;
   // achievedInvitation：僅有邀請人的會員才可能達標；以 uid hash 決定（同一會員所有日期一致），約 40% 命中
   const achievedInvitation = !!member.inviterUid && hashString(`${member.uid}-achieved-invitation`) % 10 < 4;
+  const fsBet = pickAmountWithDecimal(`${member.uid}-${date}-fs-bet`, 0, 8000);
+  const fsGgr = roundToTwo(fsBet * (pickInt(`${member.uid}-${date}-fs-ggr-factor`, -20, 25) / 100));
+  const jpBet = pickAmountWithDecimal(`${member.uid}-${date}-jp-bet`, 0, 5000);
+  const jpGgr = roundToTwo(jpBet * (pickInt(`${member.uid}-${date}-jp-ggr-factor`, -15, 30) / 100));
 
   return {
     date,
@@ -182,6 +198,10 @@ const createPersonalStat = (member: MockMember, date: string): PersonalStat => {
     validBet,
     totalPayout,
     ggr: roundToTwo(totalBet - totalPayout),
+    fsBet,
+    fsGgr,
+    jpBet,
+    jpGgr,
     totalBonus,
     totalCommission,
     achievedInvitation,
@@ -204,6 +224,10 @@ const createInviteStat = (member: MockMember, date: string): InviteStat => {
 
   const totalBonus = pickAmountWithDecimal(`${member.uid}-${date}-invite-bonus`, 0, 2000);
   const totalCommission = pickAmountWithDecimal(`${member.uid}-${date}-invite-commission`, 0, 1500);
+  const fsBet = pickAmountWithDecimal(`${member.uid}-${date}-invite-fs-bet`, 0, 8000);
+  const fsGgr = roundToTwo(fsBet * (pickInt(`${member.uid}-${date}-invite-fs-ggr-factor`, -20, 25) / 100));
+  const jpBet = pickAmountWithDecimal(`${member.uid}-${date}-invite-jp-bet`, 0, 5000);
+  const jpGgr = roundToTwo(jpBet * (pickInt(`${member.uid}-${date}-invite-jp-ggr-factor`, -15, 30) / 100));
 
   return {
     date,
@@ -225,6 +249,10 @@ const createInviteStat = (member: MockMember, date: string): InviteStat => {
     validBet,
     totalPayout,
     ggr: roundToTwo(totalBet - totalPayout),
+    fsBet,
+    fsGgr,
+    jpBet,
+    jpGgr,
     totalBonus,
     totalCommission,
   };
@@ -240,6 +268,10 @@ const createGameStat = (member: MockMember, date: string, gameType: GameType): G
   const excludedBet = pickAmountWithDecimal(`${member.uid}-${date}-${gameType}-excluded`, 0, Math.max(totalBet * 0.25, 0));
   const validBet = roundToTwo(Math.max(totalBet - excludedBet, 0));
   const totalPayout = roundToTwo(validBet * (pickInt(`${member.uid}-${date}-${gameType}-payout-factor`, 68, 122) / 100));
+  const fsBet = pickAmountWithDecimal(`${member.uid}-${date}-${gameType}-fs-bet`, 0, 4000);
+  const fsGgr = roundToTwo(fsBet * (pickInt(`${member.uid}-${date}-${gameType}-fs-ggr-factor`, -20, 25) / 100));
+  const jpBet = pickAmountWithDecimal(`${member.uid}-${date}-${gameType}-jp-bet`, 0, 2500);
+  const jpGgr = roundToTwo(jpBet * (pickInt(`${member.uid}-${date}-${gameType}-jp-ggr-factor`, -15, 30) / 100));
 
   return {
     date,
@@ -254,6 +286,10 @@ const createGameStat = (member: MockMember, date: string, gameType: GameType): G
     validBet,
     totalPayout,
     ggr: roundToTwo(totalBet - totalPayout),
+    fsBet,
+    fsGgr,
+    jpBet,
+    jpGgr,
   };
 };
 
