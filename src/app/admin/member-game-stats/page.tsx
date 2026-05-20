@@ -18,7 +18,7 @@ import {
   Typography,
 } from 'antd';
 import { DownloadOutlined, ReloadOutlined, SearchOutlined, TeamOutlined } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { gameStats, gameTypes, getInviterChain, memberStatMembers, type GameStat, type GameType } from '@/data/memberStatsData';
 
@@ -44,10 +44,6 @@ interface AggregatedGameStat {
   validBet: number;
   totalPayout: number;
   ggr: number;
-}
-
-interface ExpandGameRow extends AggregatedGameStat {
-  gameType: GameType;
 }
 
 const defaultRange = (): [Dayjs, Dayjs] => [dayjs(), dayjs()];
@@ -128,42 +124,16 @@ const aggregateByMember = (rows: GameStat[]): AggregatedGameStat[] => {
   return Object.values(grouped).sort((a, b) => a.uid.localeCompare(b.uid));
 };
 
-const aggregateByMemberAndGameType = (rows: GameStat[]): Record<string, ExpandGameRow[]> => rows.reduce<Record<string, ExpandGameRow[]>>((acc, row) => {
-  if (!acc[row.uid]) {
-    acc[row.uid] = [];
-  }
-
-  const current = acc[row.uid].find(item => item.gameType === row.gameType);
-  if (current) {
-    current.totalBet += row.totalBet;
-    current.excludedBet += row.excludedBet;
-    current.validBet += row.validBet;
-    current.totalPayout += row.totalPayout;
-    current.ggr += row.ggr;
-  } else {
-    acc[row.uid].push({
-      uid: row.uid,
-      username: row.username,
-      phone: row.phone,
-      inviterUid: row.inviterUid,
-      inviterUsername: row.inviterUsername,
-      gameType: row.gameType,
-      totalBet: row.totalBet,
-      excludedBet: row.excludedBet,
-      validBet: row.validBet,
-      totalPayout: row.totalPayout,
-      ggr: row.ggr,
-    });
-  }
-
-  acc[row.uid].sort((a, b) => gameTypes.indexOf(a.gameType) - gameTypes.indexOf(b.gameType));
-  return acc;
-}, {});
-
 export default function MemberGameStatsPage() {
   const router = useRouter();
   const [form] = Form.useForm<GameFilters>();
   const [filters, setFilters] = useState<GameFilters>({ inviterLevel: 1, gameType: 'ALL', dateRange: defaultRange() });
+  const [pagination, setPagination] = useState<TablePaginationConfig>({
+    current: 1,
+    pageSize: 20,
+    showSizeChanger: true,
+    pageSizeOptions: ['10', '20', '50'],
+  });
   const [drawerTarget, setDrawerTarget] = useState<AggregatedGameStat | null>(null);
 
   const queryStart = filters.dateRange[0].format('YYYY-MM-DD');
@@ -195,8 +165,16 @@ export default function MemberGameStatsPage() {
   }), [filters, queryEnd, queryStart]);
 
   const aggregatedRows = useMemo(() => aggregateByMember(filteredRows), [filteredRows]);
-  const expandedRows = useMemo(() => aggregateByMemberAndGameType(filteredRows), [filteredRows]);
-  const summary = useMemo(() => sumGameRows(aggregatedRows), [aggregatedRows]);
+
+  const pagedRows = useMemo(() => {
+    const current = pagination.current || 1;
+    const pageSize = pagination.pageSize || 20;
+    const startIndex = (current - 1) * pageSize;
+    return aggregatedRows.slice(startIndex, startIndex + pageSize);
+  }, [aggregatedRows, pagination]);
+
+  const pageSums = useMemo(() => sumGameRows(pagedRows), [pagedRows]);
+  const allSums = useMemo(() => sumGameRows(aggregatedRows), [aggregatedRows]);
 
   const detailRows = useMemo(() => {
     if (!drawerTarget) {
@@ -221,12 +199,14 @@ export default function MemberGameStatsPage() {
       gameType: values.gameType || 'ALL',
       dateRange: values.dateRange || defaultRange(),
     });
+    setPagination(prev => ({ ...prev, current: 1 }));
   };
 
   const handleReset = () => {
     const nextRange = defaultRange();
     form.setFieldsValue({ uid: undefined, inviterUid: undefined, inviterLevel: 1, gameType: 'ALL', dateRange: nextRange });
     setFilters({ inviterLevel: 1, gameType: 'ALL', dateRange: nextRange });
+    setPagination(prev => ({ ...prev, current: 1 }));
   };
 
   const columns: ColumnsType<AggregatedGameStat> = [
@@ -312,15 +292,6 @@ export default function MemberGameStatsPage() {
     },
   ];
 
-  const expandedColumns: ColumnsType<ExpandGameRow> = [
-    { title: '遊戲類型', dataIndex: 'gameType', width: 120 },
-    { title: '總投注額', dataIndex: 'totalBet', width: 140, align: 'right', render: renderAmount },
-    { title: '排除投注額', dataIndex: 'excludedBet', width: 140, align: 'right', render: renderAmount },
-    { title: '有效投注額', dataIndex: 'validBet', width: 140, align: 'right', render: renderAmount },
-    { title: '總派獎', dataIndex: 'totalPayout', width: 140, align: 'right', render: renderAmount },
-    { title: 'GGR', dataIndex: 'ggr', width: 140, align: 'right', render: renderGgr },
-  ];
-
   const detailColumns: ColumnsType<GameStat> = [
     { title: '統計日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
     ...(isAllMode ? [{ title: '遊戲類型', dataIndex: 'gameType', width: 120 } as const] : []),
@@ -397,7 +368,10 @@ export default function MemberGameStatsPage() {
 
         <Card size="small" title="統計">
           {(() => {
-            const summaryTableData = [{ key: 'all', label: '合計', ...summary }];
+            const summaryTableData = [
+              { key: 'page', label: '小計', ...pageSums },
+              { key: 'all', label: '總計', ...allSums },
+            ];
             const summaryColumns = [
               { title: '類型', dataIndex: 'label', width: 60 },
               { title: '總投注額', dataIndex: 'totalBet', width: 140, align: 'right' as const, render: renderAmount },
@@ -419,7 +393,7 @@ export default function MemberGameStatsPage() {
               onClick={() => exportCsv(
                 `member-game-stats-${queryStart}-${queryEnd}-${filters.gameType}.csv`,
                 ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '遊戲類型', '總投注額', '排除投注額', '有效投注額', '總派獎', 'GGR'],
-                (isAllMode ? filteredRows : filteredRows).map(row => [
+                filteredRows.map(row => [
                   row.date,
                   row.uid,
                   row.username,
@@ -444,20 +418,15 @@ export default function MemberGameStatsPage() {
             dataSource={aggregatedRows}
             onRow={(record) => ({ 'data-e2e-id': `member-game-stats-table-row-${record.uid}` } as React.HTMLAttributes<HTMLTableRowElement>)}
             scroll={{ x: 1500 }}
-            expandable={isAllMode ? {
-              expandedRowRender: (record) => (
-                <Table
-                  rowKey={(row) => `${row.uid}-${row.gameType}`}
-                  columns={expandedColumns}
-                  dataSource={expandedRows[record.uid] || []}
-                  onRow={(row) => ({ 'data-e2e-id': `member-game-stats-table-game-row-${row.uid}-${row.gameType}` } as React.HTMLAttributes<HTMLTableRowElement>)}
-                  pagination={false}
-                  size="small"
-                />
-              ),
-              rowExpandable: (record) => (expandedRows[record.uid] || []).length > 0,
-            } : undefined}
-            pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'], showTotal: total => `共 ${total} 筆` }}
+            pagination={{
+              current: pagination.current,
+              pageSize: pagination.pageSize,
+              total: aggregatedRows.length,
+              showSizeChanger: true,
+              pageSizeOptions: ['10', '20', '50'],
+              onChange: (page, pageSize) => setPagination(prev => ({ ...prev, current: page, pageSize })),
+              showTotal: total => `共 ${total} 筆`,
+            }}
             size="small"
           />
         </Card>
