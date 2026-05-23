@@ -6,12 +6,14 @@ import {
   Card,
   Cascader,
   Checkbox,
+  Col,
   DatePicker,
   Form,
   Input,
   InputNumber,
   Modal,
   Radio,
+  Row,
   Select,
   Space,
   Table,
@@ -326,7 +328,12 @@ export default function NewMemberTriDepositConfigModal({
     const filteredGameOptions = selectedProvider
       ? gameOptions.filter((game) => game.provider === selectedProvider)
       : [];
-    const compactItemStyle = { marginBottom: 12 };
+    const freeSpinItemProps = {
+      labelCol: { span: 24 },
+      wrapperCol: { span: 24 },
+      colon: false,
+      style: { marginBottom: 0 },
+    };
 
     return (
       <Card
@@ -335,185 +342,202 @@ export default function NewMemberTriDepositConfigModal({
         style={{ marginTop: 16, marginBottom: 8 }}
         data-e2e-id="new-member-tri-deposit-config-modal-freespin-card"
       >
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-            columnGap: 16,
-            rowGap: 0,
-          }}
-        >
-          <Form.Item
-            label="派发层级"
-            name={['freeSpin', 'dispatchLevel']}
-            style={compactItemStyle}
-          >
-            <Radio.Group
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-level-radio"
+        <Row gutter={[16, 12]}>
+          <Col span={24}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="派发层级"
+              name={['freeSpin', 'dispatchLevel']}
             >
-              {LEVEL_OPTIONS.map((option) => (
-                <Radio key={option.value} value={option.value}>
-                  {option.label}
-                </Radio>
-              ))}
-            </Radio.Group>
-          </Form.Item>
+              <Radio.Group
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-level-radio"
+              >
+                {LEVEL_OPTIONS.map((option) => (
+                  <Radio key={option.value} value={option.value}>
+                    {option.label}
+                  </Radio>
+                ))}
+              </Radio.Group>
+            </Form.Item>
+          </Col>
 
-          <Form.Item
-            label="厂商"
-            name={['freeSpin', 'provider']}
-            style={compactItemStyle}
-          >
-            <Select
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-provider-select"
-              allowClear
-              placeholder="请选择厂商"
-              options={providerOptions}
-              onChange={() => form.setFieldValue(['freeSpin', 'gameId'], undefined)}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="赠送游戏"
-            name={['freeSpin', 'gameId']}
-            style={compactItemStyle}
-          >
-            <Select
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-game-select"
-              allowClear
-              disabled={!selectedProvider}
-              placeholder={selectedProvider ? '请选择游戏' : '请先选择厂商'}
-              options={filteredGameOptions}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="单次投注额"
-            name={['freeSpin', 'betAmount']}
-            style={compactItemStyle}
-          >
-            <InputNumber
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-bet-amount-input"
-              min={0}
-              step={0.01}
-              precision={2}
-              placeholder="例：0.20"
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="流水倍数"
-            name={['freeSpin', 'rollover']}
-            extra="无流水要求请留空或填 0"
-            style={compactItemStyle}
-          >
-            <InputNumber
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-rollover-input"
-              min={0}
-              step={0.5}
-              addonAfter="倍"
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="有效期（天）"
-            name={['freeSpin', 'validityDays']}
-            style={compactItemStyle}
-          >
-            <InputNumber
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-validity-days-input"
-              min={1}
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="场馆限制"
-            name={['freeSpin', 'gameLimit']}
-            style={compactItemStyle}
-          >
-            <Cascader
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-game-limit-cascader"
-              options={gameLimitOptions}
-              placeholder="游戏类型 / 厂商 / 游戏"
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="最低提款"
-            name={['freeSpin', 'minWithdraw']}
-            style={compactItemStyle}
-          >
-            <InputNumber
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-min-withdraw-input"
-              min={0}
-              prefix="₱"
-              placeholder="不限"
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="最高提款"
-            name={['freeSpin', 'maxWithdraw']}
-            style={compactItemStyle}
-          >
-            <InputNumber
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-max-withdraw-input"
-              min={0}
-              prefix="₱"
-              placeholder="不限"
-              style={{ width: '100%' }}
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="礼金审核方式"
-            name={['freeSpin', 'reviewMode']}
-            style={compactItemStyle}
-          >
-            <Radio.Group
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-review-mode-radio"
+          <Col span={8}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="厂商"
+              name={['freeSpin', 'provider']}
             >
-              <Radio value="auto">自动</Radio>
-              <Radio value="manual">人工</Radio>
-            </Radio.Group>
-          </Form.Item>
+              <Select
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-provider-select"
+                allowClear
+                placeholder="请选择厂商"
+                options={providerOptions}
+                onChange={() => form.setFieldValue(['freeSpin', 'gameId'], undefined)}
+              />
+            </Form.Item>
+          </Col>
 
-          <Form.Item
-            label="礼金是否自动到帐"
-            name={['freeSpin', 'creditMode']}
-            style={compactItemStyle}
-          >
-            <Radio.Group
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-credit-mode-radio"
+          <Col span={8}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="赠送游戏"
+              name={['freeSpin', 'gameId']}
             >
-              <Radio value="manual">手动领取</Radio>
-              <Radio value="auto">自动到帐</Radio>
-            </Radio.Group>
-          </Form.Item>
+              <Select
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-game-select"
+                allowClear
+                disabled={!selectedProvider}
+                placeholder={selectedProvider ? '请选择游戏' : '请先选择厂商'}
+                options={filteredGameOptions}
+              />
+            </Form.Item>
+          </Col>
 
-          <Form.Item
-            label="封面图"
-            name={['freeSpin', 'cover']}
-            valuePropName="fileList"
-            getValueFromEvent={normalizeUploadFileList}
-            extra="建议尺寸 4:5（例：400×500），档案 ≤ 500KB；未上传将使用预设 SVG"
-            style={{ ...compactItemStyle, gridColumn: '1 / -1' }}
-          >
-            <Upload
-              data-e2e-id="new-member-tri-deposit-config-modal-freespin-cover-upload"
-              listType="picture-card"
-              maxCount={1}
-              beforeUpload={() => false}
+          <Col span={8}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="单次投注额"
+              name={['freeSpin', 'betAmount']}
             >
-              {uploadButton('new-member-tri-deposit-config-modal-freespin-cover-upload-btn')}
-            </Upload>
-          </Form.Item>
-        </div>
+              <InputNumber
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-bet-amount-input"
+                min={0}
+                step={0.01}
+                precision={2}
+                placeholder="例：0.20"
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col span={8}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="流水倍数"
+              name={['freeSpin', 'rollover']}
+              extra="无流水要求请留空或填 0"
+            >
+              <InputNumber
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-rollover-input"
+                min={0}
+                step={0.5}
+                addonAfter="倍"
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col span={8}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="有效期（天）"
+              name={['freeSpin', 'validityDays']}
+            >
+              <InputNumber
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-validity-days-input"
+                min={1}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col span={8}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="场馆限制"
+              name={['freeSpin', 'gameLimit']}
+            >
+              <Cascader
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-game-limit-cascader"
+                options={gameLimitOptions}
+                placeholder="游戏类型 / 厂商 / 游戏"
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col span={12}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="最低提款"
+              name={['freeSpin', 'minWithdraw']}
+            >
+              <InputNumber
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-min-withdraw-input"
+                min={0}
+                prefix="₱"
+                placeholder="不限"
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col span={12}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="最高提款"
+              name={['freeSpin', 'maxWithdraw']}
+            >
+              <InputNumber
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-max-withdraw-input"
+                min={0}
+                prefix="₱"
+                placeholder="不限"
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col span={12}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="礼金审核方式"
+              name={['freeSpin', 'reviewMode']}
+            >
+              <Radio.Group
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-review-mode-radio"
+              >
+                <Radio value="auto">自动</Radio>
+                <Radio value="manual">人工</Radio>
+              </Radio.Group>
+            </Form.Item>
+          </Col>
+
+          <Col span={12}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="礼金是否自动到帐"
+              name={['freeSpin', 'creditMode']}
+            >
+              <Radio.Group
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-credit-mode-radio"
+              >
+                <Radio value="manual">手动领取</Radio>
+                <Radio value="auto">自动到帐</Radio>
+              </Radio.Group>
+            </Form.Item>
+          </Col>
+
+          <Col span={24}>
+            <Form.Item
+              {...freeSpinItemProps}
+              label="封面图"
+              name={['freeSpin', 'cover']}
+              valuePropName="fileList"
+              getValueFromEvent={normalizeUploadFileList}
+              extra="建议尺寸 4:5（例：400×500），档案 ≤ 500KB；未上传将使用预设 SVG"
+            >
+              <Upload
+                data-e2e-id="new-member-tri-deposit-config-modal-freespin-cover-upload"
+                listType="picture-card"
+                maxCount={1}
+                beforeUpload={() => false}
+              >
+                {uploadButton('new-member-tri-deposit-config-modal-freespin-cover-upload-btn')}
+              </Upload>
+            </Form.Item>
+          </Col>
+        </Row>
       </Card>
     );
   };
