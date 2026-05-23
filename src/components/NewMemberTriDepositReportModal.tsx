@@ -68,6 +68,17 @@ interface NewMemberTriDepositReportModalProps {
   onClose: () => void;
 }
 
+const getTodayRange = (): [Dayjs, Dayjs] => [
+  dayjs().startOf('day'),
+  dayjs().endOf('day'),
+];
+
+const getDefaultFilters = (): Record<string, any> => ({
+  claimedRange: getTodayRange(),
+  orderStatus: 'all',
+  depositSeq: 'all',
+});
+
 export default function NewMemberTriDepositReportModal({
   open,
   onClose,
@@ -75,14 +86,15 @@ export default function NewMemberTriDepositReportModal({
   const [form] = Form.useForm();
   const [searchField, setSearchField] = useState<SearchField>('phone');
   const [searchText, setSearchText] = useState('');
-  const [filters, setFilters] = useState<Record<string, any>>({
-    orderStatus: 'all',
-    depositSeq: 'all',
-  });
+  const [filters, setFilters] = useState<Record<string, any>>(() => getDefaultFilters());
 
   useEffect(() => {
     if (open) {
-      form.setFieldsValue({ orderStatus: 'all', depositSeq: 'all' });
+      const defaultFilters = getDefaultFilters();
+      form.setFieldsValue(defaultFilters);
+      setSearchField('phone');
+      setSearchText('');
+      setFilters(defaultFilters);
     }
   }, [open, form]);
 
@@ -237,11 +249,12 @@ export default function NewMemberTriDepositReportModal({
   };
 
   const handleReset = () => {
+    const defaultFilters = getDefaultFilters();
     form.resetFields();
-    form.setFieldsValue({ orderStatus: 'all', depositSeq: 'all' });
+    form.setFieldsValue(defaultFilters);
     setSearchField('phone');
     setSearchText('');
-    setFilters({ orderStatus: 'all', depositSeq: 'all' });
+    setFilters(defaultFilters);
   };
 
   return (
@@ -265,7 +278,7 @@ export default function NewMemberTriDepositReportModal({
           <Form
             form={form}
             layout="inline"
-            initialValues={{ orderStatus: 'all', depositSeq: 'all' }}
+            initialValues={getDefaultFilters()}
             style={{ gap: 8, rowGap: 8, flexWrap: 'wrap' }}
           >
             <Form.Item label={searchFieldOptions.find((item) => item.value === searchField)?.label}>

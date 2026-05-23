@@ -145,7 +145,6 @@ export const gameOptions: GameSelectOption[] = gameManagementData
     gameType: game.gameType,
   }));
 
-const statusSequence: BonusOrderStatus[] = ['claimed', 'pending', 'expired', 'reviewing'];
 const accountSeeds = [
   'newbie_maya',
   'fresh_spin',
@@ -159,22 +158,25 @@ const accountSeeds = [
   'qrph_hero',
 ];
 
+const createTodayClaimedAt = () => {
+  const todayStart = dayjs().startOf('day');
+  const now = dayjs();
+  const maxOffsetMs = Math.max(0, now.diff(todayStart, 'millisecond'));
+  const offsetMs = Math.floor(Math.random() * (maxOffsetMs + 1));
+
+  return todayStart.add(offsetMs, 'millisecond').format('YYYY-MM-DD HH:mm:ss');
+};
+
 export const bonusOrderRecords: TriDepositBonusOrderRecord[] = Array.from(
   { length: 30 },
   (_, index) => {
     const depositSeq = ((index % 3) + 1) as DepositSeq;
-    const orderStatus = statusSequence[index % statusSequence.length];
+    const orderStatus: BonusOrderStatus = 'claimed';
     const depositAmount = [100, 200, 300, 400, 500, 800, 1200, 1600, 2000, 2500][index % 10];
     const bonusAmount = Number((depositAmount * 0.01 * depositSeq).toFixed(2));
     const freeSpinTotal = (index % 5) + 1;
-    const freeSpinUnused =
-      orderStatus === 'claimed' ? Math.max(0, freeSpinTotal - ((index % 3) + 1)) : freeSpinTotal;
-    const claimedAt =
-      orderStatus === 'pending'
-        ? '-'
-        : dayjs('2026-05-23 15:00:00')
-            .subtract(index * 3, 'hour')
-            .format('YYYY-MM-DD HH:mm:ss');
+    const freeSpinUnused = Math.max(0, freeSpinTotal - ((index % 4) + 1));
+    const claimedAt = createTodayClaimedAt();
 
     return {
       id: `tri-${index + 1}`,
@@ -190,8 +192,9 @@ export const bonusOrderRecords: TriDepositBonusOrderRecord[] = Array.from(
       totalRolloverRequired: depositAmount * (depositSeq === 1 ? 1 : 2) + bonusAmount * depositSeq,
       freeSpinTotal,
       freeSpinUnused,
-      cumulativePayout:
-        orderStatus === 'claimed' ? Number((freeSpinTotal * 6.8 + bonusAmount * 0.35).toFixed(2)) : 0,
+      cumulativePayout: Number(
+        (freeSpinTotal * (4.6 + (index % 4) * 1.8) + bonusAmount * (0.25 + depositSeq * 0.08)).toFixed(2)
+      ),
     };
   }
 );
