@@ -33,8 +33,16 @@ export interface VipTaskRecord {
   updatedBy: string;
 }
 
-// 限时活动（有效）—— 15 笔（含新增 FreeBet，归类为附加类）
+// 限时活动（有效）—— 16 笔（含新增 FreeBet，归类为附加类）
 export const activeActivities: ActivityRecord[] = [
+  {
+    key: 30, id: 30, type: '首存类', name: '新人三存活动', status: '进行中',
+    introEN: '-', introTA: '-',
+    startTime: '2026-05-23 00:00:00', endTime: '2026-12-31 23:59:59',
+    cycle: '-', settleCycle: '即时',
+    report: '查看报表', budgetLimit: '-', currentPaid: '₱ 0.00',
+    updatedAt: '2026-05-23 15:00:00', updatedBy: 'darren@filbetph.com',
+  },
   {
     key: 29, id: 29, type: '附加', name: '世界杯冠军 FreeBet', status: '进行中',
     introEN: '-', introTA: '-',

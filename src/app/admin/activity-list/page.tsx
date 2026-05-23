@@ -36,9 +36,12 @@ import {
 } from '@/data/activityListData';
 import FreeBetConfigModal from '@/components/FreeBetConfigModal';
 import FreeBetReportModal from '@/components/FreeBetReportModal';
+import NewMemberTriDepositConfigModal from '@/components/NewMemberTriDepositConfigModal';
+import NewMemberTriDepositReportModal from '@/components/NewMemberTriDepositReportModal';
 
 // 识别哪些活动是 FreeBet 类型（可拆独立配置 + 报表）
 const FREEBET_ACTIVITY_IDS = new Set<number>([29]);
+const NEW_MEMBER_TRI_DEPOSIT_ID = 30;
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -55,10 +58,16 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [freebetConfigOpen, setFreebetConfigOpen] = useState(false);
   const [freebetReportOpen, setFreebetReportOpen] = useState(false);
+  const [triDepositConfigOpen, setTriDepositConfigOpen] = useState(false);
+  const [triDepositReportOpen, setTriDepositReportOpen] = useState(false);
 
   const handleEditConfig = (record: ActivityRecord) => {
     if (FREEBET_ACTIVITY_IDS.has(record.id)) {
       setFreebetConfigOpen(true);
+      return;
+    }
+    if (record.id === NEW_MEMBER_TRI_DEPOSIT_ID) {
+      setTriDepositConfigOpen(true);
       return;
     }
     message.info(`编辑活动 #${record.id}: ${record.name}`);
@@ -67,6 +76,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const handleViewReport = (record: ActivityRecord) => {
     if (FREEBET_ACTIVITY_IDS.has(record.id)) {
       setFreebetReportOpen(true);
+      return;
+    }
+    if (record.id === NEW_MEMBER_TRI_DEPOSIT_ID) {
+      setTriDepositReportOpen(true);
       return;
     }
     message.info(`查看报表 #${record.id}: ${record.name}`);
@@ -222,7 +235,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
           >
             编辑配置
           </Button>
-          {FREEBET_ACTIVITY_IDS.has(record.id) && (
+          {(FREEBET_ACTIVITY_IDS.has(record.id) || record.id === NEW_MEMBER_TRI_DEPOSIT_ID) && (
             <Button
               data-e2e-id={`activity-list-table-view-report-btn-${record.id}`}
               type="link"
@@ -331,6 +344,14 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <FreeBetReportModal
         open={freebetReportOpen}
         onClose={() => setFreebetReportOpen(false)}
+      />
+      <NewMemberTriDepositConfigModal
+        open={triDepositConfigOpen}
+        onClose={() => setTriDepositConfigOpen(false)}
+      />
+      <NewMemberTriDepositReportModal
+        open={triDepositReportOpen}
+        onClose={() => setTriDepositReportOpen(false)}
       />
     </>
   );
