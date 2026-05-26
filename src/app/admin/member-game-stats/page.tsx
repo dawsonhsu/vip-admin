@@ -301,14 +301,20 @@ export default function MemberGameStatsPage() {
     { title: 'JP 投注額', dataIndex: 'jpBet', width: 140, align: 'right', sorter: (a, b) => a.jpBet - b.jpBet, render: renderAmount },
     { title: 'JP GGR', dataIndex: 'jpGgr', width: 140, align: 'right', sorter: (a, b) => a.jpGgr - b.jpGgr, render: renderGgr },
     {
-      title: '詳情',
+      title: '操作',
       key: 'action',
-      width: 100,
+      width: 200,
       fixed: 'right',
       render: (_, record) => (
-        <Button data-e2e-id={`member-game-stats-table-detail-btn-${record.uid}`} size="small" onClick={() => setDrawerTarget(record)}>
-          查看
-        </Button>
+        <Space size={4}>
+          <Button data-e2e-id={`member-game-stats-table-detail-btn-${record.uid}`} size="small" onClick={() => setDrawerTarget(record)}>
+            查看
+          </Button>
+          <RecalcButton
+            dataE2eId={`member-game-stats-table-recalc-btn-${record.uid}`}
+            successText={`已重算 ${record.username} ${queryStart}~${queryEnd} 遊戲統計`}
+          />
+        </Space>
       ),
     },
   ];

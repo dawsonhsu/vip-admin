@@ -582,14 +582,20 @@ function PersonalStatsTab() {
       render: renderAmount,
     },
     {
-      title: '詳情',
+      title: '操作',
       key: 'action',
-      width: 100,
+      width: 200,
       fixed: 'right',
       render: (_, record) => (
-        <Button data-e2e-id={`member-stats-table-detail-btn-${record.uid}`} size="small" onClick={() => setDrawerTarget(record)}>
-          查看
-        </Button>
+        <Space size={4}>
+          <Button data-e2e-id={`member-stats-table-detail-btn-${record.uid}`} size="small" onClick={() => setDrawerTarget(record)}>
+            查看
+          </Button>
+          <RecalcButton
+            dataE2eId={`member-stats-table-recalc-btn-${record.uid}`}
+            successText={`已重算 ${record.username} ${queryStart}~${queryEnd} 個人統計`}
+          />
+        </Space>
       ),
     },
   ];
@@ -947,14 +953,20 @@ function InviteStatsTab() {
     { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right', sorter: (a, b) => a.totalBonus - b.totalBonus, render: renderAmount },
     { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right', sorter: (a, b) => a.totalCommission - b.totalCommission, render: renderAmount },
     {
-      title: '詳情',
+      title: '操作',
       key: 'action',
-      width: 100,
+      width: 200,
       fixed: 'right',
       render: (_, record) => (
-        <Button data-e2e-id={`member-stats-invite-table-detail-btn-${record.uid}`} size="small" onClick={() => setDrawerTarget(record)}>
-          查看
-        </Button>
+        <Space size={4}>
+          <Button data-e2e-id={`member-stats-invite-table-detail-btn-${record.uid}`} size="small" onClick={() => setDrawerTarget(record)}>
+            查看
+          </Button>
+          <RecalcButton
+            dataE2eId={`member-stats-invite-table-recalc-btn-${record.uid}`}
+            successText={`已重算 ${record.username} ${queryStart}~${queryEnd} 邀請統計`}
+          />
+        </Space>
       ),
     },
   ];
