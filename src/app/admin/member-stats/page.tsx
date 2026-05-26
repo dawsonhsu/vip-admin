@@ -24,17 +24,22 @@ import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { PersonalStat, InviteStat } from '@/data/memberStatsData';
 import RecalcButton from '@/components/RecalcButton';
-import MemberSelect from '@/components/MemberSelect';
 import { inviteStats, personalStats, getInviterChain, memberStatMembers } from '@/data/memberStatsData';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 
-interface PersonalFilters {
-  uid?: string;
+type MemberSearchType = '手機號' | '賬號' | 'UID';
+
+interface PersonalFormValues {
+  searchValue?: string;
   inviterUid?: string;
   inviterLevel: 1 | 2 | 3;
   dateRange: [Dayjs, Dayjs];
+}
+
+interface PersonalFilters extends PersonalFormValues {
+  searchType: MemberSearchType;
 }
 
 interface AggregatedPersonalStat {
@@ -300,8 +305,9 @@ const sumInvite = (rows: AggregatedInviteStat[]) => rows.reduce(
 
 function PersonalStatsTab() {
   const router = useRouter();
-  const [form] = Form.useForm<PersonalFilters>();
-  const [filters, setFilters] = useState<PersonalFilters>({ inviterLevel: 1, dateRange: defaultRange() });
+  const [form] = Form.useForm<PersonalFormValues>();
+  const [searchType, setSearchType] = useState<MemberSearchType>('手機號');
+  const [filters, setFilters] = useState<PersonalFilters>({ searchType: '手機號', inviterLevel: 1, dateRange: defaultRange() });
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 20,
@@ -315,7 +321,12 @@ function PersonalStatsTab() {
 
   const filteredRows = useMemo(() => personalStats.filter((row) => {
     if (row.date < queryStart || row.date > queryEnd) return false;
-    if (filters.uid && row.uid !== filters.uid.trim()) return false;
+    if (filters.searchValue) {
+      const val = filters.searchValue.trim();
+      if (filters.searchType === '手機號' && !row.phone.includes(val)) return false;
+      if (filters.searchType === '賬號' && !row.username.includes(val)) return false;
+      if (filters.searchType === 'UID' && !row.uid.includes(val)) return false;
+    }
     if (filters.inviterUid) {
       const target = filters.inviterUid.trim();
       const level = filters.inviterLevel;
@@ -347,7 +358,8 @@ function PersonalStatsTab() {
   const handleSearch = () => {
     const values = form.getFieldsValue();
     setFilters({
-      uid: values.uid?.trim() || undefined,
+      searchType,
+      searchValue: values.searchValue?.trim() || undefined,
       inviterUid: values.inviterUid?.trim() || undefined,
       inviterLevel: (values.inviterLevel as 1 | 2 | 3) || 1,
       dateRange: values.dateRange || defaultRange(),
@@ -357,8 +369,9 @@ function PersonalStatsTab() {
 
   const handleReset = () => {
     const nextRange = defaultRange();
-    form.setFieldsValue({ uid: undefined, inviterUid: undefined, inviterLevel: 1, dateRange: nextRange });
-    setFilters({ inviterLevel: 1, dateRange: nextRange });
+    form.setFieldsValue({ searchValue: undefined, inviterUid: undefined, inviterLevel: 1, dateRange: nextRange });
+    setSearchType('手機號');
+    setFilters({ searchType: '手機號', inviterLevel: 1, dateRange: nextRange });
     setPagination(prev => ({ ...prev, current: 1 }));
   };
 
@@ -644,8 +657,22 @@ function PersonalStatsTab() {
         >
           <Row gutter={16}>
             <Col span={6}>
-              <Form.Item label="會員帳號" name="uid">
-                <MemberSelect dataE2eId="member-stats-filter-uid-input" />
+              <Form.Item name="searchValue" label={
+                <Select
+                  data-e2e-id="member-stats-filter-search-type-select"
+                  value={searchType}
+                  onChange={(v) => { setSearchType(v); form.setFieldValue('searchValue', undefined); }}
+                  variant="borderless"
+                  size="small"
+                  style={{ width: 88 }}
+                  options={[
+                    { label: '手機號', value: '手機號' },
+                    { label: '賬號', value: '賬號' },
+                    { label: 'UID', value: 'UID' },
+                  ]}
+                />
+              }>
+                <Input data-e2e-id="member-stats-filter-search-value-input" placeholder={`輸入${searchType}`} allowClear />
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -798,8 +825,9 @@ function PersonalStatsTab() {
 
 function InviteStatsTab() {
   const router = useRouter();
-  const [form] = Form.useForm<PersonalFilters>();
-  const [filters, setFilters] = useState<PersonalFilters>({ inviterLevel: 1, dateRange: defaultRange() });
+  const [form] = Form.useForm<PersonalFormValues>();
+  const [searchType, setSearchType] = useState<MemberSearchType>('手機號');
+  const [filters, setFilters] = useState<PersonalFilters>({ searchType: '手機號', inviterLevel: 1, dateRange: defaultRange() });
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
     pageSize: 20,
@@ -813,7 +841,12 @@ function InviteStatsTab() {
 
   const filteredRows = useMemo(() => inviteStats.filter((row) => {
     if (row.date < queryStart || row.date > queryEnd) return false;
-    if (filters.uid && row.uid !== filters.uid.trim()) return false;
+    if (filters.searchValue) {
+      const val = filters.searchValue.trim();
+      if (filters.searchType === '手機號' && !row.phone.includes(val)) return false;
+      if (filters.searchType === '賬號' && !row.username.includes(val)) return false;
+      if (filters.searchType === 'UID' && !row.uid.includes(val)) return false;
+    }
     if (filters.inviterUid) {
       const target = filters.inviterUid.trim();
       const level = filters.inviterLevel;
@@ -845,7 +878,8 @@ function InviteStatsTab() {
   const handleSearch = () => {
     const values = form.getFieldsValue();
     setFilters({
-      uid: values.uid?.trim() || undefined,
+      searchType,
+      searchValue: values.searchValue?.trim() || undefined,
       inviterUid: values.inviterUid?.trim() || undefined,
       inviterLevel: (values.inviterLevel as 1 | 2 | 3) || 1,
       dateRange: values.dateRange || defaultRange(),
@@ -855,8 +889,9 @@ function InviteStatsTab() {
 
   const handleReset = () => {
     const nextRange = defaultRange();
-    form.setFieldsValue({ uid: undefined, inviterUid: undefined, inviterLevel: 1, dateRange: nextRange });
-    setFilters({ inviterLevel: 1, dateRange: nextRange });
+    form.setFieldsValue({ searchValue: undefined, inviterUid: undefined, inviterLevel: 1, dateRange: nextRange });
+    setSearchType('手機號');
+    setFilters({ searchType: '手機號', inviterLevel: 1, dateRange: nextRange });
     setPagination(prev => ({ ...prev, current: 1 }));
   };
 
@@ -1017,8 +1052,22 @@ function InviteStatsTab() {
         >
           <Row gutter={16}>
             <Col span={6}>
-              <Form.Item label="會員帳號" name="uid">
-                <MemberSelect dataE2eId="member-stats-invite-filter-uid-input" />
+              <Form.Item name="searchValue" label={
+                <Select
+                  data-e2e-id="member-stats-invite-filter-search-type-select"
+                  value={searchType}
+                  onChange={(v) => { setSearchType(v); form.setFieldValue('searchValue', undefined); }}
+                  variant="borderless"
+                  size="small"
+                  style={{ width: 88 }}
+                  options={[
+                    { label: '手機號', value: '手機號' },
+                    { label: '賬號', value: '賬號' },
+                    { label: 'UID', value: 'UID' },
+                  ]}
+                />
+              }>
+                <Input data-e2e-id="member-stats-invite-filter-search-value-input" placeholder={`輸入${searchType}`} allowClear />
               </Form.Item>
             </Col>
             <Col span={6}>
