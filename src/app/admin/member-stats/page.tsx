@@ -24,6 +24,7 @@ import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { PersonalStat, InviteStat } from '@/data/memberStatsData';
 import RecalcButton from '@/components/RecalcButton';
+import MemberSelect from '@/components/MemberSelect';
 import { inviteStats, personalStats, getInviterChain, memberStatMembers } from '@/data/memberStatsData';
 
 const { RangePicker } = DatePicker;
@@ -644,7 +645,7 @@ function PersonalStatsTab() {
           <Row gutter={16}>
             <Col span={6}>
               <Form.Item label="會員帳號" name="uid">
-                <Input data-e2e-id="member-stats-filter-uid-input" placeholder="輸入會員帳號" />
+                <MemberSelect dataE2eId="member-stats-filter-uid-input" />
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -1017,7 +1018,7 @@ function InviteStatsTab() {
           <Row gutter={16}>
             <Col span={6}>
               <Form.Item label="會員帳號" name="uid">
-                <Input data-e2e-id="member-stats-invite-filter-uid-input" placeholder="輸入會員帳號" />
+                <MemberSelect dataE2eId="member-stats-invite-filter-uid-input" />
               </Form.Item>
             </Col>
             <Col span={6}>
