@@ -23,6 +23,7 @@ import { DownloadOutlined, ReloadOutlined, SearchOutlined, TeamOutlined } from '
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import type { PersonalStat, InviteStat } from '@/data/memberStatsData';
+import RecalcButton from '@/components/RecalcButton';
 import { inviteStats, personalStats, getInviterChain, memberStatMembers } from '@/data/memberStatsData';
 
 const { RangePicker } = DatePicker;
@@ -612,6 +613,18 @@ function PersonalStatsTab() {
     { title: 'JP GGR', dataIndex: 'jpGgr', align: 'right', width: 120, render: renderGgr },
     { title: '總彩金', dataIndex: 'totalBonus', align: 'right', width: 120, render: renderAmount },
     { title: '總佣金', dataIndex: 'totalCommission', align: 'right', width: 120, render: renderAmount },
+    {
+      title: '操作',
+      key: 'recalc',
+      width: 130,
+      fixed: 'right',
+      render: (_, record) => (
+        <RecalcButton
+          dataE2eId={`member-stats-drawer-recalc-btn-${record.uid}-${record.date}`}
+          successText={`已重算 ${record.date} 個人統計`}
+        />
+      ),
+    },
   ];
 
   return (
@@ -946,7 +959,7 @@ function InviteStatsTab() {
     },
   ];
 
-  const detailColumns: ColumnsType<InviteStat> = [
+  const inviteDetailColumns: ColumnsType<InviteStat> = [
     { title: '統計日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
     { title: '邀請人數', dataIndex: 'inviteCount', align: 'right', width: 100, render: renderInteger },
     { title: '達成人數', dataIndex: 'achieveCount', align: 'right', width: 100, render: renderInteger },
@@ -967,6 +980,18 @@ function InviteStatsTab() {
     { title: 'JP GGR', dataIndex: 'jpGgr', align: 'right', width: 120, render: renderGgr },
     { title: '總彩金', dataIndex: 'totalBonus', align: 'right', width: 120, render: renderAmount },
     { title: '總佣金', dataIndex: 'totalCommission', align: 'right', width: 120, render: renderAmount },
+    {
+      title: '操作',
+      key: 'recalc',
+      width: 130,
+      fixed: 'right',
+      render: (_, record) => (
+        <RecalcButton
+          dataE2eId={`member-stats-invite-drawer-recalc-btn-${record.uid}-${record.date}`}
+          successText={`已重算 ${record.date} 邀請統計`}
+        />
+      ),
+    },
   ];
 
   return (
@@ -1119,7 +1144,7 @@ function InviteStatsTab() {
         <div data-e2e-id="member-stats-invite-drawer">
           <Table
             rowKey={(record) => `${record.uid}-${record.date}`}
-            columns={detailColumns}
+            columns={inviteDetailColumns}
             dataSource={detailRows}
             onRow={(record) => ({ 'data-e2e-id': `member-stats-invite-drawer-row-${record.uid}-${record.date}` } as React.HTMLAttributes<HTMLTableRowElement>)}
             scroll={{ x: 1500 }}

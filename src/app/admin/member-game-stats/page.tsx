@@ -21,6 +21,7 @@ import { DownloadOutlined, ReloadOutlined, SearchOutlined, TeamOutlined } from '
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { gameStats, gameTypes, getInviterChain, memberStatMembers, type GameStat, type GameType } from '@/data/memberStatsData';
+import RecalcButton from '@/components/RecalcButton';
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
@@ -324,6 +325,18 @@ export default function MemberGameStatsPage() {
     { title: 'FS GGR', dataIndex: 'fsGgr', width: 140, align: 'right', render: renderGgr },
     { title: 'JP 投注額', dataIndex: 'jpBet', width: 140, align: 'right', render: renderAmount },
     { title: 'JP GGR', dataIndex: 'jpGgr', width: 140, align: 'right', render: renderGgr },
+    {
+      title: '操作',
+      key: 'recalc',
+      width: 130,
+      fixed: 'right',
+      render: (_, record) => (
+        <RecalcButton
+          dataE2eId={`member-game-stats-drawer-recalc-btn-${record.uid}-${record.date}-${record.gameType}`}
+          successText={`已重算 ${record.date} ${record.gameType} 遊戲統計`}
+        />
+      ),
+    },
   ];
 
   return (
