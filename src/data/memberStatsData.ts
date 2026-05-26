@@ -145,16 +145,19 @@ const mockMembers = buildMembers();
 
 export const memberStatMembers = mockMembers;
 
-export function getInviterChain(uid: string): Array<{ uid: string; username: string }> {
+export function getInviterChain(uid: string): { chain: Array<{ uid: string; username: string }>; hasMoreAbove: boolean } {
   const chain: Array<{ uid: string; username: string }> = [];
   let current: { uid: string; username: string; inviterUid?: string; inviterUsername?: string } | undefined = mockMembers.find(m => m.uid === uid);
-  while (current?.inviterUid && chain.length < 3) {
+  while (current?.inviterUid) {
     const inviter = mockMembers.find(m => m.uid === current!.inviterUid);
     if (!inviter) break;
+    if (chain.length >= 3) {
+      return { chain, hasMoreAbove: true };
+    }
     chain.unshift({ uid: inviter.uid, username: inviter.username });
     current = inviter;
   }
-  return chain; // ordered top-to-bottom, immediate inviter is last
+  return { chain, hasMoreAbove: false }; // chain ordered top-to-bottom, immediate inviter is last
 }
 
 const dates = Array.from({ length: TOTAL_DAYS }, (_, index) => dayjs().subtract(index, 'day').format('YYYY-MM-DD'));

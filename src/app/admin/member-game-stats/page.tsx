@@ -254,20 +254,24 @@ export default function MemberGameStatsPage() {
       width: 160,
       render: (_, record) => {
         if (!record.inviterUid || !record.inviterUsername) return '-';
-        const chain = getInviterChain(record.uid);
+        const { chain, hasMoreAbove } = getInviterChain(record.uid);
         const allNodes = [...chain, { uid: record.uid, username: record.username }];
         const content = (
-          <div style={{ maxWidth: 320 }}>
-            {chain.length > 0 && <Text type="secondary">… &gt; </Text>}
-            {allNodes.map((node, idx) => (
+          <div style={{ maxWidth: 360 }}>
+            {hasMoreAbove ? (
+              <Text type="secondary">…</Text>
+            ) : (
+              <Text strong>filbet</Text>
+            )}
+            {allNodes.map((node) => (
               <span key={node.uid}>
-                {idx > 0 && <Text type="secondary"> &gt; </Text>}
+                <Text type="secondary"> &gt; </Text>
                 {node.uid !== record.uid ? (
                   <a onClick={() => { form.setFieldsValue({ inviterUid: node.uid }); handleSearch(); }}>
                     {node.username}
                   </a>
                 ) : (
-                  <Text>{node.username}</Text>
+                  <Text strong>{node.username}</Text>
                 )}
               </span>
             ))}
