@@ -25,6 +25,7 @@ import {
   type CapabilitySource, type CapabilityAction, type AutoRestriction,
 } from '@/data/mockData';
 import { gameStats, inviteStats, personalStats, gameTypes, type GameStat, type GameType, type InviteStat, type PersonalStat } from '@/data/memberStatsData';
+import RecalcButton from '@/components/RecalcButton';
 
 const { Title, Text } = Typography;
 
@@ -700,7 +701,6 @@ export default function MemberDetailPage() {
   const PersonalDailyStatsTab = () => {
     const [form] = Form.useForm<DateRangeFilter>();
     const [filters, setFilters] = useState<DateRangeFilter>({ dateRange: defaultStatRange() });
-    const [summaryMode, setSummaryMode] = useState<SummaryMode>('page');
 
     const queryStart = filters.dateRange[0].format('YYYY-MM-DD');
     const queryEnd = filters.dateRange[1].format('YYYY-MM-DD');
@@ -709,22 +709,37 @@ export default function MemberDetailPage() {
       .filter(row => row.uid === uid && row.date >= queryStart && row.date <= queryEnd)
       .sort((a, b) => b.date.localeCompare(a.date)), [queryEnd, queryStart, uid]);
 
-    const summaryRows = summaryMode === 'all' ? rows : rows.slice(0, 10);
-    const summary = useMemo(() => summaryRows.reduce((acc, row) => ({
+    const sumPersonalRows = (input: PersonalStat[]) => input.reduce((acc, row) => ({
+      depositCount: acc.depositCount + row.depositCount,
       totalDeposit: acc.totalDeposit + row.totalDeposit,
+      withdrawCount: acc.withdrawCount + row.withdrawCount,
       totalWithdraw: acc.totalWithdraw + row.totalWithdraw,
+      depositFee: acc.depositFee + row.depositFee,
+      withdrawFee: acc.withdrawFee + row.withdrawFee,
       totalBet: acc.totalBet + row.totalBet,
       excludedBet: acc.excludedBet + row.excludedBet,
       validBet: acc.validBet + row.validBet,
+      totalPayout: acc.totalPayout + row.totalPayout,
       ggr: acc.ggr + row.ggr,
+      fsBet: acc.fsBet + row.fsBet,
+      fsGgr: acc.fsGgr + row.fsGgr,
+      jpBet: acc.jpBet + row.jpBet,
+      jpGgr: acc.jpGgr + row.jpGgr,
+      totalBonus: acc.totalBonus + row.totalBonus,
+      totalCommission: acc.totalCommission + row.totalCommission,
     }), {
-      totalDeposit: 0,
-      totalWithdraw: 0,
-      totalBet: 0,
-      excludedBet: 0,
-      validBet: 0,
-      ggr: 0,
-    }), [summaryRows]);
+      depositCount: 0, totalDeposit: 0, withdrawCount: 0, totalWithdraw: 0,
+      depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0,
+      totalPayout: 0, ggr: 0, fsBet: 0, fsGgr: 0, jpBet: 0, jpGgr: 0,
+      totalBonus: 0, totalCommission: 0,
+    });
+
+    const pageSums = useMemo(() => sumPersonalRows(rows.slice(0, 10)), [rows]);
+    const allSums = useMemo(() => sumPersonalRows(rows), [rows]);
+    const summaryData = [
+      { key: 'page', label: '小計', ...pageSums },
+      { key: 'all', label: '總計', ...allSums },
+    ];
 
     // 達成邀請條件：此會員所有日資料的 achievedInvitation 一致；取第一筆即可
     const achievedInvitation = rows.length > 0 ? rows[0].achievedInvitation : false;
@@ -732,19 +747,35 @@ export default function MemberDetailPage() {
 
     const columns: ColumnsType<PersonalStat> = [
       { title: '統計日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
-      { title: '存款次數', dataIndex: 'depositCount', width: 100, align: 'right', render: (value: number) => formatInteger(value) },
-      { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '提款次數', dataIndex: 'withdrawCount', width: 100, align: 'right', render: (value: number) => formatInteger(value) },
-      { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '排除投注額', dataIndex: 'excludedBet', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right', render: (value: number) => renderGgrText(value) },
-      { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
+      { title: '存款次數', dataIndex: 'depositCount', width: 100, align: 'right', sorter: (a, b) => a.depositCount - b.depositCount, render: (value: number) => formatInteger(value) },
+      { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right', sorter: (a, b) => a.totalDeposit - b.totalDeposit, render: (value: number) => formatAmount(value) },
+      { title: '提款次數', dataIndex: 'withdrawCount', width: 100, align: 'right', sorter: (a, b) => a.withdrawCount - b.withdrawCount, render: (value: number) => formatInteger(value) },
+      { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right', sorter: (a, b) => a.totalWithdraw - b.totalWithdraw, render: (value: number) => formatAmount(value) },
+      { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right', sorter: (a, b) => a.depositFee - b.depositFee, render: (value: number) => formatAmount(value) },
+      { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right', sorter: (a, b) => a.withdrawFee - b.withdrawFee, render: (value: number) => formatAmount(value) },
+      { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right', sorter: (a, b) => a.totalBet - b.totalBet, render: (value: number) => formatAmount(value) },
+      { title: '排除投注額', dataIndex: 'excludedBet', width: 120, align: 'right', sorter: (a, b) => a.excludedBet - b.excludedBet, render: (value: number) => formatAmount(value) },
+      { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right', sorter: (a, b) => a.validBet - b.validBet, render: (value: number) => formatAmount(value) },
+      { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right', sorter: (a, b) => a.totalPayout - b.totalPayout, render: (value: number) => formatAmount(value) },
+      { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right', sorter: (a, b) => a.ggr - b.ggr, render: (value: number) => renderGgrText(value) },
+      { title: 'FS 投注額', dataIndex: 'fsBet', width: 120, align: 'right', sorter: (a, b) => a.fsBet - b.fsBet, render: (value: number) => formatAmount(value) },
+      { title: 'FS GGR', dataIndex: 'fsGgr', width: 120, align: 'right', sorter: (a, b) => a.fsGgr - b.fsGgr, render: (value: number) => renderGgrText(value) },
+      { title: 'JP 投注額', dataIndex: 'jpBet', width: 120, align: 'right', sorter: (a, b) => a.jpBet - b.jpBet, render: (value: number) => formatAmount(value) },
+      { title: 'JP GGR', dataIndex: 'jpGgr', width: 120, align: 'right', sorter: (a, b) => a.jpGgr - b.jpGgr, render: (value: number) => renderGgrText(value) },
+      { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right', sorter: (a, b) => a.totalBonus - b.totalBonus, render: (value: number) => formatAmount(value) },
+      { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right', sorter: (a, b) => a.totalCommission - b.totalCommission, render: (value: number) => formatAmount(value) },
+      {
+        title: '操作',
+        key: 'recalc',
+        width: 130,
+        fixed: 'right',
+        render: (_, record) => (
+          <RecalcButton
+            dataE2eId={`member-detail-personal-recalc-btn-${record.date}`}
+            successText={`已重算 ${record.date} 個人統計`}
+          />
+        ),
+      },
     ];
 
     return (
@@ -785,37 +816,43 @@ export default function MemberDetailPage() {
         </MemberStatCard>
 
         <MemberStatCard
-          title="摘要"
-          extra={(
-            <Space size={12}>
-              {hasInviter && (
-                <Tag
-                  data-e2e-id="member-detail-personal-summary-achieved-tag"
-                  color={achievedInvitation ? 'green' : 'default'}
-                >
-                  好友邀請：{achievedInvitation ? '已達標' : '未達標'}
-                </Tag>
-              )}
-              <Segmented<SummaryMode>
-                data-e2e-id="member-detail-personal-summary-mode"
-                value={summaryMode}
-                onChange={value => setSummaryMode(value)}
-                options={[
-                  { label: '小計', value: 'page' },
-                  { label: '總計', value: 'all' },
-                ]}
-              />
-            </Space>
-          )}
+          title="統計"
+          extra={hasInviter ? (
+            <Tag
+              data-e2e-id="member-detail-personal-summary-achieved-tag"
+              color={achievedInvitation ? 'green' : 'default'}
+            >
+              好友邀請：{achievedInvitation ? '已達標' : '未達標'}
+            </Tag>
+          ) : undefined}
         >
-          <Row gutter={16}>
-            <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-total-deposit" title="總存款" value={summary.totalDeposit} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-total-withdraw" title="總提款" value={summary.totalWithdraw} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-total-bet" title="總投注" value={summary.totalBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-excluded-bet" title="排除投注額" value={summary.excludedBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-valid-bet" title="有效流水" value={summary.validBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-personal-summary-ggr" title="GGR" value={summary.ggr} valueStyle={{ color: summary.ggr >= 0 ? '#52c41a' : '#ff4d4f' }} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          </Row>
+          <Table
+            dataSource={summaryData}
+            rowKey="key"
+            pagination={false}
+            size="small"
+            scroll={{ x: 'max-content' }}
+            columns={[
+              { title: '類型', dataIndex: 'label', width: 60 },
+              { title: '存款次數', dataIndex: 'depositCount', width: 100, align: 'right' as const, render: (v: number) => formatInteger(v) },
+              { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '提款次數', dataIndex: 'withdrawCount', width: 100, align: 'right' as const, render: (v: number) => formatInteger(v) },
+              { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '排除投注額', dataIndex: 'excludedBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right' as const, render: (v: number) => renderGgrText(v) },
+              { title: 'FS 投注額', dataIndex: 'fsBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: 'FS GGR', dataIndex: 'fsGgr', width: 120, align: 'right' as const, render: (v: number) => renderGgrText(v) },
+              { title: 'JP 投注額', dataIndex: 'jpBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: 'JP GGR', dataIndex: 'jpGgr', width: 120, align: 'right' as const, render: (v: number) => renderGgrText(v) },
+              { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+            ]}
+          />
         </MemberStatCard>
 
         <MemberStatCard
@@ -824,7 +861,7 @@ export default function MemberDetailPage() {
               data-e2e-id="member-detail-personal-toolbar-export-btn"
               onClick={() => exportCsv(
                 `member-${uid}-personal-daily-${queryStart}-${queryEnd}.csv`,
-                ['統計日期', '會員 UID', '會員帳號', '達標', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', '總彩金', '總佣金'],
+                ['統計日期', '會員 UID', '會員帳號', '達標', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR', '總彩金', '總佣金'],
                 rows.map(row => [
                   row.date,
                   row.uid,
@@ -841,6 +878,10 @@ export default function MemberDetailPage() {
                   formatAmount(row.validBet),
                   formatAmount(row.totalPayout),
                   formatAmount(row.ggr),
+                  formatAmount(row.fsBet),
+                  formatAmount(row.fsGgr),
+                  formatAmount(row.jpBet),
+                  formatAmount(row.jpGgr),
                   formatAmount(row.totalBonus),
                   formatAmount(row.totalCommission),
                 ])
@@ -867,7 +908,6 @@ export default function MemberDetailPage() {
   const InviteDailyStatsTab = () => {
     const [form] = Form.useForm<DateRangeFilter>();
     const [filters, setFilters] = useState<DateRangeFilter>({ dateRange: defaultStatRange() });
-    const [summaryMode, setSummaryMode] = useState<SummaryMode>('page');
 
     const queryStart = filters.dateRange[0].format('YYYY-MM-DD');
     const queryEnd = filters.dateRange[1].format('YYYY-MM-DD');
@@ -876,35 +916,73 @@ export default function MemberDetailPage() {
       .filter(row => row.uid === uid && row.date >= queryStart && row.date <= queryEnd)
       .sort((a, b) => b.date.localeCompare(a.date)), [queryEnd, queryStart, uid]);
 
-    const summaryRows = summaryMode === 'all' ? rows : rows.slice(0, 10);
-    const summary = useMemo(() => summaryRows.reduce((acc, row) => ({
+    const sumInviteRows = (input: InviteStat[]) => input.reduce((acc, row) => ({
       inviteCount: acc.inviteCount + row.inviteCount,
       achieveCount: acc.achieveCount + row.achieveCount,
       betUserCount: acc.betUserCount + row.betUserCount,
+      depositUserCount: acc.depositUserCount + row.depositUserCount,
       totalDeposit: acc.totalDeposit + row.totalDeposit,
+      totalWithdraw: acc.totalWithdraw + row.totalWithdraw,
+      depositFee: acc.depositFee + row.depositFee,
+      withdrawFee: acc.withdrawFee + row.withdrawFee,
+      totalBet: acc.totalBet + row.totalBet,
+      excludedBet: acc.excludedBet + row.excludedBet,
+      validBet: acc.validBet + row.validBet,
+      totalPayout: acc.totalPayout + row.totalPayout,
       ggr: acc.ggr + row.ggr,
+      fsBet: acc.fsBet + row.fsBet,
+      fsGgr: acc.fsGgr + row.fsGgr,
+      jpBet: acc.jpBet + row.jpBet,
+      jpGgr: acc.jpGgr + row.jpGgr,
+      totalBonus: acc.totalBonus + row.totalBonus,
+      totalCommission: acc.totalCommission + row.totalCommission,
     }), {
-      inviteCount: 0,
-      achieveCount: 0,
-      betUserCount: 0,
-      totalDeposit: 0,
-      ggr: 0,
-    }), [summaryRows]);
+      inviteCount: 0, achieveCount: 0, betUserCount: 0, depositUserCount: 0,
+      totalDeposit: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0,
+      totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0,
+      fsBet: 0, fsGgr: 0, jpBet: 0, jpGgr: 0, totalBonus: 0, totalCommission: 0,
+    });
+
+    const pageSums = useMemo(() => sumInviteRows(rows.slice(0, 10)), [rows]);
+    const allSums = useMemo(() => sumInviteRows(rows), [rows]);
+    const summaryData = [
+      { key: 'page', label: '小計', ...pageSums },
+      { key: 'all', label: '總計', ...allSums },
+    ];
 
     const columns: ColumnsType<InviteStat> = [
       { title: '統計日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
-      { title: '邀請人數', dataIndex: 'inviteCount', width: 100, align: 'right', render: (value: number) => formatInteger(value) },
-      { title: '達成人數', dataIndex: 'achieveCount', width: 100, align: 'right', render: (value: number) => formatInteger(value) },
-      { title: '投注人數', dataIndex: 'betUserCount', width: 100, align: 'right', render: (value: number) => formatInteger(value) },
-      { title: '存款人數', dataIndex: 'depositUserCount', width: 100, align: 'right', render: (value: number) => formatInteger(value) },
-      { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right', render: (value: number) => renderGgrText(value) },
+      { title: '邀請人數', dataIndex: 'inviteCount', width: 100, align: 'right', sorter: (a, b) => a.inviteCount - b.inviteCount, render: (value: number) => formatInteger(value) },
+      { title: '達成人數', dataIndex: 'achieveCount', width: 100, align: 'right', sorter: (a, b) => a.achieveCount - b.achieveCount, render: (value: number) => formatInteger(value) },
+      { title: '投注人數', dataIndex: 'betUserCount', width: 100, align: 'right', sorter: (a, b) => a.betUserCount - b.betUserCount, render: (value: number) => formatInteger(value) },
+      { title: '存款人數', dataIndex: 'depositUserCount', width: 100, align: 'right', sorter: (a, b) => a.depositUserCount - b.depositUserCount, render: (value: number) => formatInteger(value) },
+      { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right', sorter: (a, b) => a.totalDeposit - b.totalDeposit, render: (value: number) => formatAmount(value) },
+      { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right', sorter: (a, b) => a.totalWithdraw - b.totalWithdraw, render: (value: number) => formatAmount(value) },
+      { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right', sorter: (a, b) => a.depositFee - b.depositFee, render: (value: number) => formatAmount(value) },
+      { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right', sorter: (a, b) => a.withdrawFee - b.withdrawFee, render: (value: number) => formatAmount(value) },
+      { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right', sorter: (a, b) => a.totalBet - b.totalBet, render: (value: number) => formatAmount(value) },
+      { title: '排除投注額', dataIndex: 'excludedBet', width: 120, align: 'right', sorter: (a, b) => a.excludedBet - b.excludedBet, render: (value: number) => formatAmount(value) },
+      { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right', sorter: (a, b) => a.validBet - b.validBet, render: (value: number) => formatAmount(value) },
+      { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right', sorter: (a, b) => a.totalPayout - b.totalPayout, render: (value: number) => formatAmount(value) },
+      { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right', sorter: (a, b) => a.ggr - b.ggr, render: (value: number) => renderGgrText(value) },
+      { title: 'FS 投注額', dataIndex: 'fsBet', width: 120, align: 'right', sorter: (a, b) => a.fsBet - b.fsBet, render: (value: number) => formatAmount(value) },
+      { title: 'FS GGR', dataIndex: 'fsGgr', width: 120, align: 'right', sorter: (a, b) => a.fsGgr - b.fsGgr, render: (value: number) => renderGgrText(value) },
+      { title: 'JP 投注額', dataIndex: 'jpBet', width: 120, align: 'right', sorter: (a, b) => a.jpBet - b.jpBet, render: (value: number) => formatAmount(value) },
+      { title: 'JP GGR', dataIndex: 'jpGgr', width: 120, align: 'right', sorter: (a, b) => a.jpGgr - b.jpGgr, render: (value: number) => renderGgrText(value) },
+      { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right', sorter: (a, b) => a.totalBonus - b.totalBonus, render: (value: number) => formatAmount(value) },
+      { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right', sorter: (a, b) => a.totalCommission - b.totalCommission, render: (value: number) => formatAmount(value) },
+      {
+        title: '操作',
+        key: 'recalc',
+        width: 130,
+        fixed: 'right',
+        render: (_, record) => (
+          <RecalcButton
+            dataE2eId={`member-detail-invite-recalc-btn-${record.date}`}
+            successText={`已重算 ${record.date} 邀請統計`}
+          />
+        ),
+      },
     ];
 
     return (
@@ -944,27 +1022,36 @@ export default function MemberDetailPage() {
           </Form>
         </MemberStatCard>
 
-        <MemberStatCard
-          title="摘要"
-          extra={(
-            <Segmented<SummaryMode>
-              data-e2e-id="member-detail-invite-summary-mode"
-              value={summaryMode}
-              onChange={value => setSummaryMode(value)}
-              options={[
-                { label: '小計', value: 'page' },
-                { label: '總計', value: 'all' },
-              ]}
-            />
-          )}
-        >
-          <Row gutter={16}>
-            <Col span={4}><Statistic data-e2e-id="member-detail-invite-summary-invite-count" title="邀請人數" value={summary.inviteCount} formatter={value => formatInteger(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-invite-summary-achieve-count" title="達成人數" value={summary.achieveCount} formatter={value => formatInteger(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-invite-summary-bet-user-count" title="投注人數" value={summary.betUserCount} formatter={value => formatInteger(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-invite-summary-total-deposit" title="總存款" value={summary.totalDeposit} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-invite-summary-ggr" title="GGR" value={summary.ggr} valueStyle={{ color: summary.ggr >= 0 ? '#52c41a' : '#ff4d4f' }} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          </Row>
+        <MemberStatCard title="統計">
+          <Table
+            dataSource={summaryData}
+            rowKey="key"
+            pagination={false}
+            size="small"
+            scroll={{ x: 'max-content' }}
+            columns={[
+              { title: '類型', dataIndex: 'label', width: 60 },
+              { title: '邀請人數', dataIndex: 'inviteCount', width: 100, align: 'right' as const, render: (v: number) => formatInteger(v) },
+              { title: '達成人數', dataIndex: 'achieveCount', width: 100, align: 'right' as const, render: (v: number) => formatInteger(v) },
+              { title: '投注人數', dataIndex: 'betUserCount', width: 100, align: 'right' as const, render: (v: number) => formatInteger(v) },
+              { title: '存款人數', dataIndex: 'depositUserCount', width: 100, align: 'right' as const, render: (v: number) => formatInteger(v) },
+              { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '提款手續費', dataIndex: 'withdrawFee', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '總投注', dataIndex: 'totalBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '排除投注額', dataIndex: 'excludedBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '有效流水', dataIndex: 'validBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '總派獎', dataIndex: 'totalPayout', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right' as const, render: (v: number) => renderGgrText(v) },
+              { title: 'FS 投注額', dataIndex: 'fsBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: 'FS GGR', dataIndex: 'fsGgr', width: 120, align: 'right' as const, render: (v: number) => renderGgrText(v) },
+              { title: 'JP 投注額', dataIndex: 'jpBet', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: 'JP GGR', dataIndex: 'jpGgr', width: 120, align: 'right' as const, render: (v: number) => renderGgrText(v) },
+              { title: '總彩金', dataIndex: 'totalBonus', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '總佣金', dataIndex: 'totalCommission', width: 120, align: 'right' as const, render: (v: number) => formatAmount(v) },
+            ]}
+          />
         </MemberStatCard>
 
         <MemberStatCard
@@ -973,7 +1060,7 @@ export default function MemberDetailPage() {
               data-e2e-id="member-detail-invite-toolbar-export-btn"
               onClick={() => exportCsv(
                 `member-${uid}-invite-daily-${queryStart}-${queryEnd}.csv`,
-                ['統計日期', '會員 UID', '會員帳號', '邀請人數', '達成人數', '投注人數', '存款人數', '總存款', '總提款', '存款手續費', '提款手續費', '總投注', '有效流水', '總派獎', 'GGR'],
+                ['統計日期', '會員 UID', '會員帳號', '邀請人數', '達成人數', '投注人數', '存款人數', '總存款', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR', '總彩金', '總佣金'],
                 rows.map(row => [
                   row.date,
                   row.uid,
@@ -987,9 +1074,16 @@ export default function MemberDetailPage() {
                   formatAmount(row.depositFee),
                   formatAmount(row.withdrawFee),
                   formatAmount(row.totalBet),
+                  formatAmount(row.excludedBet),
                   formatAmount(row.validBet),
                   formatAmount(row.totalPayout),
                   formatAmount(row.ggr),
+                  formatAmount(row.fsBet),
+                  formatAmount(row.fsGgr),
+                  formatAmount(row.jpBet),
+                  formatAmount(row.jpGgr),
+                  formatAmount(row.totalBonus),
+                  formatAmount(row.totalCommission),
                 ])
               )}
             >
@@ -1014,7 +1108,6 @@ export default function MemberDetailPage() {
   const GameDailyStatsTab = () => {
     const [form] = Form.useForm<GameDateRangeFilter>();
     const [filters, setFilters] = useState<GameDateRangeFilter>({ gameType: 'ALL', dateRange: defaultStatRange() });
-    const [summaryMode, setSummaryMode] = useState<SummaryMode>('page');
 
     const queryStart = filters.dateRange[0].format('YYYY-MM-DD');
     const queryEnd = filters.dateRange[1].format('YYYY-MM-DD');
@@ -1029,29 +1122,52 @@ export default function MemberDetailPage() {
         return b.date.localeCompare(a.date);
       }), [filters.gameType, queryEnd, queryStart, uid]);
 
-    const summaryRows = summaryMode === 'all' ? rows : rows.slice(0, 10);
-    const summary = useMemo(() => summaryRows.reduce((acc, row) => ({
+    const sumGameRows = (input: GameStat[]) => input.reduce((acc, row) => ({
       totalBet: acc.totalBet + row.totalBet,
       excludedBet: acc.excludedBet + row.excludedBet,
       validBet: acc.validBet + row.validBet,
       totalPayout: acc.totalPayout + row.totalPayout,
       ggr: acc.ggr + row.ggr,
+      fsBet: acc.fsBet + row.fsBet,
+      fsGgr: acc.fsGgr + row.fsGgr,
+      jpBet: acc.jpBet + row.jpBet,
+      jpGgr: acc.jpGgr + row.jpGgr,
     }), {
-      totalBet: 0,
-      excludedBet: 0,
-      validBet: 0,
-      totalPayout: 0,
-      ggr: 0,
-    }), [summaryRows]);
+      totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0,
+      fsBet: 0, fsGgr: 0, jpBet: 0, jpGgr: 0,
+    });
+
+    const pageSums = useMemo(() => sumGameRows(rows.slice(0, 10)), [rows]);
+    const allSums = useMemo(() => sumGameRows(rows), [rows]);
+    const summaryData = [
+      { key: 'page', label: '小計', ...pageSums },
+      { key: 'all', label: '總計', ...allSums },
+    ];
 
     const columns: ColumnsType<GameStat> = [
       { title: '統計日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
-      { title: '遊戲類型', dataIndex: 'gameType', width: 120 },
-      { title: '總投注額', dataIndex: 'totalBet', width: 130, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '排除投注額', dataIndex: 'excludedBet', width: 130, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '有效投注額', dataIndex: 'validBet', width: 130, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: '總派獎', dataIndex: 'totalPayout', width: 130, align: 'right', render: (value: number) => formatAmount(value) },
-      { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right', render: (value: number) => renderGgrText(value) },
+      { title: '遊戲類型', dataIndex: 'gameType', width: 120, sorter: (a, b) => a.gameType.localeCompare(b.gameType) },
+      { title: '總投注額', dataIndex: 'totalBet', width: 130, align: 'right', sorter: (a, b) => a.totalBet - b.totalBet, render: (value: number) => formatAmount(value) },
+      { title: '排除投注額', dataIndex: 'excludedBet', width: 130, align: 'right', sorter: (a, b) => a.excludedBet - b.excludedBet, render: (value: number) => formatAmount(value) },
+      { title: '有效投注額', dataIndex: 'validBet', width: 130, align: 'right', sorter: (a, b) => a.validBet - b.validBet, render: (value: number) => formatAmount(value) },
+      { title: '總派獎', dataIndex: 'totalPayout', width: 130, align: 'right', sorter: (a, b) => a.totalPayout - b.totalPayout, render: (value: number) => formatAmount(value) },
+      { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right', sorter: (a, b) => a.ggr - b.ggr, render: (value: number) => renderGgrText(value) },
+      { title: 'FS 投注額', dataIndex: 'fsBet', width: 130, align: 'right', sorter: (a, b) => a.fsBet - b.fsBet, render: (value: number) => formatAmount(value) },
+      { title: 'FS GGR', dataIndex: 'fsGgr', width: 130, align: 'right', sorter: (a, b) => a.fsGgr - b.fsGgr, render: (value: number) => renderGgrText(value) },
+      { title: 'JP 投注額', dataIndex: 'jpBet', width: 130, align: 'right', sorter: (a, b) => a.jpBet - b.jpBet, render: (value: number) => formatAmount(value) },
+      { title: 'JP GGR', dataIndex: 'jpGgr', width: 130, align: 'right', sorter: (a, b) => a.jpGgr - b.jpGgr, render: (value: number) => renderGgrText(value) },
+      {
+        title: '操作',
+        key: 'recalc',
+        width: 130,
+        fixed: 'right',
+        render: (_, record) => (
+          <RecalcButton
+            dataE2eId={`member-detail-game-recalc-btn-${record.date}-${record.gameType}`}
+            successText={`已重算 ${record.date} ${record.gameType} 遊戲統計`}
+          />
+        ),
+      },
     ];
 
     return (
@@ -1105,27 +1221,26 @@ export default function MemberDetailPage() {
           </Form>
         </MemberStatCard>
 
-        <MemberStatCard
-          title="摘要"
-          extra={(
-            <Segmented<SummaryMode>
-              data-e2e-id="member-detail-game-summary-mode"
-              value={summaryMode}
-              onChange={value => setSummaryMode(value)}
-              options={[
-                { label: '小計', value: 'page' },
-                { label: '總計', value: 'all' },
-              ]}
-            />
-          )}
-        >
-          <Row gutter={16}>
-            <Col span={4}><Statistic data-e2e-id="member-detail-game-summary-total-bet" title="總投注" value={summary.totalBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-game-summary-excluded-bet" title="排除投注" value={summary.excludedBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-game-summary-valid-bet" title="有效投注" value={summary.validBet} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-game-summary-total-payout" title="總派獎" value={summary.totalPayout} formatter={value => formatAmount(Number(value || 0))} /></Col>
-            <Col span={4}><Statistic data-e2e-id="member-detail-game-summary-ggr" title="GGR" value={summary.ggr} valueStyle={{ color: summary.ggr >= 0 ? '#52c41a' : '#ff4d4f' }} formatter={value => formatAmount(Number(value || 0))} /></Col>
-          </Row>
+        <MemberStatCard title="統計">
+          <Table
+            dataSource={summaryData}
+            rowKey="key"
+            pagination={false}
+            size="small"
+            scroll={{ x: 'max-content' }}
+            columns={[
+              { title: '類型', dataIndex: 'label', width: 60 },
+              { title: '總投注額', dataIndex: 'totalBet', width: 130, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '排除投注額', dataIndex: 'excludedBet', width: 130, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '有效投注額', dataIndex: 'validBet', width: 130, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: '總派獎', dataIndex: 'totalPayout', width: 130, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: 'GGR', dataIndex: 'ggr', width: 120, align: 'right' as const, render: (v: number) => renderGgrText(v) },
+              { title: 'FS 投注額', dataIndex: 'fsBet', width: 130, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: 'FS GGR', dataIndex: 'fsGgr', width: 130, align: 'right' as const, render: (v: number) => renderGgrText(v) },
+              { title: 'JP 投注額', dataIndex: 'jpBet', width: 130, align: 'right' as const, render: (v: number) => formatAmount(v) },
+              { title: 'JP GGR', dataIndex: 'jpGgr', width: 130, align: 'right' as const, render: (v: number) => renderGgrText(v) },
+            ]}
+          />
         </MemberStatCard>
 
         <MemberStatCard
@@ -1134,7 +1249,7 @@ export default function MemberDetailPage() {
               data-e2e-id="member-detail-game-toolbar-export-btn"
               onClick={() => exportCsv(
                 `member-${uid}-game-daily-${queryStart}-${queryEnd}-${filters.gameType}.csv`,
-                ['統計日期', '會員 UID', '會員帳號', '遊戲類型', '總投注額', '排除投注額', '有效投注額', '總派獎', 'GGR'],
+                ['統計日期', '會員 UID', '會員帳號', '遊戲類型', '總投注額', '排除投注額', '有效投注額', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR'],
                 rows.map(row => [
                   row.date,
                   row.uid,
@@ -1145,6 +1260,10 @@ export default function MemberDetailPage() {
                   formatAmount(row.validBet),
                   formatAmount(row.totalPayout),
                   formatAmount(row.ggr),
+                  formatAmount(row.fsBet),
+                  formatAmount(row.fsGgr),
+                  formatAmount(row.jpBet),
+                  formatAmount(row.jpGgr),
                 ])
               )}
             >
