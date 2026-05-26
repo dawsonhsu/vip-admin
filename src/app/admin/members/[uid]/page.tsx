@@ -1144,9 +1144,94 @@ export default function MemberDetailPage() {
       { key: 'all', label: '總計', ...allSums },
     ];
 
-    const columns: ColumnsType<GameStat> = [
-      { title: '統計日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
-      { title: '遊戲類型', dataIndex: 'gameType', width: 120, sorter: (a, b) => a.gameType.localeCompare(b.gameType) },
+    type GameStatRow = {
+      key: string;
+      displayLabel: string;
+      isAggregate: boolean;
+      dateSort: string;
+      totalBet: number;
+      excludedBet: number;
+      validBet: number;
+      totalPayout: number;
+      ggr: number;
+      fsBet: number;
+      fsGgr: number;
+      jpBet: number;
+      jpGgr: number;
+      date: string;
+      gameType?: string;
+      children?: GameStatRow[];
+    };
+
+    const tableData = useMemo<GameStatRow[]>(() => {
+      if (filters.gameType !== 'ALL') {
+        return rows.map(r => ({
+          key: `${r.date}-${r.gameType}`,
+          displayLabel: r.date,
+          isAggregate: false,
+          dateSort: r.date,
+          totalBet: r.totalBet,
+          excludedBet: r.excludedBet,
+          validBet: r.validBet,
+          totalPayout: r.totalPayout,
+          ggr: r.ggr,
+          fsBet: r.fsBet,
+          fsGgr: r.fsGgr,
+          jpBet: r.jpBet,
+          jpGgr: r.jpGgr,
+          date: r.date,
+          gameType: r.gameType,
+        }));
+      }
+      const grouped = new Map<string, GameStat[]>();
+      for (const r of rows) {
+        if (!grouped.has(r.date)) grouped.set(r.date, []);
+        grouped.get(r.date)!.push(r);
+      }
+      return Array.from(grouped.entries())
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([date, group]) => {
+          const totals = sumGameRows(group);
+          return {
+            key: date,
+            displayLabel: date,
+            isAggregate: true,
+            dateSort: date,
+            ...totals,
+            date,
+            children: group
+              .slice()
+              .sort((a, b) => a.gameType.localeCompare(b.gameType))
+              .map(r => ({
+                key: `${date}-${r.gameType}`,
+                displayLabel: r.gameType,
+                isAggregate: false,
+                dateSort: date,
+                totalBet: r.totalBet,
+                excludedBet: r.excludedBet,
+                validBet: r.validBet,
+                totalPayout: r.totalPayout,
+                ggr: r.ggr,
+                fsBet: r.fsBet,
+                fsGgr: r.fsGgr,
+                jpBet: r.jpBet,
+                jpGgr: r.jpGgr,
+                date,
+                gameType: r.gameType,
+              })),
+          };
+        });
+    }, [rows, filters.gameType]);
+
+    const columns: ColumnsType<GameStatRow> = [
+      {
+        title: '統計日期',
+        dataIndex: 'displayLabel',
+        width: 180,
+        sorter: (a, b) => a.dateSort.localeCompare(b.dateSort),
+        defaultSortOrder: 'descend',
+        render: (value: string, record) => record.isAggregate ? value : <strong>{value}</strong>,
+      },
       { title: '總投注額', dataIndex: 'totalBet', width: 130, align: 'right', sorter: (a, b) => a.totalBet - b.totalBet, render: (value: number) => formatAmount(value) },
       { title: '排除投注額', dataIndex: 'excludedBet', width: 130, align: 'right', sorter: (a, b) => a.excludedBet - b.excludedBet, render: (value: number) => formatAmount(value) },
       { title: '有效投注額', dataIndex: 'validBet', width: 130, align: 'right', sorter: (a, b) => a.validBet - b.validBet, render: (value: number) => formatAmount(value) },
@@ -1163,8 +1248,8 @@ export default function MemberDetailPage() {
         fixed: 'right',
         render: (_, record) => (
           <RecalcButton
-            dataE2eId={`member-detail-game-recalc-btn-${record.date}-${record.gameType}`}
-            successText={`已重算 ${record.date} ${record.gameType} 遊戲統計`}
+            dataE2eId={`member-detail-game-recalc-btn-${record.key}`}
+            successText={record.isAggregate ? `已重算 ${record.date} 遊戲統計` : `已重算 ${record.date} ${record.gameType} 遊戲統計`}
           />
         ),
       },
@@ -1272,11 +1357,11 @@ export default function MemberDetailPage() {
           )}
         >
           <Table
-            rowKey={(record) => `${record.uid}-${record.date}-${record.gameType}`}
+            rowKey="key"
             columns={columns}
-            dataSource={rows}
-            onRow={(record) => ({ 'data-e2e-id': `member-detail-game-table-row-${record.uid}-${record.date}-${record.gameType}` } as React.HTMLAttributes<HTMLTableRowElement>)}
-            scroll={{ x: 1200 }}
+            dataSource={tableData}
+            onRow={(record) => ({ 'data-e2e-id': `member-detail-game-table-row-${record.key}` } as React.HTMLAttributes<HTMLTableRowElement>)}
+            scroll={{ x: 1500 }}
             pagination={{ pageSize: 10, showTotal: total => `共 ${total} 筆` }}
             size="small"
           />
