@@ -115,14 +115,30 @@ const pickAmountWithDecimal = (seed: string, min: number, max: number): number =
   return roundToTwo(cents / 100);
 };
 
+// Hardcoded inviter overrides to guarantee specific demo chains:
+//   Page-1 overflow case: tiger_02(1) → dragon_03(2) → phoenix_04(3) → ace_05(4)
+//   silver_47 overflow case: falcon_44(43) → ruby_45(44) → gold_46(45) → silver_47(46)
+// Both chains have ≥4 ancestors above the bottom member, so Popover shows '…' at the top.
+const HARDCODED_INVITERS: Record<number, number> = {
+  1: 0, 2: 1, 3: 2, 4: 3,
+  43: 42, 44: 43, 45: 44, 46: 45,
+};
+
 const buildMembers = (): MockMember[] => (
   Array.from({ length: TOTAL_MEMBERS }, (_, index) => {
     const uid = `U${String(10001 + index)}`;
     const username = `${usernameSeeds[index % usernameSeeds.length]}_${String(index + 1).padStart(2, '0')}`;
     const phoneBody = pickInt(`${uid}-phone`, 10000000, 99999999);
     const phone = `09${phoneBody}`;
-    const inviterEnabled = index > 0 && hashString(`${uid}-inviter-enabled`) % 10 < 3;
 
+    const hardcodedInviterIdx = HARDCODED_INVITERS[index];
+    if (hardcodedInviterIdx !== undefined) {
+      const inviterUid = `U${String(10001 + hardcodedInviterIdx)}`;
+      const inviterUsername = `${usernameSeeds[hardcodedInviterIdx % usernameSeeds.length]}_${String(hardcodedInviterIdx + 1).padStart(2, '0')}`;
+      return { uid, username, phone, inviterUid, inviterUsername };
+    }
+
+    const inviterEnabled = index > 0 && hashString(`${uid}-inviter-enabled`) % 10 < 3;
     if (!inviterEnabled) {
       return { uid, username, phone };
     }
