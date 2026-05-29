@@ -1,6 +1,7 @@
 node_modules
 .next
 *.png
+!public/**/*.png
 .vercel
 .omc/
 tsconfig.tsbuildinfo

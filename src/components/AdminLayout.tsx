@@ -28,6 +28,7 @@ import {
   BellOutlined,
   FullscreenOutlined,
   LogoutOutlined,
+  MobileOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -38,6 +39,7 @@ type MenuItem = Required<MenuProps>['items'][number];
 
 const menuItems: MenuItem[] = [
   { key: '/admin', icon: <HomeOutlined />, label: <span data-e2e-id="layout-menu-home">首頁</span> },
+  { key: '/client-demo', icon: <MobileOutlined />, label: <span data-e2e-id="layout-menu-client-demo">客戶端 Demo</span> },
   {
     key: 'member-mgmt',
     icon: <TeamOutlined />,
@@ -152,7 +154,7 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
   const pathname = usePathname();
 
   const onClick: MenuProps['onClick'] = ({ key }) => {
-    if (key.startsWith('/admin')) {
+    if (key.startsWith('/admin') || key.startsWith('/client-demo')) {
       router.push(key);
     }
   };
