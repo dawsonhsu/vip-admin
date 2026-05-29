@@ -47,13 +47,15 @@ const freeSpinItemProps = {
 interface FreeSpinStepProps {
   form: FormInstance;
   e2ePrefix: string;
+  showGoogleCode?: boolean;
 }
 
 /**
  * Step 3 — 免费旋转配置 Card + 谷歌验证码 (shared across all activity config wizards).
  * Must be rendered inside the same <Form> as the rest of the wizard.
+ * Pass `showGoogleCode={false}` to hide the Google 2FA input (e.g. inline tab usage).
  */
-export function FreeSpinStep({ form, e2ePrefix }: FreeSpinStepProps) {
+export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true }: FreeSpinStepProps) {
   const freeSpinValues = (Form.useWatch('freeSpin', form) ?? {}) as Record<string, any>;
   const selectedProvider = freeSpinValues.provider as string | undefined;
 
@@ -282,18 +284,20 @@ export function FreeSpinStep({ form, e2ePrefix }: FreeSpinStepProps) {
         </Row>
       </Card>
 
-      <Form.Item
-        label="谷歌验证码"
-        name="googleCode"
-        rules={[{ required: true, message: '请输入谷歌验证码' }]}
-        style={{ marginTop: 16 }}
-      >
-        <Input.Password
-          data-e2e-id={`${e2ePrefix}-form-google-code-input`}
-          maxLength={6}
-          placeholder="请输入谷歌验证码"
-        />
-      </Form.Item>
+      {showGoogleCode && (
+        <Form.Item
+          label="谷歌验证码"
+          name="googleCode"
+          rules={[{ required: true, message: '请输入谷歌验证码' }]}
+          style={{ marginTop: 16 }}
+        >
+          <Input.Password
+            data-e2e-id={`${e2ePrefix}-form-google-code-input`}
+            maxLength={6}
+            placeholder="请输入谷歌验证码"
+          />
+        </Form.Item>
+      )}
     </>
   );
 }

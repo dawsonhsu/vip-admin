@@ -8,6 +8,7 @@ import { EditOutlined, SettingOutlined, QuestionCircleOutlined } from '@ant-desi
 import { Tooltip } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { vipConfigData, type VipConfigItem } from '@/data/vipConfigData';
+import { FreeSpinStep, defaultFreeSpinValues } from '@/components/activityConfigShared/FreeSpinStep';
 
 const { Title, Text } = Typography;
 
@@ -27,7 +28,7 @@ export default function VipConfigPage() {
 
   const handleEdit = (record: VipConfigItem) => {
     setEditingRecord(record);
-    form.setFieldsValue(record);
+    form.setFieldsValue({ ...record, freeSpin: defaultFreeSpinValues });
     setEditModalOpen(true);
   };
 
@@ -290,6 +291,14 @@ export default function VipConfigPage() {
                   key: 'checkin',
                   label: <span data-e2e-id="vip-config-tab-checkin">簽到</span>,
                   children: (
+                    <Tabs
+                      data-e2e-id="vip-config-checkin-subtab"
+                      defaultActiveKey="checkin-config"
+                      items={[
+                        {
+                          key: 'checkin-config',
+                          label: <span data-e2e-id="vip-config-checkin-subtab-config">簽到設置</span>,
+                          children: (
                     <>
                       <Alert
                         type="info"
@@ -392,6 +401,21 @@ export default function VipConfigPage() {
                         </Form.Item>
                       </div>
                     </>
+                          ),
+                        },
+                        {
+                          key: 'checkin-freespin',
+                          label: <span data-e2e-id="vip-config-checkin-subtab-freespin">免費旋轉</span>,
+                          children: (
+                            <FreeSpinStep
+                              form={form}
+                              e2ePrefix="vip-config-checkin"
+                              showGoogleCode={false}
+                            />
+                          ),
+                        },
+                      ]}
+                    />
                   ),
                 },
               ]}
