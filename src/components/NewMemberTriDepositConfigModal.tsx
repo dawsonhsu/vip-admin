@@ -4,17 +4,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
-  Cascader,
-  Checkbox,
   Col,
-  DatePicker,
   Form,
-  Input,
   InputNumber,
   Modal,
   Radio,
   Row,
-  Select,
   Space,
   Steps,
   Table,
@@ -41,16 +36,12 @@ import {
   type TriDepositTabKey,
   type TriDepositTierConfig,
 } from '@/data/newMemberTriDepositData';
+import { BaseConfigStep } from './activityConfigShared/BaseConfigStep';
+import { FreeSpinStep, defaultFreeSpinValues } from './activityConfigShared/FreeSpinStep';
 
 const { Text } = Typography;
-const { RangePicker } = DatePicker;
 
 const TAB_KEYS: TriDepositTabKey[] = ['dep1', 'dep2', 'dep3'];
-const LEVEL_OPTIONS = [
-  { value: 'OPEN', label: 'OPEN' },
-  { value: 'PROVIDER', label: 'PROVIDER' },
-  { value: 'GAME', label: 'GAME' },
-];
 
 type NumericTierField =
   | 'minDeposit'
@@ -65,15 +56,6 @@ interface NewMemberTriDepositConfigModalProps {
   onClose: () => void;
 }
 
-interface FreeSpinFormValues {
-  dispatchLevel: 'OPEN' | 'PROVIDER' | 'GAME';
-  provider?: string;
-  gameId?: string;
-  validityDays: number;
-  reviewMode: 'auto' | 'manual';
-  creditMode: 'manual' | 'auto';
-}
-
 const cloneTierConfig = (): Record<TriDepositTabKey, TriDepositTabConfig> =>
   TAB_KEYS.reduce((acc, key) => {
     acc[key] = {
@@ -82,13 +64,6 @@ const cloneTierConfig = (): Record<TriDepositTabKey, TriDepositTabConfig> =>
     };
     return acc;
   }, {} as Record<TriDepositTabKey, TriDepositTabConfig>);
-
-const createDefaultFreeSpinValues = (): FreeSpinFormValues => ({
-  dispatchLevel: 'GAME',
-  validityDays: 7,
-  reviewMode: 'auto',
-  creditMode: 'auto',
-});
 
 const uploadButton = (e2eId: string, label = '上传') => (
   <button
@@ -103,6 +78,8 @@ const uploadButton = (e2eId: string, label = '上传') => (
 
 const normalizeUploadFileList = (event: any) =>
   Array.isArray(event) ? event : event?.fileList;
+
+const E2E = 'new-member-tri-deposit-config-modal';
 
 export default function NewMemberTriDepositConfigModal({
   open,
@@ -155,28 +132,17 @@ export default function NewMemberTriDepositConfigModal({
     setCurrentStep((step) => Math.max(step - 1, 0));
   };
 
-  const freeSpinValues = (Form.useWatch('freeSpin', form) ?? {}) as Partial<FreeSpinFormValues>;
-
-  const gameLimitOptions = useMemo(() => {
-    const typeMap = new Map<string, Map<string, { value: string; label: string }[]>>();
-    gameOptions.forEach((game) => {
-      const providerMap = typeMap.get(game.gameType) ?? new Map<string, { value: string; label: string }[]>();
-      const games = providerMap.get(game.provider) ?? [];
-      games.push({ value: game.value, label: game.label });
-      providerMap.set(game.provider, games);
-      typeMap.set(game.gameType, providerMap);
-    });
-
-    return Array.from(typeMap.entries()).map(([gameType, providerMap]) => ({
-      value: gameType,
-      label: gameType,
-      children: Array.from(providerMap.entries()).map(([provider, games]) => ({
-        value: provider,
-        label: provider,
-        children: games,
-      })),
-    }));
-  }, []);
+  const handleOk = () => {
+    form
+      .validateFields()
+      .then(() => {
+        message.success('活动配置已保存');
+        onClose();
+      })
+      .catch(() => {
+        message.error('请检查必填项');
+      });
+  };
 
   const updateTabConfig = (
     tabKey: TriDepositTabKey,
@@ -243,18 +209,6 @@ export default function NewMemberTriDepositConfigModal({
     }));
   };
 
-  const handleOk = () => {
-    form
-      .validateFields()
-      .then(() => {
-        message.success('活动配置已保存');
-        onClose();
-      })
-      .catch(() => {
-        message.error('请检查必填项');
-      });
-  };
-
   const createTierColumns = (
     tabKey: TriDepositTabKey,
     formula: RewardFormula
@@ -270,7 +224,7 @@ export default function NewMemberTriDepositConfigModal({
       width: 150,
       render: (value, record) => (
         <InputNumber
-          data-e2e-id={`new-member-tri-deposit-config-modal-tier-table-min-deposit-input-${tabKey}-${record.key}`}
+          data-e2e-id={`${E2E}-tier-table-min-deposit-input-${tabKey}-${record.key}`}
           min={0}
           value={value}
           addonAfter="P"
@@ -285,7 +239,7 @@ export default function NewMemberTriDepositConfigModal({
       width: 150,
       render: (value, record) => (
         <InputNumber
-          data-e2e-id={`new-member-tri-deposit-config-modal-tier-table-bonus-${formula}-input-${tabKey}-${record.key}`}
+          data-e2e-id={`${E2E}-tier-table-bonus-${formula}-input-${tabKey}-${record.key}`}
           min={0}
           value={value}
           step={formula === 'ratio' ? 0.1 : 1}
@@ -308,7 +262,7 @@ export default function NewMemberTriDepositConfigModal({
       width: 140,
       render: (value, record) => (
         <InputNumber
-          data-e2e-id={`new-member-tri-deposit-config-modal-tier-table-freespin-count-input-${tabKey}-${record.key}`}
+          data-e2e-id={`${E2E}-tier-table-freespin-count-input-${tabKey}-${record.key}`}
           min={0}
           value={value}
           addonAfter="次"
@@ -323,7 +277,7 @@ export default function NewMemberTriDepositConfigModal({
       width: 140,
       render: (value, record) => (
         <InputNumber
-          data-e2e-id={`new-member-tri-deposit-config-modal-tier-table-principal-rollover-input-${tabKey}-${record.key}`}
+          data-e2e-id={`${E2E}-tier-table-principal-rollover-input-${tabKey}-${record.key}`}
           min={0}
           value={value}
           addonAfter="倍"
@@ -338,7 +292,7 @@ export default function NewMemberTriDepositConfigModal({
       width: 140,
       render: (value, record) => (
         <InputNumber
-          data-e2e-id={`new-member-tri-deposit-config-modal-tier-table-bonus-rollover-input-${tabKey}-${record.key}`}
+          data-e2e-id={`${E2E}-tier-table-bonus-rollover-input-${tabKey}-${record.key}`}
           min={0}
           value={value}
           addonAfter="倍"
@@ -353,7 +307,7 @@ export default function NewMemberTriDepositConfigModal({
       fixed: 'right',
       render: (_, record) => (
         <Button
-          data-e2e-id={`new-member-tri-deposit-config-modal-tier-table-delete-btn-${tabKey}-${record.key}`}
+          data-e2e-id={`${E2E}-tier-table-delete-btn-${tabKey}-${record.key}`}
           type="link"
           size="small"
           danger
@@ -366,231 +320,12 @@ export default function NewMemberTriDepositConfigModal({
     },
   ];
 
-  const renderFreeSpinConfig = () => {
-    const selectedProvider = freeSpinValues.provider;
-    const filteredGameOptions = selectedProvider
-      ? gameOptions.filter((game) => game.provider === selectedProvider)
-      : [];
-    const freeSpinItemProps = {
-      labelCol: { span: 24 },
-      wrapperCol: { span: 24 },
-      colon: false,
-      style: { marginBottom: 0 },
-    };
-
-    return (
-      <Card
-        size="small"
-        title="免费旋转配置"
-        style={{ marginTop: 16, marginBottom: 8 }}
-        data-e2e-id="new-member-tri-deposit-config-modal-freespin-card"
-      >
-        <Row gutter={[16, 12]}>
-          <Col span={24}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="派发层级"
-              name={['freeSpin', 'dispatchLevel']}
-            >
-              <Radio.Group
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-level-radio"
-              >
-                {LEVEL_OPTIONS.map((option) => (
-                  <Radio key={option.value} value={option.value}>
-                    {option.label}
-                  </Radio>
-                ))}
-              </Radio.Group>
-            </Form.Item>
-          </Col>
-
-          <Col span={8}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="厂商"
-              name={['freeSpin', 'provider']}
-            >
-              <Select
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-provider-select"
-                allowClear
-                placeholder="请选择厂商"
-                options={providerOptions}
-                onChange={() => form.setFieldValue(['freeSpin', 'gameId'], undefined)}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={8}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="赠送游戏"
-              name={['freeSpin', 'gameId']}
-            >
-              <Select
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-game-select"
-                allowClear
-                disabled={!selectedProvider}
-                placeholder={selectedProvider ? '请选择游戏' : '请先选择厂商'}
-                options={filteredGameOptions}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={8}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="单次投注额"
-              name={['freeSpin', 'betAmount']}
-            >
-              <InputNumber
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-bet-amount-input"
-                min={0}
-                step={0.01}
-                precision={2}
-                placeholder="例：0.20"
-                style={{ width: '100%' }}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={8}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="流水倍数"
-              name={['freeSpin', 'rollover']}
-              extra="无流水要求请留空或填 0"
-            >
-              <InputNumber
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-rollover-input"
-                min={0}
-                step={0.5}
-                addonAfter="倍"
-                style={{ width: '100%' }}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={8}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="有效期（天）"
-              name={['freeSpin', 'validityDays']}
-            >
-              <InputNumber
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-validity-days-input"
-                min={1}
-                style={{ width: '100%' }}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={8}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="场馆限制"
-              name={['freeSpin', 'gameLimit']}
-            >
-              <Cascader
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-game-limit-cascader"
-                options={gameLimitOptions}
-                placeholder="游戏类型 / 厂商 / 游戏"
-                style={{ width: '100%' }}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={12}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="最低提款"
-              name={['freeSpin', 'minWithdraw']}
-            >
-              <InputNumber
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-min-withdraw-input"
-                min={0}
-                prefix="₱"
-                placeholder="不限"
-                style={{ width: '100%' }}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={12}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="最高提款"
-              name={['freeSpin', 'maxWithdraw']}
-            >
-              <InputNumber
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-max-withdraw-input"
-                min={0}
-                prefix="₱"
-                placeholder="不限"
-                style={{ width: '100%' }}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={12}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="礼金审核方式"
-              name={['freeSpin', 'reviewMode']}
-            >
-              <Radio.Group
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-review-mode-radio"
-              >
-                <Radio value="auto">自动</Radio>
-                <Radio value="manual">人工</Radio>
-              </Radio.Group>
-            </Form.Item>
-          </Col>
-
-          <Col span={12}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="礼金是否自动到帐"
-              name={['freeSpin', 'creditMode']}
-            >
-              <Radio.Group
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-credit-mode-radio"
-              >
-                <Radio value="manual">手动领取</Radio>
-                <Radio value="auto">自动到帐</Radio>
-              </Radio.Group>
-            </Form.Item>
-          </Col>
-
-          <Col span={24}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="封面图"
-              name={['freeSpin', 'cover']}
-              valuePropName="fileList"
-              getValueFromEvent={normalizeUploadFileList}
-              extra="建议尺寸 4:5（例：400×500），档案 ≤ 500KB；未上传将使用预设 SVG"
-            >
-              <Upload
-                data-e2e-id="new-member-tri-deposit-config-modal-freespin-cover-upload"
-                listType="picture-card"
-                maxCount={1}
-                beforeUpload={() => false}
-              >
-                {uploadButton('new-member-tri-deposit-config-modal-freespin-cover-upload-btn')}
-              </Upload>
-            </Form.Item>
-          </Col>
-        </Row>
-      </Card>
-    );
-  };
-
   const renderTabContent = (tabKey: TriDepositTabKey) => {
     const currentConfig = configData[tabKey];
 
     return (
       <div
-        data-e2e-id={`new-member-tri-deposit-config-modal-tab-panel-${tabKey}`}
+        data-e2e-id={`${E2E}-tab-panel-${tabKey}`}
         style={{
           background: token.colorFillAlter,
           border: `1px solid ${token.colorBorderSecondary}`,
@@ -606,7 +341,7 @@ export default function NewMemberTriDepositConfigModal({
                   奖励公式：
                 </Text>
                 <Radio.Group
-                  data-e2e-id={`new-member-tri-deposit-config-modal-reward-formula-radio-${tabKey}`}
+                  data-e2e-id={`${E2E}-reward-formula-radio-${tabKey}`}
                   value={currentConfig.rewardFormula}
                   onChange={(event) =>
                     updateTabConfig(tabKey, { rewardFormula: event.target.value })
@@ -623,7 +358,7 @@ export default function NewMemberTriDepositConfigModal({
                   彩金上限：
                 </Text>
                 <InputNumber
-                  data-e2e-id={`new-member-tri-deposit-config-modal-bonus-cap-input-${tabKey}`}
+                  data-e2e-id={`${E2E}-bonus-cap-input-${tabKey}`}
                   prefix="₱"
                   min={0}
                   value={currentConfig.bonusCap}
@@ -648,7 +383,7 @@ export default function NewMemberTriDepositConfigModal({
                   状态：
                 </Text>
                 <Radio.Group
-                  data-e2e-id={`new-member-tri-deposit-config-modal-status-radio-${tabKey}`}
+                  data-e2e-id={`${E2E}-status-radio-${tabKey}`}
                   value={currentConfig.enabled ? 'open' : 'closed'}
                   onChange={(event) =>
                     updateTabConfig(tabKey, { enabled: event.target.value === 'open' })
@@ -673,13 +408,13 @@ export default function NewMemberTriDepositConfigModal({
                   活动页 Banner：
                 </Text>
                 <Upload
-                  data-e2e-id={`new-member-tri-deposit-config-modal-banner-upload-${tabKey}`}
+                  data-e2e-id={`${E2E}-banner-upload-${tabKey}`}
                   listType="picture-card"
                   maxCount={1}
                   beforeUpload={() => false}
                 >
                   {uploadButton(
-                    `new-member-tri-deposit-config-modal-banner-upload-btn-${tabKey}`,
+                    `${E2E}-banner-upload-btn-${tabKey}`,
                     'Banner'
                   )}
                 </Upload>
@@ -693,7 +428,7 @@ export default function NewMemberTriDepositConfigModal({
             rowKey="key"
             onRow={(record) =>
               ({
-                'data-e2e-id': `new-member-tri-deposit-config-modal-tier-table-row-${tabKey}-${record.key}`,
+                'data-e2e-id': `${E2E}-tier-table-row-${tabKey}-${record.key}`,
               } as React.HTMLAttributes<HTMLTableRowElement>)
             }
             size="small"
@@ -702,7 +437,7 @@ export default function NewMemberTriDepositConfigModal({
           />
 
           <Button
-            data-e2e-id={`new-member-tri-deposit-config-modal-tier-table-add-btn-${tabKey}`}
+            data-e2e-id={`${E2E}-tier-table-add-btn-${tabKey}`}
             icon={<PlusOutlined />}
             onClick={() => addTier(tabKey)}
           >
@@ -721,14 +456,14 @@ export default function NewMemberTriDepositConfigModal({
       footer={
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
           <Button
-            data-e2e-id="new-member-tri-deposit-config-modal-footer-cancel-btn"
+            data-e2e-id={`${E2E}-footer-cancel-btn`}
             onClick={onClose}
           >
             取消
           </Button>
           {currentStep > 0 && (
             <Button
-              data-e2e-id="new-member-tri-deposit-config-modal-footer-prev-btn"
+              data-e2e-id={`${E2E}-footer-prev-btn`}
               onClick={handlePrev}
             >
               上一步
@@ -736,7 +471,7 @@ export default function NewMemberTriDepositConfigModal({
           )}
           {currentStep < stepItems.length - 1 ? (
             <Button
-              data-e2e-id="new-member-tri-deposit-config-modal-footer-next-btn"
+              data-e2e-id={`${E2E}-footer-next-btn`}
               type="primary"
               onClick={handleNext}
             >
@@ -744,7 +479,7 @@ export default function NewMemberTriDepositConfigModal({
             </Button>
           ) : (
             <Button
-              data-e2e-id="new-member-tri-deposit-config-modal-footer-submit-btn"
+              data-e2e-id={`${E2E}-footer-submit-btn`}
               type="primary"
               onClick={handleOk}
             >
@@ -771,159 +506,81 @@ export default function NewMemberTriDepositConfigModal({
       }}
       centered
     >
-      <div data-e2e-id="new-member-tri-deposit-config-modal-modal">
-          <Steps
-            data-e2e-id="new-member-tri-deposit-config-modal-steps"
-            current={currentStep}
-            items={stepItems}
-            style={{ marginBottom: 24 }}
-          />
-          <Form
-            form={form}
-            labelCol={{ span: 5 }}
-            wrapperCol={{ span: 18 }}
-            labelAlign="right"
-            initialValues={{
-              activityType: 'deposit',
-              activityId: 30,
-              name: '新人三存活动',
-              ruleSource: 'backend',
-              status: 'active',
-              timeRange: [
-                dayjs('2026-05-23 00:00:00'),
-                dayjs('2026-12-31 23:59:59'),
-              ],
-              introSource: 'backend',
-              activityScope: 'all',
-              depositChannels: defaultSelectedDepositChannels,
-              freeSpin: createDefaultFreeSpinValues(),
-              googleCode: undefined,
-            }}
+      <div data-e2e-id={`${E2E}-modal`}>
+        <Steps
+          data-e2e-id={`${E2E}-steps`}
+          current={currentStep}
+          items={stepItems}
+          style={{ marginBottom: 24 }}
+        />
+        <Form
+          form={form}
+          labelCol={{ span: 5 }}
+          wrapperCol={{ span: 18 }}
+          labelAlign="right"
+          initialValues={{
+            activityType: 'deposit',
+            activityId: 30,
+            name: '新人三存活动',
+            ruleSource: 'backend',
+            status: 'active',
+            timeRange: [
+              dayjs('2026-05-23 00:00:00'),
+              dayjs('2026-12-31 23:59:59'),
+            ],
+            introSource: 'backend',
+            activityScope: 'all',
+            depositChannels: defaultSelectedDepositChannels,
+            freeSpin: defaultFreeSpinValues,
+            googleCode: undefined,
+          }}
+        >
+          <div
+            data-e2e-id={`${E2E}-step-basic`}
+            style={{ display: currentStep === 0 ? 'block' : 'none' }}
           >
-            <div
-              data-e2e-id="new-member-tri-deposit-config-modal-step-basic"
-              style={{ display: currentStep === 0 ? 'block' : 'none' }}
+            <BaseConfigStep
+              e2ePrefix={E2E}
+              activityId={30}
+              activityName="新人三存活动"
+              activityTypeDefault="deposit"
+            />
+          </div>
+
+          <div
+            data-e2e-id={`${E2E}-step-bonus`}
+            style={{ display: currentStep === 1 ? 'block' : 'none' }}
+          >
+            <Card
+              title="彩金配置"
+              size="small"
+              style={{ marginTop: 0, marginBottom: 8 }}
+              data-e2e-id={`${E2E}-bonus-config-card`}
             >
-              <Form.Item label="活动类型" name="activityType" rules={[{ required: true }]}>
-                <Radio.Group data-e2e-id="new-member-tri-deposit-config-modal-form-activity-type-radio">
-                  <Radio value="blindbox">盲盒类</Radio>
-                  <Radio value="rebate">返水类</Radio>
-                  <Radio value="deposit">首存类</Radio>
-                  <Radio value="leaderboard">排行榜类</Radio>
-                  <Radio value="extra">附加类</Radio>
-                </Radio.Group>
-              </Form.Item>
+              <Tabs
+                data-e2e-id={`${E2E}-tabs`}
+                activeKey={activeTab}
+                onChange={(key) => setActiveTab(key as TriDepositTabKey)}
+                items={TAB_KEYS.map((tabKey) => ({
+                  key: tabKey,
+                  label: (
+                    <span data-e2e-id={`${E2E}-tab-${tabKey}`}>
+                      {configData[tabKey].label}
+                    </span>
+                  ),
+                  children: renderTabContent(tabKey),
+                }))}
+              />
+            </Card>
+          </div>
 
-              <Form.Item label="活动ID" name="activityId" rules={[{ required: true }]}>
-                <InputNumber
-                  data-e2e-id="new-member-tri-deposit-config-modal-form-activity-id-input"
-                  disabled
-                  style={{ width: '100%' }}
-                />
-              </Form.Item>
-
-              <Form.Item label="活动名称" name="name" rules={[{ required: true }]}>
-                <Input
-                  data-e2e-id="new-member-tri-deposit-config-modal-form-name-input"
-                  placeholder="请输入活动名称"
-                />
-              </Form.Item>
-
-              <Form.Item label="活动规则来源" name="ruleSource" rules={[{ required: true }]}>
-                <Radio.Group data-e2e-id="new-member-tri-deposit-config-modal-form-rule-source-radio">
-                  <Radio value="backend">后台配置</Radio>
-                  <Radio value="code">开发代码配置</Radio>
-                </Radio.Group>
-              </Form.Item>
-
-              <Form.Item label="活动状态" name="status" rules={[{ required: true }]}>
-                <Select
-                  data-e2e-id="new-member-tri-deposit-config-modal-form-status-select"
-                  options={[
-                    { value: 'active', label: '有效' },
-                    { value: 'closed', label: '失效' },
-                  ]}
-                />
-              </Form.Item>
-
-              <Form.Item label="活动持续时间" name="timeRange" rules={[{ required: true }]}>
-                <RangePicker
-                  data-e2e-id="new-member-tri-deposit-config-modal-form-time-range"
-                  showTime
-                  style={{ width: '100%' }}
-                  format="YYYY-MM-DD HH:mm:ss"
-                />
-              </Form.Item>
-
-              <Form.Item label="活动介绍页来源" name="introSource" rules={[{ required: true }]}>
-                <Radio.Group data-e2e-id="new-member-tri-deposit-config-modal-form-intro-source-radio">
-                  <Radio value="backend">后台配置</Radio>
-                  <Radio value="frontend">前端开发设计</Radio>
-                </Radio.Group>
-              </Form.Item>
-
-              <Form.Item label="活动范围" name="activityScope" rules={[{ required: true }]}>
-                <Radio.Group data-e2e-id="new-member-tri-deposit-config-modal-form-activity-scope-radio">
-                  <Radio value="all">全部会员</Radio>
-                  <Radio value="specified">指定名单</Radio>
-                </Radio.Group>
-              </Form.Item>
-
-              <Form.Item label="存款渠道" name="depositChannels" rules={[{ required: true }]}>
-                <Checkbox.Group
-                  data-e2e-id="new-member-tri-deposit-config-modal-form-deposit-channels-checkbox"
-                  options={depositChannels.map((channel) => ({ value: channel, label: channel }))}
-                />
-              </Form.Item>
-            </div>
-
-            <div
-              data-e2e-id="new-member-tri-deposit-config-modal-step-bonus"
-              style={{ display: currentStep === 1 ? 'block' : 'none' }}
-            >
-              <Card
-                title="彩金配置"
-                size="small"
-                style={{ marginTop: 0, marginBottom: 8 }}
-                data-e2e-id="new-member-tri-deposit-config-modal-bonus-config-card"
-              >
-                <Tabs
-                  data-e2e-id="new-member-tri-deposit-config-modal-tabs"
-                  activeKey={activeTab}
-                  onChange={(key) => setActiveTab(key as TriDepositTabKey)}
-                  items={TAB_KEYS.map((tabKey) => ({
-                    key: tabKey,
-                    label: (
-                      <span data-e2e-id={`new-member-tri-deposit-config-modal-tab-${tabKey}`}>
-                        {configData[tabKey].label}
-                      </span>
-                    ),
-                    children: renderTabContent(tabKey),
-                  }))}
-                />
-              </Card>
-            </div>
-
-            <div
-              data-e2e-id="new-member-tri-deposit-config-modal-step-freespin"
-              style={{ display: currentStep === 2 ? 'block' : 'none' }}
-            >
-              {renderFreeSpinConfig()}
-
-              <Form.Item
-                label="谷歌验证码"
-                name="googleCode"
-                rules={[{ required: true, message: '请输入谷歌验证码' }]}
-                style={{ marginTop: 16 }}
-              >
-                <Input.Password
-                  data-e2e-id="new-member-tri-deposit-config-modal-form-google-code-input"
-                  maxLength={6}
-                  placeholder="请输入谷歌验证码"
-                />
-              </Form.Item>
-            </div>
-          </Form>
+          <div
+            data-e2e-id={`${E2E}-step-freespin`}
+            style={{ display: currentStep === 2 ? 'block' : 'none' }}
+          >
+            <FreeSpinStep form={form} e2ePrefix={E2E} />
+          </div>
+        </Form>
       </div>
     </Modal>
   );
