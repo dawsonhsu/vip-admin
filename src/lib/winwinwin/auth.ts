@@ -29,15 +29,8 @@ function optionalRequire<T = any>(packageName: string): T | null {
 }
 
 export async function createSessionToken(session: WinSession) {
-  const jwtModule = optionalRequire('jsonwebtoken');
-  const jwt = jwtModule?.default ?? jwtModule;
-  if (jwt?.sign) return jwt.sign(session, getJwtSecret(), { expiresIn: MAX_AGE_SECONDS });
-
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
-  const payload = base64Url(JSON.stringify({ ...session, iat: now, exp: now + MAX_AGE_SECONDS }));
-  const unsignedToken = `${header}.${payload}`;
-  return `${unsignedToken}.${signHs256(unsignedToken)}`;
+  const jwt = (await import('jsonwebtoken')).default;
+  return jwt.sign(session, getJwtSecret(), { expiresIn: MAX_AGE_SECONDS });
 }
 
 export function verifySessionToken(token?: string): WinSession | null {
@@ -83,15 +76,8 @@ export async function comparePassword(password: string, passwordHash: string) {
     return password === passwordHash.slice('mock:'.length);
   }
 
-  try {
-    const bcryptModule = optionalRequire('bcryptjs');
-    const bcrypt = bcryptModule.default ?? bcryptModule;
-    if (bcrypt?.compare) return bcrypt.compare(password, passwordHash);
-  } catch {
-    return false;
-  }
-
-  return false;
+  const bcrypt = (await import('bcryptjs')).default;
+  return bcrypt.compare(password, passwordHash);
 }
 
 export function getSessionFromCookies() {

@@ -121,12 +121,7 @@ function serviceAccountKey() {
 async function getSheetsClient() {
   if (sheetsClient) return sheetsClient;
 
-  const googleapis = optionalRequire('googleapis');
-  if (!googleapis?.google) {
-    throw new Error('googleapis_package_missing');
-  }
-
-  const { google } = googleapis;
+  const { google } = await import('googleapis');
   const auth = new google.auth.JWT({
     email: process.env.WINWINWIN_GOOGLE_SA_EMAIL,
     key: serviceAccountKey(),
