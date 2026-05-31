@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Card, Empty, Skeleton, Space, Tabs, Typography } from 'antd';
-import { LeftOutlined } from '@ant-design/icons';
+import { Empty, Skeleton, Space, Tabs } from 'antd';
 import type { BetSelection, MatchRow, OddsRow } from '@/lib/winwinwin/types';
 import { formatTaipeiTime } from '@/lib/winwinwin/format';
 import OddsButton from '../../components/OddsButton';
@@ -47,6 +46,14 @@ function toSelection(match: MatchRow, odds: OddsRow): BetSelection {
   };
 }
 
+function BackArrow() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M15 18l-6-6 6-6" stroke="#D4AF37" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function WinWinWinMatchPage() {
   const params = useParams<{ id: string }>();
   const matchId = Array.isArray(params.id) ? params.id[0] : params.id;
@@ -75,9 +82,7 @@ export default function WinWinWinMatchPage() {
     }
 
     load();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [matchId]);
 
   const groupedByTab = useMemo(() => {
@@ -97,7 +102,7 @@ export default function WinWinWinMatchPage() {
 
   if (loading) {
     return (
-      <div style={{ padding: 16 }}>
+      <div style={{ padding: '60px 16px 16px' }}>
         <Skeleton active paragraph={{ rows: 8 }} />
       </div>
     );
@@ -105,59 +110,170 @@ export default function WinWinWinMatchPage() {
 
   if (!match) {
     return (
-      <div style={{ padding: 16 }}>
-        <Empty description="找不到賽事" />
+      <div style={{ padding: '60px 16px 16px', textAlign: 'center' }}>
+        <Empty
+          description={<span style={{ color: '#a89a72' }}>找不到賽事</span>}
+        />
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', padding: '14px 14px 24px', boxSizing: 'border-box' }}>
-      <Link href="/winwinwin/home" style={{ color: '#1668dc', fontWeight: 700, textDecoration: 'none' }}>
-        <LeftOutlined /> 回首頁
-      </Link>
+    <div style={{ minHeight: '100vh', boxSizing: 'border-box' }}>
+      {/* Sticky header */}
+      <header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 10,
+          background: 'linear-gradient(180deg, #0B3B2E 0%, rgba(11,59,46,0.97) 100%)',
+          borderBottom: '1px solid rgba(212,175,55,0.2)',
+          padding: '12px 14px',
+          backdropFilter: 'blur(8px)',
+        }}
+      >
+        {/* Back link */}
+        <Link
+          href="/winwinwin/home"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            color: '#D4AF37',
+            fontWeight: 600,
+            textDecoration: 'none',
+            fontSize: 13,
+            marginBottom: 10,
+          }}
+        >
+          <BackArrow />
+          回首頁
+        </Link>
 
-      <header style={{ margin: '14px 0 16px' }}>
-        <Typography.Text type="secondary">{formatTaipeiTime(match.start_time)}</Typography.Text>
-        <Typography.Title level={3} style={{ margin: '4px 0 2px', fontSize: 24 }}>
-          {match.home_team} vs {match.away_team}
-        </Typography.Title>
-        <Typography.Text type="secondary">{match.total_market_count} 個盤口</Typography.Text>
+        {/* Match title */}
+        <div style={{ fontSize: 11, color: '#a89a72', marginBottom: 4, letterSpacing: '0.04em' }}>
+          {formatTaipeiTime(match.start_time)}
+        </div>
+        <div
+          style={{
+            fontFamily: 'var(--font-serif), serif',
+            fontSize: 20,
+            fontWeight: 900,
+            color: '#f0ead6',
+            lineHeight: 1.25,
+            letterSpacing: '0.02em',
+          }}
+        >
+          {match.home_team}
+          <span style={{ color: '#D4AF37', margin: '0 8px', fontWeight: 400, fontSize: 16 }}>vs</span>
+          {match.away_team}
+        </div>
+        <div style={{ fontSize: 11, color: '#6b7a6e', marginTop: 4 }}>
+          {match.total_market_count} 個盤口
+        </div>
       </header>
 
-      <Tabs
-        tabBarGutter={14}
-        items={categoryTabs.map((tab) => {
-          const groups = Array.from(groupedByTab.get(tab.key)?.entries() ?? []);
-          return {
-            key: tab.key,
-            label: tab.label,
-            children:
-              groups.length === 0 ? (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="目前無盤口" />
-              ) : (
-                <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  {groups.map(([key, rows]) => {
-                    const first = rows[0];
-                    return (
-                      <Card key={key} style={{ borderRadius: 8 }} styles={{ body: { padding: 14 } }}>
-                        <Typography.Text strong>
-                          {first.market_label_zh}
-                          {first.period ? ` · ${first.period}H` : ''}
-                        </Typography.Text>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-                          {rows.map((odds) => (
-                            <OddsButton key={odds.market_key} selection={toSelection(match, odds)} compact />
-                          ))}
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </Space>
+      {/* Tabs */}
+      <div style={{ padding: '0 14px 24px' }}>
+        <Tabs
+          tabBarGutter={0}
+          tabBarStyle={{
+            position: 'sticky',
+            top: 108,
+            zIndex: 9,
+            background: 'linear-gradient(180deg, #092a1f 0%, rgba(9,42,31,0.97) 100%)',
+            marginBottom: 0,
+            paddingTop: 6,
+            borderBottom: '1px solid rgba(212,175,55,0.15)',
+          }}
+          items={categoryTabs.map((tab) => {
+            const groups = Array.from(groupedByTab.get(tab.key)?.entries() ?? []);
+            const hasOdds = groups.length > 0;
+            return {
+              key: tab.key,
+              label: (
+                <span
+                  style={{
+                    fontSize: 12,
+                    padding: '0 10px',
+                    color: hasOdds ? undefined : '#4a5a52',
+                  }}
+                >
+                  {tab.label}
+                  {hasOdds && (
+                    <span
+                      style={{
+                        marginLeft: 4,
+                        fontSize: 10,
+                        background: 'rgba(212,175,55,0.2)',
+                        color: '#D4AF37',
+                        borderRadius: 999,
+                        padding: '0 5px',
+                        lineHeight: '16px',
+                        display: 'inline-block',
+                        verticalAlign: 'middle',
+                      }}
+                    >
+                      {groups.length}
+                    </span>
+                  )}
+                </span>
               ),
-          };
-        })}
-      />
+              children:
+                groups.length === 0 ? (
+                  <div style={{ padding: '24px 0', textAlign: 'center' }}>
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description={<span style={{ color: '#a89a72', fontSize: 13 }}>目前無盤口</span>}
+                    />
+                  </div>
+                ) : (
+                  <Space direction="vertical" size={10} style={{ width: '100%', paddingTop: 12 }}>
+                    {groups.map(([key, rows]) => {
+                      const first = rows[0];
+                      return (
+                        <div
+                          key={key}
+                          style={{
+                            background: 'linear-gradient(135deg, rgba(15,45,34,0.95) 0%, rgba(10,36,25,0.98) 100%)',
+                            border: '1px solid rgba(212,175,55,0.2)',
+                            borderRadius: 10,
+                            padding: '12px',
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: '#c4b078',
+                              marginBottom: 10,
+                              letterSpacing: '0.01em',
+                            }}
+                          >
+                            {first.market_label_zh}
+                            {first.period ? (
+                              <span style={{ color: '#6b7a6e', marginLeft: 6, fontSize: 11 }}>
+                                · {first.period}H
+                              </span>
+                            ) : null}
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {rows.map((odds) => (
+                              <div key={odds.market_key} style={{ flex: '1 1 80px', minWidth: 76 }}>
+                                <OddsButton selection={toSelection(match, odds)} compact />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </Space>
+                ),
+            };
+          })}
+        />
+      </div>
     </div>
   );
 }
