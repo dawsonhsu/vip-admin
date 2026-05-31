@@ -37,9 +37,15 @@ export interface InviteStat {
   inviterUid?: string;
   inviterUsername?: string;
   inviteCount: number;
+  loginUserCount: number;
   achieveCount: number;
   betUserCount: number;
+  firstDepositUserCount: number;
+  firstDepositAmount: number;
+  newDepositUserCount: number;
+  newDepositAmount: number;
   depositUserCount: number;
+  depositCount: number;
   totalDeposit: number;
   totalWithdraw: number;
   depositFee: number;
@@ -229,9 +235,15 @@ const createPersonalStat = (member: MockMember, date: string): PersonalStat => {
 
 const createInviteStat = (member: MockMember, date: string): InviteStat => {
   const inviteCount = pickInt(`${member.uid}-${date}-invite-count`, 0, 8);
+  const loginUserCount = inviteCount === 0 ? 0 : pickInt(`${member.uid}-${date}-login-user-count`, 0, inviteCount * 2);
   const achieveCount = inviteCount === 0 ? 0 : pickInt(`${member.uid}-${date}-achieve-count`, 0, inviteCount);
   const betUserCount = pickInt(`${member.uid}-${date}-bet-user-count`, 0, 12);
+  const firstDepositUserCount = inviteCount === 0 ? 0 : pickInt(`${member.uid}-${date}-first-deposit-user-count`, 0, inviteCount);
+  const firstDepositAmount = firstDepositUserCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-first-deposit-amount`, 100, 30000);
+  const newDepositUserCount = firstDepositUserCount === 0 ? 0 : pickInt(`${member.uid}-${date}-new-deposit-user-count`, 0, firstDepositUserCount);
+  const newDepositAmount = newDepositUserCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-new-deposit-amount`, 100, 20000);
   const depositUserCount = betUserCount === 0 ? 0 : pickInt(`${member.uid}-${date}-deposit-user-count`, 0, betUserCount);
+  const depositCount = depositUserCount === 0 ? 0 : pickInt(`${member.uid}-${date}-invite-deposit-count`, depositUserCount, depositUserCount * 4);
   const totalDeposit = depositUserCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-invite-total-deposit`, 200, 80000);
   const totalWithdraw = betUserCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-invite-total-withdraw`, 0, 45000);
   const totalBet = betUserCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-invite-total-bet`, 100, 250000);
@@ -256,9 +268,15 @@ const createInviteStat = (member: MockMember, date: string): InviteStat => {
     inviterUid: member.inviterUid,
     inviterUsername: member.inviterUsername,
     inviteCount,
+    loginUserCount,
     achieveCount,
     betUserCount,
+    firstDepositUserCount,
+    firstDepositAmount,
+    newDepositUserCount,
+    newDepositAmount,
     depositUserCount,
+    depositCount,
     totalDeposit,
     totalWithdraw,
     depositFee,

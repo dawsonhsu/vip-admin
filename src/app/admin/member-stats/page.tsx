@@ -75,9 +75,15 @@ interface AggregatedInviteStat {
   inviterUid?: string;
   inviterUsername?: string;
   inviteCount: number;
+  loginUserCount: number;
   achieveCount: number;
   betUserCount: number;
+  firstDepositUserCount: number;
+  firstDepositAmount: number;
+  newDepositUserCount: number;
+  newDepositAmount: number;
   depositUserCount: number;
+  depositCount: number;
   totalDeposit: number;
   totalWithdraw: number;
   depositFee: number;
@@ -231,9 +237,15 @@ const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
         inviterUid: row.inviterUid,
         inviterUsername: row.inviterUsername,
         inviteCount: 0,
+        loginUserCount: 0,
         achieveCount: 0,
         betUserCount: 0,
+        firstDepositUserCount: 0,
+        firstDepositAmount: 0,
+        newDepositUserCount: 0,
+        newDepositAmount: 0,
         depositUserCount: 0,
+        depositCount: 0,
         totalDeposit: 0,
         totalWithdraw: 0,
         depositFee: 0,
@@ -253,9 +265,15 @@ const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
     }
 
     acc[row.uid].inviteCount += row.inviteCount;
+    acc[row.uid].loginUserCount += row.loginUserCount;
     acc[row.uid].achieveCount += row.achieveCount;
     acc[row.uid].betUserCount += row.betUserCount;
+    acc[row.uid].firstDepositUserCount += row.firstDepositUserCount;
+    acc[row.uid].firstDepositAmount += row.firstDepositAmount;
+    acc[row.uid].newDepositUserCount += row.newDepositUserCount;
+    acc[row.uid].newDepositAmount += row.newDepositAmount;
     acc[row.uid].depositUserCount += row.depositUserCount;
+    acc[row.uid].depositCount += row.depositCount;
     acc[row.uid].totalDeposit += row.totalDeposit;
     acc[row.uid].totalWithdraw += row.totalWithdraw;
     acc[row.uid].depositFee += row.depositFee;
@@ -281,9 +299,15 @@ const aggregateInviteStats = (rows: InviteStat[]): AggregatedInviteStat[] => {
 const sumInvite = (rows: AggregatedInviteStat[]) => rows.reduce(
   (acc, row) => ({
     inviteCount: acc.inviteCount + row.inviteCount,
+    loginUserCount: acc.loginUserCount + row.loginUserCount,
     achieveCount: acc.achieveCount + row.achieveCount,
     betUserCount: acc.betUserCount + row.betUserCount,
+    firstDepositUserCount: acc.firstDepositUserCount + row.firstDepositUserCount,
+    firstDepositAmount: acc.firstDepositAmount + row.firstDepositAmount,
+    newDepositUserCount: acc.newDepositUserCount + row.newDepositUserCount,
+    newDepositAmount: acc.newDepositAmount + row.newDepositAmount,
     depositUserCount: acc.depositUserCount + row.depositUserCount,
+    depositCount: acc.depositCount + row.depositCount,
     totalDeposit: acc.totalDeposit + row.totalDeposit,
     totalWithdraw: acc.totalWithdraw + row.totalWithdraw,
     depositFee: acc.depositFee + row.depositFee,
@@ -300,7 +324,7 @@ const sumInvite = (rows: AggregatedInviteStat[]) => rows.reduce(
     totalBonus: acc.totalBonus + row.totalBonus,
     totalCommission: acc.totalCommission + row.totalCommission,
   }),
-  { inviteCount: 0, achieveCount: 0, betUserCount: 0, depositUserCount: 0, totalDeposit: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, fsBet: 0, fsGgr: 0, jpBet: 0, jpGgr: 0, totalBonus: 0, totalCommission: 0 }
+  { inviteCount: 0, loginUserCount: 0, achieveCount: 0, betUserCount: 0, firstDepositUserCount: 0, firstDepositAmount: 0, newDepositUserCount: 0, newDepositAmount: 0, depositUserCount: 0, depositCount: 0, totalDeposit: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, fsBet: 0, fsGgr: 0, jpBet: 0, jpGgr: 0, totalBonus: 0, totalCommission: 0 }
 );
 
 function PersonalStatsTab() {
@@ -978,9 +1002,15 @@ function InviteStatsTab() {
       width: 130,
     },
     { title: '邀請人數', dataIndex: 'inviteCount', width: 110, align: 'right', sorter: (a, b) => a.inviteCount - b.inviteCount, render: renderInteger },
+    { title: '登入人數', dataIndex: 'loginUserCount', width: 110, align: 'right', sorter: (a, b) => a.loginUserCount - b.loginUserCount, render: renderInteger },
     { title: '達成人數', dataIndex: 'achieveCount', width: 110, align: 'right', sorter: (a, b) => a.achieveCount - b.achieveCount, render: renderInteger },
     { title: '投注人數', dataIndex: 'betUserCount', width: 110, align: 'right', sorter: (a, b) => a.betUserCount - b.betUserCount, render: renderInteger },
+    { title: '首充人數', dataIndex: 'firstDepositUserCount', width: 110, align: 'right', sorter: (a, b) => a.firstDepositUserCount - b.firstDepositUserCount, render: renderInteger },
+    { title: '首充金額', dataIndex: 'firstDepositAmount', width: 120, align: 'right', sorter: (a, b) => a.firstDepositAmount - b.firstDepositAmount, render: renderAmount },
+    { title: '新充人數', dataIndex: 'newDepositUserCount', width: 110, align: 'right', sorter: (a, b) => a.newDepositUserCount - b.newDepositUserCount, render: renderInteger },
+    { title: '新充金額', dataIndex: 'newDepositAmount', width: 120, align: 'right', sorter: (a, b) => a.newDepositAmount - b.newDepositAmount, render: renderAmount },
     { title: '存款人數', dataIndex: 'depositUserCount', width: 110, align: 'right', sorter: (a, b) => a.depositUserCount - b.depositUserCount, render: renderInteger },
+    { title: '存款次數', dataIndex: 'depositCount', width: 110, align: 'right', sorter: (a, b) => a.depositCount - b.depositCount, render: renderInteger },
     { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right', sorter: (a, b) => a.totalDeposit - b.totalDeposit, render: renderAmount },
     { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right', sorter: (a, b) => a.totalWithdraw - b.totalWithdraw, render: renderAmount },
     { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right', sorter: (a, b) => a.depositFee - b.depositFee, render: renderAmount },
@@ -1018,9 +1048,15 @@ function InviteStatsTab() {
   const inviteDetailColumns: ColumnsType<InviteStat> = [
     { title: '統計日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
     { title: '邀請人數', dataIndex: 'inviteCount', align: 'right', width: 100, sorter: (a, b) => a.inviteCount - b.inviteCount, render: renderInteger },
+    { title: '登入人數', dataIndex: 'loginUserCount', align: 'right', width: 100, sorter: (a, b) => a.loginUserCount - b.loginUserCount, render: renderInteger },
     { title: '達成人數', dataIndex: 'achieveCount', align: 'right', width: 100, sorter: (a, b) => a.achieveCount - b.achieveCount, render: renderInteger },
     { title: '投注人數', dataIndex: 'betUserCount', align: 'right', width: 100, sorter: (a, b) => a.betUserCount - b.betUserCount, render: renderInteger },
+    { title: '首充人數', dataIndex: 'firstDepositUserCount', align: 'right', width: 100, sorter: (a, b) => a.firstDepositUserCount - b.firstDepositUserCount, render: renderInteger },
+    { title: '首充金額', dataIndex: 'firstDepositAmount', align: 'right', width: 120, sorter: (a, b) => a.firstDepositAmount - b.firstDepositAmount, render: renderAmount },
+    { title: '新充人數', dataIndex: 'newDepositUserCount', align: 'right', width: 100, sorter: (a, b) => a.newDepositUserCount - b.newDepositUserCount, render: renderInteger },
+    { title: '新充金額', dataIndex: 'newDepositAmount', align: 'right', width: 120, sorter: (a, b) => a.newDepositAmount - b.newDepositAmount, render: renderAmount },
     { title: '存款人數', dataIndex: 'depositUserCount', align: 'right', width: 100, sorter: (a, b) => a.depositUserCount - b.depositUserCount, render: renderInteger },
+    { title: '存款次數', dataIndex: 'depositCount', align: 'right', width: 100, sorter: (a, b) => a.depositCount - b.depositCount, render: renderInteger },
     { title: '總存款', dataIndex: 'totalDeposit', align: 'right', width: 120, sorter: (a, b) => a.totalDeposit - b.totalDeposit, render: renderAmount },
     { title: '總提款', dataIndex: 'totalWithdraw', align: 'right', width: 120, sorter: (a, b) => a.totalWithdraw - b.totalWithdraw, render: renderAmount },
     { title: '存款手續費', dataIndex: 'depositFee', align: 'right', width: 120, sorter: (a, b) => a.depositFee - b.depositFee, render: renderAmount },
@@ -1122,9 +1158,15 @@ function InviteStatsTab() {
           const summaryColumns = [
             { title: '類型', dataIndex: 'label', width: 60 },
             { title: '邀請人數', dataIndex: 'inviteCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '登入人數', dataIndex: 'loginUserCount', width: 100, align: 'right' as const, render: renderInteger },
             { title: '達成人數', dataIndex: 'achieveCount', width: 100, align: 'right' as const, render: renderInteger },
             { title: '投注人數', dataIndex: 'betUserCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '首充人數', dataIndex: 'firstDepositUserCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '首充金額', dataIndex: 'firstDepositAmount', width: 120, align: 'right' as const, render: renderAmount },
+            { title: '新充人數', dataIndex: 'newDepositUserCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '新充金額', dataIndex: 'newDepositAmount', width: 120, align: 'right' as const, render: renderAmount },
             { title: '存款人數', dataIndex: 'depositUserCount', width: 100, align: 'right' as const, render: renderInteger },
+            { title: '存款次數', dataIndex: 'depositCount', width: 100, align: 'right' as const, render: renderInteger },
             { title: '總存款', dataIndex: 'totalDeposit', width: 120, align: 'right' as const, render: renderAmount },
             { title: '總提款', dataIndex: 'totalWithdraw', width: 120, align: 'right' as const, render: renderAmount },
             { title: '存款手續費', dataIndex: 'depositFee', width: 120, align: 'right' as const, render: renderAmount },
@@ -1153,7 +1195,7 @@ function InviteStatsTab() {
             icon={<DownloadOutlined />}
             onClick={() => exportCsv(
               `member-invite-stats-${queryStart}-${queryEnd}.csv`,
-              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '邀請人數', '達成人數', '投注人數', '存款人數', '總存款', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR', '總彩金', '總佣金'],
+              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '邀請人數', '登入人數', '達成人數', '投注人數', '首充人數', '首充金額', '新充人數', '新充金額', '存款人數', '存款次數', '總存款', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR', '總彩金', '總佣金'],
               aggregatedRows.map(row => [
                 dateRangeText,
                 row.uid,
@@ -1161,9 +1203,15 @@ function InviteStatsTab() {
                 row.inviterUid || '',
                 row.inviterUsername || '',
                 row.inviteCount,
+                row.loginUserCount,
                 row.achieveCount,
                 row.betUserCount,
+                row.firstDepositUserCount,
+                formatAmount(row.firstDepositAmount),
+                row.newDepositUserCount,
+                formatAmount(row.newDepositAmount),
                 row.depositUserCount,
+                row.depositCount,
                 formatAmount(row.totalDeposit),
                 formatAmount(row.totalWithdraw),
                 formatAmount(row.depositFee),
