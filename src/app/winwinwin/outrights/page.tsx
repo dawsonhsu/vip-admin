@@ -105,7 +105,12 @@ export default async function WinWinWinOutrightsPage() {
 
       <div style={{ padding: '14px 14px 0' }}>
         <div style={{ marginBottom: 16 }}>
-          <DataFreshness updatedAt={latestUpdated} label="冠軍盤資料" />
+          <DataFreshness
+            updatedAt={latestUpdated}
+            label="冠軍盤資料"
+            lagAfter={1200}
+            anomalyAfter={2700}
+          />
         </div>
 
         {Object.keys(byCategory).length === 0 ? (

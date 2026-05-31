@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Empty, Skeleton, Space, Tabs } from 'antd';
+import { Empty, Input, Skeleton, Space, Tabs } from 'antd';
 import type { BetSelection, MatchRow, OddsRow } from '@/lib/winwinwin/types';
 import { formatTaipeiTime } from '@/lib/winwinwin/format';
 import OddsButton from '../../components/OddsButton';
@@ -60,6 +60,8 @@ export default function WinWinWinMatchPage() {
   const [match, setMatch] = useState<MatchRow | null>(null);
   const [oddsRows, setOddsRows] = useState<OddsRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const searchActive = search.trim().length > 0;
 
   useEffect(() => {
     let mounted = true;
@@ -99,6 +101,22 @@ export default function WinWinWinMatchPage() {
 
     return map;
   }, [oddsRows]);
+
+  const searchGroups = useMemo(() => {
+    if (!searchActive) return [];
+    const needle = search.trim().toLowerCase();
+    const filtered = oddsRows.filter((odds) => {
+      const sel = (odds.selection_label_zh || '').toLowerCase();
+      const lbl = (odds.market_label_zh || '').toLowerCase();
+      return sel.includes(needle) || lbl.includes(needle);
+    });
+    const map = new Map<string, OddsRow[]>();
+    filtered.forEach((odds) => {
+      const key = groupKey(odds);
+      map.set(key, [...(map.get(key) ?? []), odds]);
+    });
+    return Array.from(map.entries());
+  }, [oddsRows, search, searchActive]);
 
   if (loading) {
     return (
@@ -173,8 +191,31 @@ export default function WinWinWinMatchPage() {
         </div>
       </header>
 
-      {/* Tabs */}
-      <div style={{ padding: '0 14px 24px' }}>
+      {/* Search bar */}
+      <div
+        style={{
+          padding: '10px 14px 8px',
+          background: 'linear-gradient(180deg, #092a1f 0%, #082519 100%)',
+          borderBottom: '1px solid rgba(212,175,55,0.1)',
+        }}
+      >
+        <Input
+          allowClear
+          placeholder="搜尋盤口或選項（如：墨西哥、大、讓分）"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(212,175,55,0.25)',
+            color: '#f0ead6',
+            borderRadius: 8,
+          }}
+          styles={{ input: { background: 'transparent', color: '#f0ead6' } }}
+        />
+      </div>
+
+      {/* Tabs (hidden during search) */}
+      <div style={{ padding: '0 14px 24px', display: searchActive ? 'none' : undefined }}>
         <Tabs
           tabBarGutter={0}
           tabBarStyle={{
@@ -274,6 +315,73 @@ export default function WinWinWinMatchPage() {
           })}
         />
       </div>
+
+      {/* Search results */}
+      {searchActive && (
+        <div style={{ padding: '14px 14px 24px' }}>
+          <div style={{ fontSize: 12, color: '#a89a72', marginBottom: 10 }}>
+            找到 {searchGroups.reduce((sum, [, rows]) => sum + rows.length, 0)} 個選項（{searchGroups.length} 組盤口）
+          </div>
+          {searchGroups.length === 0 ? (
+            <div style={{ padding: '40px 0', textAlign: 'center' }}>
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={<span style={{ color: '#a89a72', fontSize: 13 }}>沒有符合的盤口</span>}
+              />
+            </div>
+          ) : (
+            <Space direction="vertical" size={10} style={{ width: '100%' }}>
+              {searchGroups.map(([key, rows]) => {
+                const first = rows[0];
+                const tabLabel = categoryTabs.find((t) => t.key === tabKey(first.market_category))?.label;
+                return (
+                  <div
+                    key={key}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(15,45,34,0.95) 0%, rgba(10,36,25,0.98) 100%)',
+                      border: '1px solid rgba(212,175,55,0.2)',
+                      borderRadius: 10,
+                      padding: '12px',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#c4b078' }}>
+                        {first.market_label_zh}
+                        {first.period ? (
+                          <span style={{ color: '#6b7a6e', marginLeft: 6, fontSize: 11 }}>· {first.period}H</span>
+                        ) : null}
+                      </span>
+                      {tabLabel && (
+                        <span
+                          style={{
+                            fontSize: 10,
+                            background: 'rgba(212,175,55,0.15)',
+                            color: '#D4AF37',
+                            border: '1px solid rgba(212,175,55,0.3)',
+                            borderRadius: 999,
+                            padding: '1px 8px',
+                            letterSpacing: '0.04em',
+                          }}
+                        >
+                          {tabLabel}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {rows.map((odds) => (
+                        <div key={odds.market_key} style={{ flex: '1 1 80px', minWidth: 76 }}>
+                          <OddsButton selection={toSelection(match, odds)} compact />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </Space>
+          )}
+        </div>
+      )}
     </div>
   );
 }

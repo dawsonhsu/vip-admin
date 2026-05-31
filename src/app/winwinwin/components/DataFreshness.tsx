@@ -6,9 +6,18 @@ import { formatTaipeiTime } from '@/lib/winwinwin/format';
 type Props = {
   updatedAt: string;
   label?: string;
+  // Threshold seconds: < lagAfter = 即時, < anomalyAfter = 延遲, otherwise = 異常.
+  // Defaults assume 1-minute cycle. For 15-minute cycle (outrights), pass 1200/2700.
+  lagAfter?: number;
+  anomalyAfter?: number;
 };
 
-export default function DataFreshness({ updatedAt, label = '賽事資料' }: Props) {
+export default function DataFreshness({
+  updatedAt,
+  label = '賽事資料',
+  lagAfter = 120,
+  anomalyAfter = 300,
+}: Props) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 30_000);
@@ -51,11 +60,11 @@ export default function DataFreshness({ updatedAt, label = '賽事資料' }: Pro
   let color = '#4ade80';
   let dotColor = '#22c55e';
   let status = '即時';
-  if (diffSec >= 300) {
+  if (diffSec >= anomalyAfter) {
     color = '#f87171';
     dotColor = '#ef4444';
     status = '異常';
-  } else if (diffSec >= 120) {
+  } else if (diffSec >= lagAfter) {
     color = '#fbbf24';
     dotColor = '#f59e0b';
     status = '延遲';
