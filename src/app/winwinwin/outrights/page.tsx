@@ -70,7 +70,7 @@ export default async function WinWinWinOutrightsPage() {
   });
 
   return (
-    <div style={{ minHeight: '100vh', padding: '0 0 86px', boxSizing: 'border-box' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
       {/* Header */}
       <header
         style={{

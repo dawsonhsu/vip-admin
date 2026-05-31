@@ -85,11 +85,10 @@ export default function BottomNav() {
   return (
     <nav
       style={{
-        position: 'fixed',
-        left: '50%',
+        position: 'sticky',
         bottom: 0,
-        transform: 'translateX(-50%)',
-        width: 'min(100%, 430px)',
+        marginTop: 'auto',
+        width: '100%',
         background: 'linear-gradient(180deg, #0a2419 0%, #071f18 100%)',
         borderTop: '1px solid rgba(212,175,55,0.25)',
         boxShadow: '0 -4px 24px rgba(0,0,0,0.5)',

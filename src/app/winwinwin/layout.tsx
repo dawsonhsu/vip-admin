@@ -129,6 +129,8 @@ export default function WinWinWinLayout({ children }: { children: React.ReactNod
                 color: '#f0ead6',
                 boxSizing: 'border-box',
                 position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
               {children}

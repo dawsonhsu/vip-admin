@@ -13,7 +13,7 @@ export default async function WinWinWinMyBetsPage() {
   const bets = (await getBets()).filter((bet) => bet.email === session.email);
 
   return (
-    <div style={{ minHeight: '100vh', padding: '0 0 86px', boxSizing: 'border-box' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
       <header
         style={{
           position: 'sticky',

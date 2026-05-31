@@ -14,7 +14,7 @@ export default async function WinWinWinAllBetsPage() {
   const playerCount = new Set(bets.map((b) => b.name)).size;
 
   return (
-    <div style={{ minHeight: '100vh', padding: '0 0 86px', boxSizing: 'border-box' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
       <header
         style={{
           position: 'sticky',
