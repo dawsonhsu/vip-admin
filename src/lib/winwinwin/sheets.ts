@@ -106,6 +106,23 @@ function stringValue(value: unknown) {
   return value === undefined || value === null ? '' : String(value);
 }
 
+function oddsMargin(): number {
+  const raw = Number(process.env.WINWINWIN_ODDS_MARGIN);
+  if (!Number.isFinite(raw) || raw < 0 || raw >= 1) return 0.03;
+  return raw;
+}
+
+function applyMargin(decimal: number): number {
+  if (!Number.isFinite(decimal) || decimal <= 1) return decimal;
+  const margin = oddsMargin();
+  const adjusted = decimal * (1 - margin);
+  return Math.max(1.01, Math.round(adjusted * 100) / 100);
+}
+
+export function getOddsMargin(): number {
+  return oddsMargin();
+}
+
 function hasSheetsConfig() {
   return Boolean(
     process.env.WINWINWIN_SHEETS_ID &&
@@ -224,7 +241,7 @@ function mapOdds(row: SheetRecord): OddsRow {
     selection_label_zh: stringValue(row.selection_label_zh),
     selection_key: stringValue(row.selection_key),
     line: stringValue(row.line),
-    price_decimal: numberValue(row.price_decimal),
+    price_decimal: applyMargin(numberValue(row.price_decimal)),
     price_american: numberValue(row.price_american),
     status: stringValue(row.status),
     updated_at: stringValue(row.updated_at),
@@ -238,7 +255,7 @@ function mapOutright(row: SheetRecord): OutrightRow {
     description_zh: stringValue(row.description_zh),
     selection_label: stringValue(row.selection_label),
     selection_id: stringValue(row.selection_id),
-    price_decimal: numberValue(row.price_decimal),
+    price_decimal: applyMargin(numberValue(row.price_decimal)),
     price_american: numberValue(row.price_american),
     status: stringValue(row.status),
     updated_at: stringValue(row.updated_at),

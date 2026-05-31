@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSessionFromCookies } from '@/lib/winwinwin/auth';
-import { getMatches, getOdds } from '@/lib/winwinwin/sheets';
+import { getMatches, getOdds, getOddsMargin } from '@/lib/winwinwin/sheets';
 import BottomNav from '../components/BottomNav';
 import MatchCard from '../components/MatchCard';
 import DataFreshness from '../components/DataFreshness';
@@ -25,6 +25,7 @@ export default async function WinWinWinHomePage() {
 
   const [matches, oddsRows] = await Promise.all([getMatches(), getOdds()]);
   const latestUpdated = matches.map((m) => m.updated_at).filter(Boolean).sort().pop() || '';
+  const marginPct = Math.round(getOddsMargin() * 100);
 
   return (
     <div style={{ minHeight: '100vh', padding: '0 0 86px', boxSizing: 'border-box' }}>
@@ -74,9 +75,25 @@ export default async function WinWinWinHomePage() {
       </header>
 
       <div style={{ padding: '14px 14px 0' }}>
-        {/* Data freshness */}
-        <div style={{ marginBottom: 14 }}>
+        {/* Data freshness + odds margin */}
+        <div style={{ marginBottom: 14, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
           <DataFreshness updatedAt={latestUpdated} label="賽事資料" />
+          {marginPct > 0 && (
+            <span
+              style={{
+                fontSize: 11,
+                color: '#a89a72',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(212,175,55,0.18)',
+                borderRadius: 999,
+                padding: '3px 10px',
+                letterSpacing: '0.02em',
+              }}
+              title={`Pinnacle 原始賠率已扣 ${marginPct}% 作為莊家抽水`}
+            >
+              莊家抽水 {marginPct}%
+            </span>
+          )}
         </div>
 
         {/* Section label */}
