@@ -20,6 +20,7 @@ interface BaseConfigStepProps {
   activityId: number;
   activityName: string;
   activityTypeDefault?: string;
+  hideFields?: string[];
 }
 
 /**
@@ -31,7 +32,10 @@ export function BaseConfigStep({
   activityId,
   activityName,
   activityTypeDefault = 'extra',
+  hideFields = [],
 }: BaseConfigStepProps) {
+  const hide = (field: string) => hideFields.includes(field);
+
   return (
     <>
       <Form.Item label="活动类型" name="activityType" rules={[{ required: true }]}>
@@ -60,12 +64,14 @@ export function BaseConfigStep({
         />
       </Form.Item>
 
-      <Form.Item label="活动规则来源" name="ruleSource" rules={[{ required: true }]}>
-        <Radio.Group data-e2e-id={`${e2ePrefix}-form-rule-source-radio`}>
-          <Radio value="backend">后台配置</Radio>
-          <Radio value="code">开发代码配置</Radio>
-        </Radio.Group>
-      </Form.Item>
+      {!hide('ruleSource') && (
+        <Form.Item label="活动规则来源" name="ruleSource" rules={[{ required: true }]}>
+          <Radio.Group data-e2e-id={`${e2ePrefix}-form-rule-source-radio`}>
+            <Radio value="backend">后台配置</Radio>
+            <Radio value="code">开发代码配置</Radio>
+          </Radio.Group>
+        </Form.Item>
+      )}
 
       <Form.Item label="活动状态" name="status" rules={[{ required: true }]}>
         <Select
@@ -86,26 +92,32 @@ export function BaseConfigStep({
         />
       </Form.Item>
 
-      <Form.Item label="活动介绍页来源" name="introSource" rules={[{ required: true }]}>
-        <Radio.Group data-e2e-id={`${e2ePrefix}-form-intro-source-radio`}>
-          <Radio value="backend">后台配置</Radio>
-          <Radio value="frontend">前端开发设计</Radio>
-        </Radio.Group>
-      </Form.Item>
+      {!hide('introSource') && (
+        <Form.Item label="活动介绍页来源" name="introSource" rules={[{ required: true }]}>
+          <Radio.Group data-e2e-id={`${e2ePrefix}-form-intro-source-radio`}>
+            <Radio value="backend">后台配置</Radio>
+            <Radio value="frontend">前端开发设计</Radio>
+          </Radio.Group>
+        </Form.Item>
+      )}
 
-      <Form.Item label="活动范围" name="activityScope" rules={[{ required: true }]}>
-        <Radio.Group data-e2e-id={`${e2ePrefix}-form-activity-scope-radio`}>
-          <Radio value="all">全部会员</Radio>
-          <Radio value="specified">指定名单</Radio>
-        </Radio.Group>
-      </Form.Item>
+      {!hide('activityScope') && (
+        <Form.Item label="活动范围" name="activityScope" rules={[{ required: true }]}>
+          <Radio.Group data-e2e-id={`${e2ePrefix}-form-activity-scope-radio`}>
+            <Radio value="all">全部会员</Radio>
+            <Radio value="specified">指定名单</Radio>
+          </Radio.Group>
+        </Form.Item>
+      )}
 
-      <Form.Item label="存款渠道" name="depositChannels" rules={[{ required: true }]}>
-        <Checkbox.Group
-          data-e2e-id={`${e2ePrefix}-form-deposit-channels-checkbox`}
-          options={depositChannels.map((ch) => ({ value: ch, label: ch }))}
-        />
-      </Form.Item>
+      {!hide('depositChannels') && (
+        <Form.Item label="存款渠道" name="depositChannels" rules={[{ required: true }]}>
+          <Checkbox.Group
+            data-e2e-id={`${e2ePrefix}-form-deposit-channels-checkbox`}
+            options={depositChannels.map((ch) => ({ value: ch, label: ch }))}
+          />
+        </Form.Item>
+      )}
     </>
   );
 }

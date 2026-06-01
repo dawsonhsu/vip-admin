@@ -293,28 +293,28 @@ export default function VipCheckinConfigModal({ open, onClose }: Props) {
     googleCode: undefined,
   };
 
+  const HIDDEN_BASE_FIELDS = ['ruleSource', 'introSource', 'activityScope', 'depositChannels'];
+
   const steps: WizardStepDef[] = [
     {
       title: '基础配置',
-      validateFields: BASE_CONFIG_STEP_FIELDS,
+      validateFields: BASE_CONFIG_STEP_FIELDS.filter((f) => !HIDDEN_BASE_FIELDS.includes(f)),
       render: () => (
         <BaseConfigStep
           e2ePrefix={E2E}
           activityId={ACTIVITY_ID}
           activityName={ACTIVITY_NAME}
           activityTypeDefault="other"
+          hideFields={HIDDEN_BASE_FIELDS}
         />
       ),
     },
     {
-      title: '簽到獎勵配置',
-      validateFields: [],
-      render: () => <CheckinRewardStep />,
-    },
-    {
       title: '免费旋转配置',
       validateFields: ['googleCode'],
-      render: (form) => <FreeSpinStep form={form} e2ePrefix={E2E} />,
+      render: (form) => (
+        <FreeSpinStep form={form} e2ePrefix={E2E} hideFields={['reviewMode', 'creditMode']} />
+      ),
     },
   ];
 

@@ -48,6 +48,7 @@ interface FreeSpinStepProps {
   form: FormInstance;
   e2ePrefix: string;
   showGoogleCode?: boolean;
+  hideFields?: string[];
 }
 
 /**
@@ -55,7 +56,8 @@ interface FreeSpinStepProps {
  * Must be rendered inside the same <Form> as the rest of the wizard.
  * Pass `showGoogleCode={false}` to hide the Google 2FA input (e.g. inline tab usage).
  */
-export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true }: FreeSpinStepProps) {
+export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideFields = [] }: FreeSpinStepProps) {
+  const hide = (field: string) => hideFields.includes(field);
   const freeSpinValues = (Form.useWatch('freeSpin', form) ?? {}) as Record<string, any>;
   const selectedProvider = freeSpinValues.provider as string | undefined;
 
@@ -236,31 +238,35 @@ export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true }: FreeSpi
             </Form.Item>
           </Col>
 
-          <Col span={12}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="礼金审核方式"
-              name={['freeSpin', 'reviewMode']}
-            >
-              <Radio.Group data-e2e-id={`${e2ePrefix}-freespin-review-mode-radio`}>
-                <Radio value="auto">自动</Radio>
-                <Radio value="manual">人工</Radio>
-              </Radio.Group>
-            </Form.Item>
-          </Col>
+          {!hide('reviewMode') && (
+            <Col span={12}>
+              <Form.Item
+                {...freeSpinItemProps}
+                label="礼金审核方式"
+                name={['freeSpin', 'reviewMode']}
+              >
+                <Radio.Group data-e2e-id={`${e2ePrefix}-freespin-review-mode-radio`}>
+                  <Radio value="auto">自动</Radio>
+                  <Radio value="manual">人工</Radio>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+          )}
 
-          <Col span={12}>
-            <Form.Item
-              {...freeSpinItemProps}
-              label="礼金是否自动到帐"
-              name={['freeSpin', 'creditMode']}
-            >
-              <Radio.Group data-e2e-id={`${e2ePrefix}-freespin-credit-mode-radio`}>
-                <Radio value="manual">手动领取</Radio>
-                <Radio value="auto">自动到帐</Radio>
-              </Radio.Group>
-            </Form.Item>
-          </Col>
+          {!hide('creditMode') && (
+            <Col span={12}>
+              <Form.Item
+                {...freeSpinItemProps}
+                label="礼金是否自动到帐"
+                name={['freeSpin', 'creditMode']}
+              >
+                <Radio.Group data-e2e-id={`${e2ePrefix}-freespin-credit-mode-radio`}>
+                  <Radio value="manual">手动领取</Radio>
+                  <Radio value="auto">自动到帐</Radio>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+          )}
 
           <Col span={24}>
             <Form.Item
