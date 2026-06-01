@@ -47,6 +47,7 @@ export interface InviteStat {
   depositUserCount: number;
   depositCount: number;
   totalDeposit: number;
+  withdrawCount: number;
   totalWithdraw: number;
   depositFee: number;
   withdrawFee: number;
@@ -244,6 +245,7 @@ const createInviteStat = (member: MockMember, date: string): InviteStat => {
   const newDepositAmount = newDepositUserCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-new-deposit-amount`, 100, 20000);
   const depositUserCount = betUserCount === 0 ? 0 : pickInt(`${member.uid}-${date}-deposit-user-count`, 0, betUserCount);
   const depositCount = depositUserCount === 0 ? 0 : pickInt(`${member.uid}-${date}-invite-deposit-count`, depositUserCount, depositUserCount * 4);
+  const withdrawCount = betUserCount === 0 ? 0 : pickInt(`${member.uid}-${date}-invite-withdraw-count`, 0, betUserCount * 3);
   const totalDeposit = depositUserCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-invite-total-deposit`, 200, 80000);
   const totalWithdraw = betUserCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-invite-total-withdraw`, 0, 45000);
   const totalBet = betUserCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-invite-total-bet`, 100, 250000);
@@ -278,6 +280,7 @@ const createInviteStat = (member: MockMember, date: string): InviteStat => {
     depositUserCount,
     depositCount,
     totalDeposit,
+    withdrawCount,
     totalWithdraw,
     depositFee,
     withdrawFee,
