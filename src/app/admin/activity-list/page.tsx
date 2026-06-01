@@ -41,6 +41,7 @@ import NewMemberTriDepositReportModal from '@/components/NewMemberTriDepositRepo
 import VipCheckinConfigModal from '@/components/VipCheckinConfigModal';
 import DailyCumulativeConfigModal from '@/components/DailyCumulativeConfigModal';
 import KycFreespinConfigModal from '@/components/KycFreespinConfigModal';
+import DailyMultiDepositConfigModal from '@/components/DailyMultiDepositConfigModal';
 
 // 识别哪些活动是 FreeBet 类型（可拆独立配置 + 报表）
 const FREEBET_ACTIVITY_IDS = new Set<number>([29]);
@@ -48,6 +49,7 @@ const NEW_MEMBER_TRI_DEPOSIT_ID = 30;
 const VIP_CHECKIN_ID = 25;
 const DAILY_CUMULATIVE_ID = 13;
 const KYC_FREESPIN_ID = 19;
+const DAILY_MULTI_DEPOSIT_ID = 22;
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -69,6 +71,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const [vipCheckinConfigOpen, setVipCheckinConfigOpen] = useState(false);
   const [dailyCumulativeConfigOpen, setDailyCumulativeConfigOpen] = useState(false);
   const [kycFreespinConfigOpen, setKycFreespinConfigOpen] = useState(false);
+  const [dailyMultiDepositConfigOpen, setDailyMultiDepositConfigOpen] = useState(false);
 
   const handleEditConfig = (record: ActivityRecord) => {
     if (FREEBET_ACTIVITY_IDS.has(record.id)) {
@@ -89,6 +92,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
     }
     if (record.id === KYC_FREESPIN_ID) {
       setKycFreespinConfigOpen(true);
+      return;
+    }
+    if (record.id === DAILY_MULTI_DEPOSIT_ID) {
+      setDailyMultiDepositConfigOpen(true);
       return;
     }
     message.info(`编辑活动 #${record.id}: ${record.name}`);
@@ -385,6 +392,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <KycFreespinConfigModal
         open={kycFreespinConfigOpen}
         onClose={() => setKycFreespinConfigOpen(false)}
+      />
+      <DailyMultiDepositConfigModal
+        open={dailyMultiDepositConfigOpen}
+        onClose={() => setDailyMultiDepositConfigOpen(false)}
       />
     </>
   );
