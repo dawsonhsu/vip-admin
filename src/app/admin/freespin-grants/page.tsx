@@ -116,6 +116,54 @@ const providerNameMap = [
   return acc;
 }, {});
 
+const ALL_RESTRICTION_PATHS: [GameType, string][] = (Object.entries(freeSpinRestrictionCatalog) as RestrictionCatalogEntry[]).flatMap(
+  ([gameType, restrictionProviders]) =>
+    restrictionProviders.map((provider) => [gameType, provider.code] as [GameType, string])
+);
+
+function GameRestrictionCascader({
+  value,
+  onChange,
+  options,
+  placeholder,
+  'data-e2e-id': dataEId,
+}: {
+  value?: (string[])[];
+  onChange?: (value: (string[])[]) => void;
+  options: { value: string; label: string; children?: { value: string; label: string }[] }[];
+  placeholder?: string;
+  'data-e2e-id'?: string;
+}) {
+  const effectiveValue = value?.some((p) => p[0] === '__all__') ? ALL_RESTRICTION_PATHS : value;
+
+  const handleChange = (newPaths: (string[])[]) => {
+    if (newPaths.some((p) => p[0] === '__all__')) {
+      const isAllSelected = ALL_RESTRICTION_PATHS.every((path) =>
+        (value || []).some((v) => v[0] === path[0] && v[1] === path[1])
+      );
+      onChange?.(isAllSelected ? [] : ALL_RESTRICTION_PATHS);
+    } else {
+      onChange?.(newPaths);
+    }
+  };
+
+  return (
+    <Cascader
+      multiple
+      options={options}
+      value={effectiveValue}
+      onChange={(v) => handleChange(v as (string[])[])}
+      placeholder={placeholder}
+      showCheckedStrategy={Cascader.SHOW_PARENT}
+      showSearch={{
+        filter: (inputValue, path) =>
+          path.some((option) => String(option.label).toLowerCase().includes(inputValue.toLowerCase())),
+      }}
+      data-e2e-id={dataEId}
+    />
+  );
+}
+
 const renderGameRestrictionSummary = (gameRestriction: FreeSpinGrantItem['gameRestriction']) => {
   if (!gameRestriction) return '不限';
 
@@ -883,15 +931,9 @@ export default function FreeSpinGrantsPage() {
 
       <Col span={24}>
         <Form.Item name="gameRestriction" label="場館限制" tooltip="若有設定，流水寫入時一同限制可消耗範圍">
-          <Cascader
-            multiple
+          <GameRestrictionCascader
             options={gameRestrictionOptions}
             placeholder="選擇遊戲類型 → 廠商"
-            showCheckedStrategy={Cascader.SHOW_PARENT}
-showSearch={{
-              filter: (inputValue, path) =>
-                path.some((option) => String(option.label).toLowerCase().includes(inputValue.toLowerCase())),
-            }}
             data-e2e-id={isBatch ? 'freespin-grants-batch-game-restriction-cascader' : 'freespin-grants-create-game-restriction-cascader'}
           />
         </Form.Item>
