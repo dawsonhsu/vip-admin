@@ -134,16 +134,32 @@ function GameRestrictionCascader({
   placeholder?: string;
   'data-e2e-id'?: string;
 }) {
-  const effectiveValue = value?.some((p) => p[0] === '__all__') ? ALL_RESTRICTION_PATHS : value;
+  const isAllSelected = !!(
+    value?.length &&
+    ALL_RESTRICTION_PATHS.every((path) => (value || []).some((v) => v[0] === path[0] && v[1] === path[1]))
+  );
+
+  // 全選時把 __all__ 加回 effectiveValue，讓「所有遊戲」的 checkbox 顯示為選中
+  const effectiveValue: (string[])[] = isAllSelected
+    ? [['__all__'], ...ALL_RESTRICTION_PATHS]
+    : (value || []);
 
   const handleChange = (newPaths: (string[])[]) => {
-    if (newPaths.some((p) => p[0] === '__all__')) {
-      const isAllSelected = ALL_RESTRICTION_PATHS.every((path) =>
-        (value || []).some((v) => v[0] === path[0] && v[1] === path[1])
-      );
-      onChange?.(isAllSelected ? [] : ALL_RESTRICTION_PATHS);
+    const prevHasAll = effectiveValue.some((p) => p[0] === '__all__');
+    const nextHasAll = newPaths.some((p) => p[0] === '__all__');
+    const realNewPaths = newPaths.filter((p) => p[0] !== '__all__');
+
+    if (!prevHasAll && nextHasAll) {
+      // 剛選了「所有遊戲」→ 全選
+      onChange?.(ALL_RESTRICTION_PATHS);
+    } else if (prevHasAll && nextHasAll) {
+      // 全選狀態下取消某個個別項目
+      onChange?.(realNewPaths);
+    } else if (prevHasAll && !nextHasAll) {
+      // 取消了「所有遊戲」→ 清空
+      onChange?.([]);
     } else {
-      onChange?.(newPaths);
+      onChange?.(realNewPaths);
     }
   };
 
