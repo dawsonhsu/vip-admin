@@ -75,7 +75,7 @@ const providerGames: Record<string, { code: string; name: string }[]> = {
   ],
 };
 
-type GameRestrictionPath = [GameType] | [GameType, string] | [GameType, string, string];
+type GameRestrictionPath = [GameType] | [GameType, string];
 type RestrictionCatalogEntry = [GameType, (typeof freeSpinRestrictionCatalog)[GameType]];
 type DispatchAttempt = FreeSpinGrantItem['dispatchSummary']['attempts'][number];
 type GrantTypeValue = FreeSpinGrantItem['grantType'];
@@ -290,21 +290,17 @@ export default function FreeSpinGrantsPage() {
     document.title = 'Freespin 派發管理 - Filbet Admin';
   }, []);
 
-  const gameRestrictionOptions = useMemo(
-    () => (Object.entries(freeSpinRestrictionCatalog) as RestrictionCatalogEntry[]).map(([gameType, restrictionProviders]) => ({
+  const gameRestrictionOptions = useMemo(() => {
+    const typeOptions = (Object.entries(freeSpinRestrictionCatalog) as RestrictionCatalogEntry[]).map(([gameType, restrictionProviders]) => ({
       value: gameType,
       label: gameType,
       children: restrictionProviders.map((restrictionProvider) => ({
         value: restrictionProvider.code,
         label: restrictionProvider.name,
-        children: restrictionProvider.games.map((game) => ({
-          value: game.code,
-          label: game.name,
-        })),
       })),
-    })),
-    []
-  );
+    }));
+    return [{ value: '__all__', label: '所有遊戲' }, ...typeOptions];
+  }, []);
 
   const filteredData = useMemo(() => {
     const filtered = allGrants.filter((item) => {
@@ -409,36 +405,32 @@ export default function FreeSpinGrantsPage() {
   const parseGameRestriction = (paths: GameRestrictionPath[] | undefined): FreeSpinGrantItem['gameRestriction'] => {
     if (!paths || paths.length === 0) return null;
 
+    if ((paths as string[][]).some((p) => p[0] === '__all__')) {
+      const allGameTypes: GameType[] = [];
+      const allProviders: string[] = [];
+      (Object.entries(freeSpinRestrictionCatalog) as RestrictionCatalogEntry[]).forEach(([gameType, restrictionProviders]) => {
+        allGameTypes.push(gameType);
+        restrictionProviders.forEach((p) => allProviders.push(p.code));
+      });
+      return { gameTypes: allGameTypes, providers: allProviders, games: [] };
+    }
+
     const gameTypes = new Set<GameType>();
     const providerCodes = new Set<string>();
-    const gameMap = new Map<string, { code: string; name: string }>();
 
     paths.forEach((path) => {
-      const [gameType, providerCode, gameCode] = path;
-      const restrictionProviders = freeSpinRestrictionCatalog[gameType];
-      if (!restrictionProviders) return;
-
+      const [gameType, providerCode] = path;
+      if (!freeSpinRestrictionCatalog[gameType]) return;
       gameTypes.add(gameType);
-
-      if (!providerCode) return;
-      providerCodes.add(providerCode);
-
-      if (!gameCode) return;
-      const restrictionProvider = restrictionProviders.find((provider) => provider.code === providerCode);
-      const game = restrictionProvider?.games.find((item) => item.code === gameCode);
-      if (game) {
-        gameMap.set(game.code, game);
-      }
+      if (providerCode) providerCodes.add(providerCode);
     });
 
-    if (gameTypes.size === 0 && providerCodes.size === 0 && gameMap.size === 0) {
-      return null;
-    }
+    if (gameTypes.size === 0 && providerCodes.size === 0) return null;
 
     return {
       gameTypes: Array.from(gameTypes),
       providers: Array.from(providerCodes),
-      games: Array.from(gameMap.values()),
+      games: [],
     };
   };
 
@@ -894,8 +886,18 @@ export default function FreeSpinGrantsPage() {
           <Cascader
             multiple
             options={gameRestrictionOptions}
-            placeholder="選擇遊戲類型 → 廠商 → 遊戲"
+            placeholder="選擇遊戲類型 → 廠商"
             showCheckedStrategy={Cascader.SHOW_PARENT}
+            onChange={(newPaths) => {
+              const paths = newPaths as (string[])[];
+              if (paths.some((p) => p[0] === '__all__')) {
+                const allPaths: GameRestrictionPath[] = (Object.entries(freeSpinRestrictionCatalog) as RestrictionCatalogEntry[]).flatMap(
+                  ([gameType, restrictionProviders]) =>
+                    restrictionProviders.map((provider) => [gameType, provider.code] as [GameType, string])
+                );
+                formInstance.setFieldValue('gameRestriction', allPaths);
+              }
+            }}
             showSearch={{
               filter: (inputValue, path) =>
                 path.some((option) => String(option.label).toLowerCase().includes(inputValue.toLowerCase())),
