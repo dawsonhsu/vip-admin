@@ -888,17 +888,7 @@ export default function FreeSpinGrantsPage() {
             options={gameRestrictionOptions}
             placeholder="選擇遊戲類型 → 廠商"
             showCheckedStrategy={Cascader.SHOW_PARENT}
-            onChange={(newPaths) => {
-              const paths = newPaths as (string[])[];
-              if (paths.some((p) => p[0] === '__all__')) {
-                const allPaths: GameRestrictionPath[] = (Object.entries(freeSpinRestrictionCatalog) as RestrictionCatalogEntry[]).flatMap(
-                  ([gameType, restrictionProviders]) =>
-                    restrictionProviders.map((provider) => [gameType, provider.code] as [GameType, string])
-                );
-                formInstance.setFieldValue('gameRestriction', allPaths);
-              }
-            }}
-            showSearch={{
+showSearch={{
               filter: (inputValue, path) =>
                 path.some((option) => String(option.label).toLowerCase().includes(inputValue.toLowerCase())),
             }}
