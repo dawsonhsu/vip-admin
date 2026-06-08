@@ -13,6 +13,7 @@ import type { RcFile, UploadChangeParam, UploadFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
 import { freeSpinRestrictionCatalog, generateFreeSpinGrants, type FreeSpinGrantItem } from '@/data/mockData';
 import type { GameType } from '@/data/memberStatsData';
+import { GameRestrictionCascader } from '@/components/GameRestrictionCascader';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -116,69 +117,6 @@ const providerNameMap = [
   return acc;
 }, {});
 
-const ALL_RESTRICTION_PATHS: [GameType, string][] = (Object.entries(freeSpinRestrictionCatalog) as RestrictionCatalogEntry[]).flatMap(
-  ([gameType, restrictionProviders]) =>
-    restrictionProviders.map((provider) => [gameType, provider.code] as [GameType, string])
-);
-
-function GameRestrictionCascader({
-  value,
-  onChange,
-  options,
-  placeholder,
-  'data-e2e-id': dataEId,
-}: {
-  value?: (string[])[];
-  onChange?: (value: (string[])[]) => void;
-  options: { value: string; label: string; children?: { value: string; label: string }[] }[];
-  placeholder?: string;
-  'data-e2e-id'?: string;
-}) {
-  const isAllSelected = !!(
-    value?.length &&
-    ALL_RESTRICTION_PATHS.every((path) => (value || []).some((v) => v[0] === path[0] && v[1] === path[1]))
-  );
-
-  // 全選時把 __all__ 加回 effectiveValue，讓「所有遊戲」的 checkbox 顯示為選中
-  const effectiveValue: (string[])[] = isAllSelected
-    ? [['__all__'], ...ALL_RESTRICTION_PATHS]
-    : (value || []);
-
-  const handleChange = (newPaths: (string[])[]) => {
-    const prevHasAll = effectiveValue.some((p) => p[0] === '__all__');
-    const nextHasAll = newPaths.some((p) => p[0] === '__all__');
-    const realNewPaths = newPaths.filter((p) => p[0] !== '__all__');
-
-    if (!prevHasAll && nextHasAll) {
-      // 剛選了「所有遊戲」→ 全選
-      onChange?.(ALL_RESTRICTION_PATHS);
-    } else if (prevHasAll && nextHasAll) {
-      // 全選狀態下取消某個個別項目
-      onChange?.(realNewPaths);
-    } else if (prevHasAll && !nextHasAll) {
-      // 取消了「所有遊戲」→ 清空
-      onChange?.([]);
-    } else {
-      onChange?.(realNewPaths);
-    }
-  };
-
-  return (
-    <Cascader
-      multiple
-      options={options}
-      value={effectiveValue}
-      onChange={(v) => handleChange(v as (string[])[])}
-      placeholder={placeholder}
-      showCheckedStrategy={Cascader.SHOW_PARENT}
-      showSearch={{
-        filter: (inputValue, path) =>
-          path.some((option) => String(option.label).toLowerCase().includes(inputValue.toLowerCase())),
-      }}
-      data-e2e-id={dataEId}
-    />
-  );
-}
 
 const renderGameRestrictionSummary = (gameRestriction: FreeSpinGrantItem['gameRestriction']) => {
   if (!gameRestriction) return '不限';
@@ -354,19 +292,7 @@ export default function FreeSpinGrantsPage() {
     document.title = 'Freespin 派發管理 - Filbet Admin';
   }, []);
 
-  const gameRestrictionOptions = useMemo(() => {
-    const typeOptions = (Object.entries(freeSpinRestrictionCatalog) as RestrictionCatalogEntry[]).map(([gameType, restrictionProviders]) => ({
-      value: gameType,
-      label: gameType,
-      children: restrictionProviders.map((restrictionProvider) => ({
-        value: restrictionProvider.code,
-        label: restrictionProvider.name,
-      })),
-    }));
-    return [{ value: '__all__', label: '所有遊戲' }, ...typeOptions];
-  }, []);
-
-  const filteredData = useMemo(() => {
+const filteredData = useMemo(() => {
     const filtered = allGrants.filter((item) => {
       if (filters.playerId && !item.playerId.toLowerCase().includes(filters.playerId.toLowerCase())) return false;
       if (filters.vendorEventId && !(item.vendorEventId || '').toLowerCase().includes(filters.vendorEventId.toLowerCase())) return false;
@@ -948,7 +874,6 @@ export default function FreeSpinGrantsPage() {
       <Col span={24}>
         <Form.Item name="gameRestriction" label="場館限制" tooltip="若有設定，流水寫入時一同限制可消耗範圍">
           <GameRestrictionCascader
-            options={gameRestrictionOptions}
             placeholder="選擇遊戲類型 → 廠商"
             data-e2e-id={isBatch ? 'freespin-grants-batch-game-restriction-cascader' : 'freespin-grants-create-game-restriction-cascader'}
           />

@@ -12,6 +12,7 @@ import {
 } from 'antd';
 import dayjs from 'dayjs';
 import { depositChannels, defaultSelectedDepositChannels } from '@/data/newMemberTriDepositData';
+import { GameRestrictionCascader } from '@/components/GameRestrictionCascader';
 
 const { RangePicker } = DatePicker;
 
@@ -118,6 +119,20 @@ export function BaseConfigStep({
           />
         </Form.Item>
       )}
+
+      {!hide('wagerVenueRestriction') && (
+        <Form.Item
+          label="流水場館/遊戲限制"
+          name="wagerVenueRestriction"
+          rules={[{ required: true, message: '請選擇流水場館/遊戲限制' }]}
+          tooltip="流水消耗僅限於選定的遊戲類型與廠商"
+        >
+          <GameRestrictionCascader
+            placeholder="選擇遊戲類型 → 廠商"
+            data-e2e-id={`${e2ePrefix}-form-wager-venue-restriction-cascader`}
+          />
+        </Form.Item>
+      )}
     </>
   );
 }
@@ -140,6 +155,7 @@ export function baseConfigInitialValues(
     introSource: 'backend',
     activityScope: 'all',
     depositChannels: defaultSelectedDepositChannels,
+    wagerVenueRestriction: [],
   };
 }
 
@@ -153,4 +169,5 @@ export const BASE_CONFIG_STEP_FIELDS = [
   'introSource',
   'activityScope',
   'depositChannels',
+  'wagerVenueRestriction',
 ];
