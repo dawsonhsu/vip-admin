@@ -71,11 +71,23 @@ function AllBetsIcon({ active }: { active: boolean }) {
   );
 }
 
+function LeaderboardIcon({ active }: { active: boolean }) {
+  const c = active ? '#D4AF37' : '#6b7a6e';
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="13" width="4" height="8" rx="1" stroke={c} strokeWidth="1.8" />
+      <rect x="10" y="8" width="4" height="13" rx="1" stroke={c} strokeWidth="1.8" />
+      <rect x="18" y="3" width="4" height="18" rx="1" stroke={c} strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 const tabs = [
   { href: '/winwinwin/home', label: '賽事', Icon: HomeIcon },
   { href: '/winwinwin/outrights', label: '冠軍', Icon: TrophyIcon },
   { href: '/winwinwin/my-bets', label: '我的', Icon: MyBetsIcon },
   { href: '/winwinwin/all-bets', label: '全部', Icon: AllBetsIcon },
+  { href: '/winwinwin/leaderboard', label: '排行', Icon: LeaderboardIcon },
 ];
 
 export default function BottomNav() {
@@ -95,7 +107,7 @@ export default function BottomNav() {
         zIndex: 20,
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', height: 64 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', height: 64 }}>
         {tabs.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname?.startsWith(`${href}/`);
           return (
