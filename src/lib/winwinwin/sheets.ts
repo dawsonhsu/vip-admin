@@ -1,4 +1,4 @@
-import type { BetRow, MatchRow, OddsRow, OutrightRow, UserRow } from './types';
+import type { BetRow, BetStatus, MatchRow, OddsRow, OutrightRow, UserRow } from './types';
 
 const CACHE_MS = 30_000;
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
@@ -279,7 +279,7 @@ function mapBet(row: SheetRecord): BetRow {
     line: stringValue(row.line),
     price_decimal: numberValue(row.price_decimal),
     stake: numberValue(row.stake),
-    status: 'pending',
+    status: (['won', 'lost', 'void'].includes(stringValue(row.status)) ? stringValue(row.status) : 'pending') as BetStatus,
   };
 }
 

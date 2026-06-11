@@ -3,19 +3,15 @@
 import type { BetRow } from '@/lib/winwinwin/types';
 import { formatTaipeiDateTime } from '@/lib/winwinwin/format';
 
-const STATUS_COLORS: Record<string, string> = {
-  '待結算': '#fbbf24',
-  '贏': '#4ade80',
-  '輸': '#f87171',
-  '取消': '#6b7a6e',
-  pending: '#fbbf24',
-  won: '#4ade80',
-  lost: '#f87171',
-  void: '#6b7a6e',
+const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+  pending: { color: '#fbbf24', label: '待結算' },
+  won:     { color: '#4ade80', label: '贏' },
+  lost:    { color: '#f87171', label: '輸' },
+  void:    { color: '#6b7a6e', label: '取消' },
 };
 
-function getStatusColor(status: string) {
-  return STATUS_COLORS[status] ?? '#a89a72';
+function getStatusConfig(status: string) {
+  return STATUS_CONFIG[status] ?? { color: '#a89a72', label: status };
 }
 
 type Props = {
@@ -25,7 +21,8 @@ type Props = {
 };
 
 export default function BetCard({ bet, isCurrentUser = false, onNameClick }: Props) {
-  const statusColor = getStatusColor(bet.status);
+  const { color: statusColor, label: statusLabel } = getStatusConfig(bet.status);
+  const payout = bet.status === 'won' ? +(bet.stake * bet.price_decimal - bet.stake).toFixed(0) : bet.status === 'lost' ? -bet.stake : null;
   const nameClickable = Boolean(onNameClick);
 
   return (
@@ -144,6 +141,11 @@ export default function BetCard({ bet, isCurrentUser = false, onNameClick }: Pro
         >
           <span style={{ fontSize: 13, color: '#a89a72' }}>
             下注：<span style={{ color: '#f0ead6', fontWeight: 700 }}>{bet.stake}</span>
+            {payout !== null && (
+              <span style={{ marginLeft: 8, color: payout >= 0 ? '#4ade80' : '#f87171', fontWeight: 700 }}>
+                {payout >= 0 ? `+${payout}` : payout}
+              </span>
+            )}
           </span>
           <span
             style={{
@@ -157,7 +159,7 @@ export default function BetCard({ bet, isCurrentUser = false, onNameClick }: Pro
               letterSpacing: '0.04em',
             }}
           >
-            {bet.status}
+            {statusLabel}
           </span>
         </div>
       </div>

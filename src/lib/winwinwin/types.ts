@@ -1,5 +1,5 @@
 export type AccountStatus = 'active' | 'disabled';
-export type BetStatus = 'pending';
+export type BetStatus = 'pending' | 'won' | 'lost' | 'void';
 export type BetType = 'match' | 'outright';
 
 export type UserRow = {
