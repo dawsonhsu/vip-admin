@@ -246,7 +246,7 @@ export default function PaymentChannelsPage() {
           </Space>
         }
         name="packageScope"
-        extra="留空 = 所有客戶端可見；填字串（例 huawei）= 僅對應包可見。FAT 原版沒有此欄位，本 PRD 新增。"
+        extra="留空 = 所有客戶端可見；填字串（例 huawei）= 僅對應包可見。"
       >
         <Input maxLength={32} placeholder="留空 = 所有客戶端可見；例：huawei" />
       </Form.Item>
