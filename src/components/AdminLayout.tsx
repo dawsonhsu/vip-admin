@@ -29,6 +29,7 @@ import {
   FullscreenOutlined,
   LogoutOutlined,
   MobileOutlined,
+  MonitorOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -69,6 +70,7 @@ const menuItems: MenuItem[] = [
     label: <span data-e2e-id="layout-menu-finance">財務管理</span>,
     children: [
       { key: '/admin/deposit-records', icon: <DollarOutlined />, label: <span data-e2e-id="layout-menu-deposit-records">存款記錄</span> },
+      { key: '/admin/payment-channels', icon: <ApiOutlined />, label: <span data-e2e-id="layout-menu-payment-channels">支付渠道 V2</span> },
     ],
   },
   { key: 'settlement', icon: <BankOutlined />, label: <span data-e2e-id="layout-menu-settlement">結算管理</span> },
@@ -102,7 +104,15 @@ const menuItems: MenuItem[] = [
       { key: '/admin/game-management', icon: <AppstoreOutlined />, label: <span data-e2e-id="layout-menu-game-management">遊戲管理</span> },
     ],
   },
-  { key: 'system', icon: <ToolOutlined />, label: <span data-e2e-id="layout-menu-system">系統</span> },
+  {
+    key: 'system',
+    icon: <ToolOutlined />,
+    label: <span data-e2e-id="layout-menu-system">系統</span>,
+    children: [
+      { key: '/admin/bet-monitor', icon: <MonitorOutlined />, label: <span data-e2e-id="layout-menu-bet-monitor">注單監控</span> },
+      { key: '/admin/sms-otp', icon: <MobileOutlined />, label: <span data-e2e-id="layout-menu-sms-otp">短信驗證碼</span> },
+    ],
+  },
   { key: 'logs', icon: <FileTextOutlined />, label: <span data-e2e-id="layout-menu-logs">日誌</span> },
   { key: 'integration', icon: <ApiOutlined />, label: <span data-e2e-id="layout-menu-integration">集成後台</span> },
 ];
@@ -120,9 +130,12 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/activity-list': '活動列表',
   '/admin/ops-tools': '運營小工具',
   '/admin/deposit-records': '存款記錄',
+  '/admin/payment-channels': '支付渠道 V2',
   '/admin/up-down-score': '上下分紀錄',
   '/admin/member-stats': '會員日統計',
   '/admin/member-game-stats': '會員遊戲日統計',
+  '/admin/bet-monitor': '注單監控',
+  '/admin/sms-otp': '短信驗證碼',
 };
 
 const parentBreadcrumbMap: Record<string, string> = {
@@ -137,9 +150,12 @@ const parentBreadcrumbMap: Record<string, string> = {
   '/admin/activity-list': '運營管理',
   '/admin/ops-tools': '運營管理',
   '/admin/deposit-records': '財務管理',
+  '/admin/payment-channels': '財務管理',
   '/admin/up-down-score': '風控管理',
   '/admin/member-stats': '報表管理',
   '/admin/member-game-stats': '報表管理',
+  '/admin/bet-monitor': '系統',
+  '/admin/sms-otp': '系統',
 };
 
 interface AdminLayoutProps {
