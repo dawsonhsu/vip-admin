@@ -144,15 +144,7 @@ export default function PaymentChannelsPage() {
   const channelColumns: ColumnsType<DepositChannel> = [
     { title: '序號', dataIndex: 'id', width: 60, align: 'center', fixed: 'left' },
     { title: '渠道ID', dataIndex: 'channelId', width: 180, ellipsis: true, fixed: 'left' },
-    {
-      title: '渠道名稱', dataIndex: 'nameEn', width: 140, fixed: 'left',
-      render: (v, r) => (
-        <Space>
-          <span>{v}</span>
-          {r.packageScope && <Tag color="orange" data-e2e-id={`channel-scope-tag-${r.id}`}>{r.packageScope}</Tag>}
-        </Space>
-      ),
-    },
+    { title: '渠道名稱', dataIndex: 'nameEn', width: 140, fixed: 'left' },
     { title: '渠道圖標', dataIndex: 'iconUrl', width: 90, align: 'center', render: (_, r) => renderIcon(r.category) },
     { title: '調用模式', dataIndex: 'callMode', width: 90, align: 'center', render: (v) => <Tag color={v === '輪詢' ? 'green' : 'default'}>{v}</Tag> },
     { title: '排序權重', dataIndex: 'weight', width: 90, align: 'center' },
@@ -331,20 +323,6 @@ export default function PaymentChannelsPage() {
 
   const channelTab = (
     <div>
-      <Alert
-        message="渠道配置新增「渠道包專屬 (packageScope)」字串欄位"
-        description={
-          <div>
-            <div>非對稱可見規則：</div>
-            <div>• 欄位留空：所有客戶端皆可見此渠道</div>
-            <div>• 欄位有值 (例 huawei)：僅 source / X-App-Package header 為相同字串的客戶端能取得此渠道</div>
-            <div>例：華為包用戶可同時看到「無 scope」+「scope=huawei」的所有渠道；一般 Android 用戶只看得到「無 scope」的渠道。</div>
-          </div>
-        }
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-      />
       <Space style={{ marginBottom: 16 }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => { channelAddForm.resetFields(); setAddChannelOpen(true); }} data-e2e-id="channel-add-btn">
           添加存款渠道
@@ -383,8 +361,7 @@ export default function PaymentChannelsPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Title level={3}>支付渠道 V2（含渠道包專屬 packageScope）</Title>
-      <Text type="secondary">仿 FAT 後台 <Text code>/payment/channel-ordersV2</Text>，存款渠道配置新增「渠道包專屬 (packageScope)」字串欄位用於依 App 包來源過濾。其餘欄位（首充/復充金額按鈕、可見會員等級範圍、可見會員風控標籤、最後更新時間/更新人等）皆與 FAT 對齊。</Text>
+      <Title level={3}>支付渠道 V2</Title>
       <Card style={{ marginTop: 16 }}>
         <Tabs
           defaultActiveKey="channel"
