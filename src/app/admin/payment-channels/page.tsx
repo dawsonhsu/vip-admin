@@ -2,9 +2,9 @@
 
 import React, { useState } from 'react';
 import {
-  Card, Table, Tag, Button, Typography, Modal, Form, Input, InputNumber, Select, Switch, Space, Tabs, message, Tooltip, Alert,
+  Card, Table, Tag, Button, Typography, Modal, Form, Input, InputNumber, Select, Switch, Space, Tabs, message, Tooltip, Alert, Avatar,
 } from 'antd';
-import { EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { EditOutlined, PlusOutlined, QuestionCircleOutlined, PictureOutlined, UserOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
   depositChannels as initialChannels,
@@ -68,8 +68,18 @@ export default function PaymentChannelsPage() {
       ),
     },
     {
-      title: '渠道分類', dataIndex: 'category', width: 110,
-      render: (v) => <Tag color="blue">{v}</Tag>,
+      title: '渠道圖標', dataIndex: 'iconUrl', width: 90, align: 'center',
+      render: (_, r) => {
+        const brandColor: Record<string, string> = {
+          GCash: '#1672ec', Maya: '#33b15e', QRPH: '#0d4d9a', GrabPay: '#00b14f',
+          Palawan: '#e30613', InstaPay: '#1c4193', PesoNet: '#3070b1', 'Huawei IAP': '#ff6a00',
+        };
+        const known = brandColor[r.category];
+        if (known) {
+          return <Avatar size={36} style={{ backgroundColor: known, color: '#fff', fontWeight: 700 }}>{r.category.slice(0, 2)}</Avatar>;
+        }
+        return <Avatar size={36} icon={<UserOutlined />} />;
+      },
     },
     {
       title: '調用模式', dataIndex: 'callMode', width: 90, align: 'center',
