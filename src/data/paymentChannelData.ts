@@ -11,11 +11,13 @@ export interface DepositChannel {
   weight: number;
   status: boolean;
   clientTypes: ClientType[];
-  /** 新增欄位：華為包專屬渠道。
-   *  - false（預設）：非華為包用戶才看得到
-   *  - true：僅華為包用戶可見，且付款走 Huawei IAP
+  /** 新增欄位：渠道包專屬 (packageScope)。
+   *  - 空字串（預設）：所有客戶端皆可見
+   *  - 字串 (例 "huawei")：僅 source / X-App-Package header 為相同字串的客戶端可見
+   *  注意：規則為非對稱 — 華為包可見「無 scope」+「scope=huawei」，
+   *  一般 Android 只能見「無 scope」。
    */
-  huaweiExclusive: boolean;
+  packageScope: string;
   amountMin: number;
   amountMax: number;
   visible: boolean;
@@ -36,15 +38,15 @@ export interface DepositMerchant {
 }
 
 export const depositChannels: DepositChannel[] = [
-  { id: 1, channelId: '47870534954254469', nameEn: 'Gcash', nameTa: 'Gcash', category: 'GCash', iconUrl: '/icons/gcash.png', callMode: '輪詢', weight: 1, status: true, clientTypes: ['PC', 'H5', 'Android', 'iOS'], huaweiExclusive: false, amountMin: 50, amountMax: 1000000, visible: true },
-  { id: 2, channelId: '47870545347477637', nameEn: 'mayaaaaa', nameTa: 'maya', category: 'Maya', iconUrl: '/icons/maya.png', callMode: '一般', weight: 1, status: true, clientTypes: ['PC', 'H5', 'Android', 'iOS'], huaweiExclusive: false, amountMin: 100, amountMax: 50000, visible: true },
-  { id: 3, channelId: '54831891597028330', nameEn: 'QRPH', nameTa: 'QRPH', category: 'QRPH', iconUrl: '/icons/qrph.png', callMode: '輪詢', weight: 10, status: true, clientTypes: ['PC', 'H5', 'Android', 'iOS'], huaweiExclusive: false, amountMin: 100, amountMax: 500000, visible: true },
-  { id: 4, channelId: '55277859459099626', nameEn: 'GRAB', nameTa: 'GRAB', category: 'GrabPay', iconUrl: '/icons/grab.png', callMode: '一般', weight: 50, status: false, clientTypes: ['PC', 'H5', 'Android', 'iOS'], huaweiExclusive: false, amountMin: 100, amountMax: 30000, visible: true },
-  { id: 5, channelId: '55278060248820716', nameEn: 'PALAWAN', nameTa: 'PALAWAN', category: 'Palawan', iconUrl: '/icons/palawan.png', callMode: '一般', weight: 80, status: false, clientTypes: ['H5', 'Android', 'iOS'], huaweiExclusive: false, amountMin: 200, amountMax: 100000, visible: true },
-  { id: 6, channelId: '61638710873091051', nameEn: 'INSTA', nameTa: 'INSTA', category: 'InstaPay', iconUrl: '/icons/insta.png', callMode: '一般', weight: 1, status: true, clientTypes: ['PC', 'H5', 'Android', 'iOS'], huaweiExclusive: false, amountMin: 100, amountMax: 200000, visible: true },
-  { id: 7, channelId: '61638710873091052', nameEn: 'PESONET', nameTa: 'PESONET', category: 'PesoNet', iconUrl: '/icons/pesonet.png', callMode: '一般', weight: 1, status: false, clientTypes: ['PC', 'H5', 'Android', 'iOS'], huaweiExclusive: false, amountMin: 500, amountMax: 1000000, visible: true },
-  // 範例：華為包專屬渠道（新增）
-  { id: 99, channelId: 'HW-IAP-2026', nameEn: 'Huawei IAP', nameTa: 'Huawei IAP', category: 'Huawei IAP', iconUrl: '/icons/huawei.png', callMode: '一般', weight: 1, status: true, clientTypes: ['Android'], huaweiExclusive: true, amountMin: 100, amountMax: 10000, visible: true },
+  { id: 1, channelId: '47870534954254469', nameEn: 'Gcash', nameTa: 'Gcash', category: 'GCash', iconUrl: '/icons/gcash.png', callMode: '輪詢', weight: 1, status: true, clientTypes: ['PC', 'H5', 'Android', 'iOS'], packageScope: '', amountMin: 50, amountMax: 1000000, visible: true },
+  { id: 2, channelId: '47870545347477637', nameEn: 'mayaaaaa', nameTa: 'maya', category: 'Maya', iconUrl: '/icons/maya.png', callMode: '一般', weight: 1, status: true, clientTypes: ['PC', 'H5', 'Android', 'iOS'], packageScope: '', amountMin: 100, amountMax: 50000, visible: true },
+  { id: 3, channelId: '54831891597028330', nameEn: 'QRPH', nameTa: 'QRPH', category: 'QRPH', iconUrl: '/icons/qrph.png', callMode: '輪詢', weight: 10, status: true, clientTypes: ['PC', 'H5', 'Android', 'iOS'], packageScope: '', amountMin: 100, amountMax: 500000, visible: true },
+  { id: 4, channelId: '55277859459099626', nameEn: 'GRAB', nameTa: 'GRAB', category: 'GrabPay', iconUrl: '/icons/grab.png', callMode: '一般', weight: 50, status: false, clientTypes: ['PC', 'H5', 'Android', 'iOS'], packageScope: '', amountMin: 100, amountMax: 30000, visible: true },
+  { id: 5, channelId: '55278060248820716', nameEn: 'PALAWAN', nameTa: 'PALAWAN', category: 'Palawan', iconUrl: '/icons/palawan.png', callMode: '一般', weight: 80, status: false, clientTypes: ['H5', 'Android', 'iOS'], packageScope: '', amountMin: 200, amountMax: 100000, visible: true },
+  { id: 6, channelId: '61638710873091051', nameEn: 'INSTA', nameTa: 'INSTA', category: 'InstaPay', iconUrl: '/icons/insta.png', callMode: '一般', weight: 1, status: true, clientTypes: ['PC', 'H5', 'Android', 'iOS'], packageScope: '', amountMin: 100, amountMax: 200000, visible: true },
+  { id: 7, channelId: '61638710873091052', nameEn: 'PESONET', nameTa: 'PESONET', category: 'PesoNet', iconUrl: '/icons/pesonet.png', callMode: '一般', weight: 1, status: false, clientTypes: ['PC', 'H5', 'Android', 'iOS'], packageScope: '', amountMin: 500, amountMax: 1000000, visible: true },
+  // 範例：華為包專屬渠道（packageScope = "huawei"）
+  { id: 99, channelId: 'HW-IAP-2026', nameEn: 'Huawei IAP', nameTa: 'Huawei IAP', category: 'Huawei IAP', iconUrl: '/icons/huawei.png', callMode: '一般', weight: 1, status: true, clientTypes: ['Android'], packageScope: 'huawei', amountMin: 100, amountMax: 10000, visible: true },
 ];
 
 export const depositMerchants: DepositMerchant[] = [

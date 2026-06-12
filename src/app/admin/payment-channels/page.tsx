@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   Card, Table, Tag, Button, Typography, Modal, Form, Input, InputNumber, Select, Switch, Space, Tabs, message, Tooltip, Alert,
 } from 'antd';
-import { EditOutlined, PlusOutlined, QuestionCircleOutlined, MobileOutlined } from '@ant-design/icons';
+import { EditOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
   depositChannels as initialChannels,
@@ -18,6 +18,8 @@ const { Title, Text } = Typography;
 
 const CLIENT_OPTIONS: ClientType[] = ['PC', 'H5', 'Android', 'iOS'];
 const CATEGORY_OPTIONS = ['GCash', 'Maya', 'QRPH', 'GrabPay', 'Palawan', 'InstaPay', 'PesoNet', '7-11', 'COINS', 'Huawei IAP'];
+
+const PACKAGE_SCOPE_TIP = '輸入 App 包識別字串 (例 huawei) 後，僅 source / X-App-Package header 值相同的客戶端才能取得本渠道。留空代表所有客戶端皆可見。';
 
 export default function PaymentChannelsPage() {
   const [channels, setChannels] = useState<DepositChannel[]>([...initialChannels]);
@@ -36,7 +38,7 @@ export default function PaymentChannelsPage() {
 
   const handleSave = () => {
     form.validateFields().then((values) => {
-      setChannels(prev => prev.map(c => c.id === editing!.id ? { ...c, ...values } : c));
+      setChannels(prev => prev.map(c => c.id === editing!.id ? { ...c, ...values, packageScope: (values.packageScope || '').trim() } : c));
       setEditOpen(false);
       message.success('渠道配置已更新');
     });
@@ -45,8 +47,8 @@ export default function PaymentChannelsPage() {
   const handleAdd = () => {
     addForm.validateFields().then((values) => {
       const nextId = Math.max(...channels.map(c => c.id)) + 1;
-      const channelId = values.channelId || `HW-IAP-${Date.now()}`;
-      setChannels(prev => [...prev, { ...values, id: nextId, channelId, status: true, visible: true }]);
+      const channelId = values.channelId || `CH-${Date.now()}`;
+      setChannels(prev => [...prev, { ...values, id: nextId, channelId, status: true, visible: true, packageScope: (values.packageScope || '').trim() }]);
       setAddOpen(false);
       addForm.resetFields();
       message.success('渠道已新增');
@@ -61,7 +63,7 @@ export default function PaymentChannelsPage() {
       render: (v, r) => (
         <Space>
           <span>{v}</span>
-          {r.huaweiExclusive && <Tag color="orange" data-e2e-id={`channel-huawei-tag-${r.id}`}>華為包專屬</Tag>}
+          {r.packageScope && <Tag color="orange" data-e2e-id={`channel-scope-tag-${r.id}`}>{r.packageScope}</Tag>}
         </Space>
       ),
     },
@@ -85,24 +87,17 @@ export default function PaymentChannelsPage() {
     {
       title: (
         <Space size={4}>
-          華為包專屬
-          <Tooltip title="開啟後此渠道只在華為包（AppGallery 上架版本）顯示，並走 Huawei IAP 支付流程；一般 Google Play / iOS / PC / H5 不會看到。">
+          渠道包專屬
+          <Tooltip title={PACKAGE_SCOPE_TIP}>
             <QuestionCircleOutlined style={{ color: '#999' }} />
           </Tooltip>
         </Space>
       ),
-      dataIndex: 'huaweiExclusive', width: 120, align: 'center',
-      render: (v, r) => (
-        <Switch
-          checked={v}
-          checkedChildren={<MobileOutlined />}
-          size="small"
-          data-e2e-id={`channel-huawei-flag-${r.id}`}
-          onChange={(checked) => {
-            setChannels(prev => prev.map(c => c.id === r.id ? { ...c, huaweiExclusive: checked } : c));
-            message.success(checked ? `${r.nameEn} 已標記為華為包專屬` : `${r.nameEn} 已取消華為包專屬`);
-          }}
-        />
+      dataIndex: 'packageScope', width: 140, align: 'center',
+      render: (v: string, r) => (
+        v
+          ? <Tag color="orange" data-e2e-id={`channel-scope-${r.id}`}>{v}</Tag>
+          : <Text type="secondary" data-e2e-id={`channel-scope-${r.id}`}>—</Text>
       ),
     },
     {
@@ -135,8 +130,15 @@ export default function PaymentChannelsPage() {
   const channelTab = (
     <div>
       <Alert
-        message="渠道配置新增「華為包專屬」flag"
-        description="此欄位用於判斷渠道是否僅供華為包 (AppGallery 上架版本) 使用。當客戶端為華為包時，後端 API 將只回傳 huaweiExclusive=true 的渠道；其他客戶端則只看到 huaweiExclusive=false 的渠道。預設為 false。"
+        message="渠道配置新增「渠道包專屬 (packageScope)」字串欄位"
+        description={
+          <div>
+            <div>非對稱可見規則：</div>
+            <div>• 欄位留空：所有客戶端皆可見此渠道</div>
+            <div>• 欄位有值 (例 huawei)：僅 source / X-App-Package header 為相同字串的客戶端能取得此渠道</div>
+            <div>例：華為包用戶可看到「無 scope」+「scope=huawei」的所有渠道；一般 Android 用戶只看得到「無 scope」的渠道，不會看到 Huawei IAP。</div>
+          </div>
+        }
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
@@ -175,8 +177,8 @@ export default function PaymentChannelsPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Title level={3}>支付渠道 V2（含華為包專屬 flag）</Title>
-      <Text type="secondary">仿 FAT 後台 <Text code>/payment/channel-ordersV2</Text>，新增「華為包專屬」flag 用於華為應用市場上架版本的支付渠道區隔。</Text>
+      <Title level={3}>支付渠道 V2（含渠道包專屬 packageScope）</Title>
+      <Text type="secondary">仿 FAT 後台 <Text code>/payment/channel-ordersV2</Text>，新增「渠道包專屬 (packageScope)」字串欄位，用於依 App 包來源過濾可見渠道。</Text>
       <Card style={{ marginTop: 16 }}>
         <Tabs
           defaultActiveKey="channel"
@@ -219,17 +221,16 @@ export default function PaymentChannelsPage() {
           <Form.Item
             label={
               <Space size={4}>
-                華為包專屬
-                <Tooltip title="開啟後此渠道只在華為包顯示，並改走 Huawei IAP 流程">
+                渠道包專屬
+                <Tooltip title={PACKAGE_SCOPE_TIP}>
                   <QuestionCircleOutlined style={{ color: '#999' }} />
                 </Tooltip>
               </Space>
             }
-            name="huaweiExclusive"
-            valuePropName="checked"
-            extra="開啟後本渠道僅供華為應用市場 (AppGallery) 上架的 App 版本使用，後端會檢查請求來源並過濾"
+            name="packageScope"
+            extra="留空 = 所有客戶端皆可見；填字串 (例 huawei) = 僅 source / X-App-Package 為相同值的客戶端可見。可支援未來其他特殊包 (例 ios-test、b2b)。"
           >
-            <Switch checkedChildren="是" unCheckedChildren="否" data-e2e-id="channel-edit-huawei-flag" />
+            <Input maxLength={32} placeholder="留空 = 所有客戶端可見；例：huawei" data-e2e-id="channel-edit-scope" />
           </Form.Item>
           <Form.Item label="支持金額範圍" required>
             <Space>
@@ -255,7 +256,7 @@ export default function PaymentChannelsPage() {
         cancelText="取消"
         data-e2e-id="channel-add-modal"
       >
-        <Form form={addForm} layout="horizontal" labelCol={{ span: 6 }} wrapperCol={{ span: 16 }} style={{ marginTop: 16 }} initialValues={{ huaweiExclusive: false, callMode: '一般', weight: 1, clientTypes: ['Android'], amountMin: 100, amountMax: 10000 }}>
+        <Form form={addForm} layout="horizontal" labelCol={{ span: 6 }} wrapperCol={{ span: 16 }} style={{ marginTop: 16 }} initialValues={{ packageScope: '', callMode: '一般', weight: 1, clientTypes: ['Android'], amountMin: 100, amountMax: 10000 }}>
           <Form.Item label="渠道ID" name="channelId" extra="留空將自動生成（demo）">
             <Input placeholder="自動生成" />
           </Form.Item>
@@ -280,17 +281,16 @@ export default function PaymentChannelsPage() {
           <Form.Item
             label={
               <Space size={4}>
-                華為包專屬
-                <Tooltip title="開啟後此渠道只在華為包顯示，並改走 Huawei IAP 流程">
+                渠道包專屬
+                <Tooltip title={PACKAGE_SCOPE_TIP}>
                   <QuestionCircleOutlined style={{ color: '#999' }} />
                 </Tooltip>
               </Space>
             }
-            name="huaweiExclusive"
-            valuePropName="checked"
-            extra="開啟後本渠道僅供華為應用市場 (AppGallery) 上架的 App 版本使用"
+            name="packageScope"
+            extra="留空 = 所有客戶端皆可見；填字串 (例 huawei) = 僅對應包可見。"
           >
-            <Switch checkedChildren="是" unCheckedChildren="否" data-e2e-id="channel-add-huawei-flag" />
+            <Input maxLength={32} placeholder="留空 = 所有客戶端可見；例：huawei" data-e2e-id="channel-add-scope" />
           </Form.Item>
           <Form.Item label="支持金額範圍" required>
             <Space>
