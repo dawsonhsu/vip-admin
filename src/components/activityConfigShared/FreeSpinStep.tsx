@@ -49,6 +49,8 @@ interface FreeSpinStepProps {
   e2ePrefix: string;
   showGoogleCode?: boolean;
   hideFields?: string[];
+  /** When true, 场馆限制 cascader stops at 厂商 (game type → provider), hiding the per-game leaf level. */
+  gameLimitToProvider?: boolean;
 }
 
 /**
@@ -56,7 +58,7 @@ interface FreeSpinStepProps {
  * Must be rendered inside the same <Form> as the rest of the wizard.
  * Pass `showGoogleCode={false}` to hide the Google 2FA input (e.g. inline tab usage).
  */
-export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideFields = [] }: FreeSpinStepProps) {
+export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideFields = [], gameLimitToProvider = false }: FreeSpinStepProps) {
   const hide = (field: string) => hideFields.includes(field);
   const freeSpinValues = (Form.useWatch('freeSpin', form) ?? {}) as Record<string, any>;
   const selectedProvider = freeSpinValues.provider as string | undefined;
@@ -81,10 +83,10 @@ export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideField
       children: Array.from(providerMap.entries()).map(([provider, games]) => ({
         value: provider,
         label: provider,
-        children: games,
+        ...(gameLimitToProvider ? {} : { children: games }),
       })),
     }));
-  }, []);
+  }, [gameLimitToProvider]);
 
   return (
     <>
@@ -200,7 +202,7 @@ export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideField
               <Cascader
                 data-e2e-id={`${e2ePrefix}-freespin-game-limit-cascader`}
                 options={gameLimitOptions}
-                placeholder="游戏类型 / 厂商 / 游戏"
+                placeholder={gameLimitToProvider ? '游戏类型 / 厂商' : '游戏类型 / 厂商 / 游戏'}
                 style={{ width: '100%' }}
               />
             </Form.Item>

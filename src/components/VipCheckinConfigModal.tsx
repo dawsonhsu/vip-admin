@@ -293,7 +293,7 @@ export default function VipCheckinConfigModal({ open, onClose }: Props) {
     googleCode: undefined,
   };
 
-  const HIDDEN_BASE_FIELDS = ['ruleSource', 'introSource', 'activityScope', 'depositChannels'];
+  const HIDDEN_BASE_FIELDS = ['ruleSource', 'introSource', 'activityScope', 'depositChannels', 'wagerVenueRestriction'];
 
   const steps: WizardStepDef[] = [
     {
@@ -313,7 +313,7 @@ export default function VipCheckinConfigModal({ open, onClose }: Props) {
       title: '免费旋转配置',
       validateFields: ['googleCode'],
       render: (form) => (
-        <FreeSpinStep form={form} e2ePrefix={E2E} hideFields={['reviewMode', 'creditMode']} />
+        <FreeSpinStep form={form} e2ePrefix={E2E} hideFields={['reviewMode', 'creditMode']} gameLimitToProvider />
       ),
     },
   ];
