@@ -4,33 +4,26 @@ import React, { useState } from 'react';
 import {
   Button,
   Card,
-  Col,
   Form,
   InputNumber,
-  Radio,
-  Row,
-  Select,
   Space,
   Table,
-  TimePicker,
   Typography,
 } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
 import ActivityConfigWizardShell, {
   type WizardStepDef,
 } from './activityConfigShared/ActivityConfigWizardShell';
 import { BaseConfigStep, baseConfigInitialValues, BASE_CONFIG_STEP_FIELDS } from './activityConfigShared/BaseConfigStep';
 import { FreeSpinStep, defaultFreeSpinValues } from './activityConfigShared/FreeSpinStep';
+import { GameRestrictionCascader } from './GameRestrictionCascader';
 import {
   dailyCumulativeLadderDefault,
-  dailyCumulativeDefaultConfig,
   type DailyCumulativeLadderRow,
 } from '@/data/dailyCumulativeActivityData';
 
 const { Text } = Typography;
-const { RangePicker: TimeRangePicker } = TimePicker;
 
 const E2E = 'daily-cumulative-config-modal';
 const ACTIVITY_ID = 13;
@@ -42,9 +35,6 @@ interface Props {
 }
 
 function CumulativeRewardStep() {
-  const [cumulationType, setCumulationType] = useState(dailyCumulativeDefaultConfig.cumulationType);
-  const [settleCycle, setSettleCycle] = useState(dailyCumulativeDefaultConfig.settleCycle);
-  const [budgetCap, setBudgetCap] = useState(dailyCumulativeDefaultConfig.budgetCap);
   const [ladder, setLadder] = useState<DailyCumulativeLadderRow[]>(() =>
     dailyCumulativeLadderDefault.map((r) => ({ ...r }))
   );
@@ -62,6 +52,7 @@ function CumulativeRewardStep() {
       {
         key: `ladder-${Date.now()}`,
         threshold: (last?.threshold ?? 0) + 1000,
+        cumulativeRollover: (last?.cumulativeRollover ?? 0) + 2000,
         bonusAmount: (last?.bonusAmount ?? 0) + 10,
         freeSpinCount: (last?.freeSpinCount ?? 0) + 5,
         rolloverMultiplier: last?.rolloverMultiplier ?? 1,
@@ -80,7 +71,7 @@ function CumulativeRewardStep() {
       render: (_, __, i) => <Text>第 {i + 1} 档</Text>,
     },
     {
-      title: '累計門檻',
+      title: '累計存款',
       dataIndex: 'threshold',
       width: 160,
       render: (_, r) => (
@@ -91,6 +82,21 @@ function CumulativeRewardStep() {
           addonAfter="P"
           style={{ width: '100%' }}
           onChange={(v) => updateLadderRow(r.key, 'threshold', v)}
+        />
+      ),
+    },
+    {
+      title: '累計流水',
+      dataIndex: 'cumulativeRollover',
+      width: 160,
+      render: (_, r) => (
+        <InputNumber
+          data-e2e-id={`${E2E}-ladder-cumulative-rollover-${r.key}`}
+          min={0}
+          value={r.cumulativeRollover}
+          addonAfter="P"
+          style={{ width: '100%' }}
+          onChange={(v) => updateLadderRow(r.key, 'cumulativeRollover', v)}
         />
       ),
     },
@@ -166,63 +172,18 @@ function CumulativeRewardStep() {
       style={{ marginTop: 0, marginBottom: 8 }}
     >
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
-        <Row gutter={24} align="middle">
-          <Col span={12}>
-            <Space>
-              <Text style={{ whiteSpace: 'nowrap' }}>累計類型：</Text>
-              <Radio.Group
-                data-e2e-id={`${E2E}-cumulation-type-radio`}
-                value={cumulationType}
-                onChange={(e) => setCumulationType(e.target.value)}
-              >
-                <Radio value="deposit">存款金額</Radio>
-                <Radio value="turnover">流水金額</Radio>
-              </Radio.Group>
-            </Space>
-          </Col>
-          <Col span={12}>
-            <Space>
-              <Text style={{ whiteSpace: 'nowrap' }}>結算週期：</Text>
-              <Select
-                data-e2e-id={`${E2E}-settle-cycle-select`}
-                value={settleCycle}
-                style={{ width: 120 }}
-                onChange={setSettleCycle}
-                options={[
-                  { value: 'realtime', label: '即时' },
-                  { value: 'hour', label: '小时' },
-                  { value: 'day', label: '日' },
-                ]}
-              />
-            </Space>
-          </Col>
-        </Row>
-
-        <Row gutter={24} align="middle">
-          <Col span={12}>
-            <Space>
-              <Text style={{ whiteSpace: 'nowrap' }}>統計時段：</Text>
-              <TimeRangePicker
-                data-e2e-id={`${E2E}-time-range-picker`}
-                format="HH:mm"
-                defaultValue={[dayjs('00:00', 'HH:mm'), dayjs('23:59', 'HH:mm')]}
-              />
-            </Space>
-          </Col>
-          <Col span={12}>
-            <Space>
-              <Text style={{ whiteSpace: 'nowrap' }}>預算上限：</Text>
-              <InputNumber
-                data-e2e-id={`${E2E}-budget-cap-input`}
-                min={0}
-                value={budgetCap}
-                prefix="₱"
-                style={{ width: 160 }}
-                onChange={(v) => setBudgetCap(Number(v ?? 0))}
-              />
-            </Space>
-          </Col>
-        </Row>
+        <Form.Item
+          label="流水場館/遊戲限制"
+          name="wagerVenueRestriction"
+          rules={[{ required: true, message: '請選擇流水場館/遊戲限制' }]}
+          tooltip="流水消耗僅限於選定的遊戲類型與廠商"
+          style={{ marginBottom: 0 }}
+        >
+          <GameRestrictionCascader
+            placeholder="選擇遊戲類型 → 廠商"
+            data-e2e-id={`${E2E}-wager-venue-restriction-cascader`}
+          />
+        </Form.Item>
 
         <Table
           data-e2e-id={`${E2E}-ladder-table`}
@@ -231,7 +192,7 @@ function CumulativeRewardStep() {
           rowKey="key"
           size="small"
           pagination={false}
-          scroll={{ x: 720 }}
+          scroll={{ x: 880 }}
           onRow={(record) =>
             ({
               'data-e2e-id': `${E2E}-ladder-row-${record.key}`,
@@ -264,7 +225,7 @@ export default function DailyCumulativeConfigModal({ open, onClose }: Props) {
     googleCode: undefined,
   };
 
-  const HIDDEN_BASE_FIELDS = ['ruleSource', 'introSource', 'activityScope', 'depositChannels'];
+  const HIDDEN_BASE_FIELDS = ['ruleSource', 'introSource', 'activityScope', 'depositChannels', 'wagerVenueRestriction'];
 
   const steps: WizardStepDef[] = [
     {
@@ -282,14 +243,19 @@ export default function DailyCumulativeConfigModal({ open, onClose }: Props) {
     },
     {
       title: '累計奖励配置',
-      validateFields: [],
+      validateFields: ['wagerVenueRestriction'],
       render: () => <CumulativeRewardStep />,
     },
     {
       title: '免费旋转配置',
       validateFields: ['googleCode'],
       render: (form) => (
-        <FreeSpinStep form={form} e2ePrefix={E2E} hideFields={['reviewMode', 'creditMode']} />
+        <FreeSpinStep
+          form={form}
+          e2ePrefix={E2E}
+          hideFields={['reviewMode', 'creditMode']}
+          gameLimitToProvider
+        />
       ),
     },
   ];
