@@ -6,6 +6,7 @@ import ActivityConfigWizardShell, {
 } from './activityConfigShared/ActivityConfigWizardShell';
 import { BaseConfigStep, baseConfigInitialValues, BASE_CONFIG_STEP_FIELDS } from './activityConfigShared/BaseConfigStep';
 import { FreeSpinStep, defaultFreeSpinValues } from './activityConfigShared/FreeSpinStep';
+import { kycFreespinDefaultConfig } from '@/data/kycFreespinActivityData';
 
 const E2E = 'kyc-freespin-config-modal';
 const ACTIVITY_ID = 19;
@@ -25,7 +26,7 @@ export default function KycFreespinConfigModal({ open, onClose }: Props) {
       '2026-01-09 00:00:00',
       '2026-12-31 23:59:59',
     ),
-    freeSpin: defaultFreeSpinValues,
+    freeSpin: { ...defaultFreeSpinValues, fsCount: kycFreespinDefaultConfig.fsCount },
     googleCode: undefined,
   };
 
@@ -54,6 +55,7 @@ export default function KycFreespinConfigModal({ open, onClose }: Props) {
           e2ePrefix={E2E}
           hideFields={['reviewMode', 'creditMode']}
           gameLimitToProvider
+          showSpinCount
         />
       ),
     },

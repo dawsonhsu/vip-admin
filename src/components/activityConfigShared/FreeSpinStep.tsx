@@ -51,6 +51,8 @@ interface FreeSpinStepProps {
   hideFields?: string[];
   /** When true, 场馆限制 cascader stops at 厂商 (game type → provider), hiding the per-game leaf level. */
   gameLimitToProvider?: boolean;
+  /** When true, render the 免费旋转次数 (spin count) field. Off for tier-based activities that set FS count per-tier. */
+  showSpinCount?: boolean;
 }
 
 /**
@@ -58,7 +60,7 @@ interface FreeSpinStepProps {
  * Must be rendered inside the same <Form> as the rest of the wizard.
  * Pass `showGoogleCode={false}` to hide the Google 2FA input (e.g. inline tab usage).
  */
-export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideFields = [], gameLimitToProvider = false }: FreeSpinStepProps) {
+export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideFields = [], gameLimitToProvider = false, showSpinCount = false }: FreeSpinStepProps) {
   const hide = (field: string) => hideFields.includes(field);
   const freeSpinValues = (Form.useWatch('freeSpin', form) ?? {}) as Record<string, any>;
   const selectedProvider = freeSpinValues.provider as string | undefined;
@@ -144,6 +146,25 @@ export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideField
               />
             </Form.Item>
           </Col>
+
+          {showSpinCount && (
+            <Col span={8}>
+              <Form.Item
+                {...freeSpinItemProps}
+                label="免费旋转次数"
+                name={['freeSpin', 'fsCount']}
+              >
+                <InputNumber
+                  data-e2e-id={`${e2ePrefix}-freespin-fs-count-input`}
+                  min={1}
+                  step={1}
+                  precision={0}
+                  placeholder="例：10"
+                  style={{ width: '100%' }}
+                />
+              </Form.Item>
+            </Col>
+          )}
 
           <Col span={8}>
             <Form.Item
