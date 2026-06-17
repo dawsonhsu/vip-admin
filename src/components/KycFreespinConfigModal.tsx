@@ -29,7 +29,7 @@ export default function KycFreespinConfigModal({ open, onClose }: Props) {
     googleCode: undefined,
   };
 
-  const HIDDEN_BASE_FIELDS = ['wagerVenueRestriction'];
+  const HIDDEN_BASE_FIELDS = ['depositChannels', 'wagerVenueRestriction'];
 
   const steps: WizardStepDef[] = [
     {
