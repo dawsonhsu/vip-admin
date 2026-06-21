@@ -189,27 +189,18 @@ async function fetchLiveEvents() {
   if (pendingFetch) return pendingFetch;
 
   pendingFetch = (async () => {
-    const headers: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (winwinwin-inplay)',
-      Accept: 'application/json',
-    };
-    if (liveCache?.etag) headers['If-None-Match'] = liveCache.etag;
-    if (liveCache?.lastModified) headers['If-Modified-Since'] = liveCache.lastModified;
-
     try {
+      // No conditional GET / cache-buster: 運彩's CloudFront ignores query
+      // strings and request no-cache headers, and a stale-edge 304 used to
+      // pin old (empty) events. The function region is pinned to Asia
+      // (vercel.json regions=hkg1) so it hits a high-traffic, always-fresh edge.
       const response = await fetch(LIVE_GAMES_URL, {
-        headers,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (winwinwin-inplay)',
+          Accept: 'application/json',
+        },
         cache: 'no-store',
       });
-
-      if (response.status === 304 && liveCache) {
-        liveCache = {
-          ...liveCache,
-          fetchedAt: new Date().toISOString(),
-          expiresAt: Date.now() + CACHE_MS,
-        };
-        return liveCache;
-      }
 
       if (!response.ok) {
         if (liveCache) return liveCache;
@@ -221,8 +212,6 @@ async function fetchLiveEvents() {
       liveCache = {
         expiresAt: Date.now() + CACHE_MS,
         fetchedAt: new Date().toISOString(),
-        etag: response.headers.get('etag') ?? liveCache?.etag,
-        lastModified: response.headers.get('last-modified') ?? liveCache?.lastModified,
         events,
       };
       return liveCache;
