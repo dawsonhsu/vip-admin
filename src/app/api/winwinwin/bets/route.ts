@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromCookies } from '@/lib/winwinwin/auth';
+import { getInPlayData } from '@/lib/winwinwin/inplay';
 import { appendBet, getBets, getMatches, getOdds, getOutrights } from '@/lib/winwinwin/sheets';
 import type { BetPostBody, BetRow } from '@/lib/winwinwin/types';
 
@@ -31,6 +32,44 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as BetPostBody | null;
   const stake = validStake(body?.stake);
   if (!body || !stake) return jsonError('invalid_bet', 400);
+
+  if (body.bet_type === 'inplay') {
+    if (!body.no || !body.market_id || !body.selection_id) return jsonError('invalid_inplay_bet', 400);
+
+    let inplay;
+    try {
+      inplay = await getInPlayData('足球');
+    } catch {
+      return jsonError('inplay_unavailable', 503);
+    }
+
+    const match = inplay.matches.find((row) => row.no === body.no);
+    const market = match?.markets.find((row) => row.market_id === body.market_id);
+    const selection = market?.selections.find((row) => row.selection_id === body.selection_id);
+    if (!match || !market || !selection) return jsonError('inplay_market_gone', 409);
+
+    const bet: BetRow = {
+      bet_id: crypto.randomUUID(),
+      created_at: new Date().toISOString(),
+      email: session.email,
+      name: session.name,
+      bet_type: 'inplay',
+      match_name: `${match.home_team} vs ${match.away_team}`,
+      match_time: match.start_time,
+      api_match_id: match.api_match_id,
+      outright_id: '',
+      market_category: market.market_category,
+      market_label_zh: market.market_label_zh,
+      selection_label_zh: selection.selection_label_zh,
+      line: selection.line,
+      price_decimal: selection.price_decimal,
+      stake,
+      status: 'pending',
+    };
+
+    await appendBet(bet);
+    return NextResponse.json({ bet }, { status: 201 });
+  }
 
   if (body.bet_type === 'match') {
     if (!body.api_match_id || !body.market_key) return jsonError('invalid_match_bet', 400);

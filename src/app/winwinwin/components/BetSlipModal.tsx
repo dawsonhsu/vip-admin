@@ -40,17 +40,32 @@ export default function BetSlipModal({ open, selection, onClose }: BetSlipModalP
     }
 
     setSubmitting(true);
+    const payload =
+      selection.bet_type === 'inplay'
+        ? {
+            bet_type: selection.bet_type,
+            stake,
+            no: selection.no,
+            market_id: selection.market_id,
+            selection_id: selection.selection_id,
+          }
+        : selection.bet_type === 'outright'
+          ? {
+              bet_type: selection.bet_type,
+              stake,
+              outright_id: selection.outright_id,
+              selection_id: selection.selection_id,
+            }
+          : {
+              bet_type: selection.bet_type,
+              stake,
+              api_match_id: selection.api_match_id,
+              market_key: selection.market_key,
+            };
     const response = await fetch('/api/winwinwin/bets', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        bet_type: selection.bet_type,
-        stake,
-        api_match_id: selection.api_match_id,
-        market_key: selection.market_key,
-        outright_id: selection.outright_id,
-        selection_id: selection.selection_id,
-      }),
+      body: JSON.stringify(payload),
     });
     setSubmitting(false);
 
@@ -59,6 +74,8 @@ export default function BetSlipModal({ open, selection, onClose }: BetSlipModalP
       const errorText =
         data?.error === 'match_locked'
           ? '比賽已鎖盤'
+          : data?.error === 'inplay_market_gone'
+            ? '場中盤口已關閉或賠率已更新，請確認'
           : data?.error === 'odds_closed' || data?.error === 'outright_closed'
             ? '盤口已關閉'
             : '下注失敗';

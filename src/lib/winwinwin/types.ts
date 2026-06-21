@@ -1,6 +1,6 @@
 export type AccountStatus = 'active' | 'disabled';
 export type BetStatus = 'pending' | 'won' | 'lost' | 'void';
-export type BetType = 'match' | 'outright';
+export type BetType = 'match' | 'outright' | 'inplay';
 
 export type UserRow = {
   email: string;
@@ -48,6 +48,46 @@ export type OutrightRow = {
   updated_at: string;
 };
 
+export type InPlaySelection = {
+  selection_id: string;
+  selection_label_zh: string;
+  selection_key: string;
+  line: string;
+  price_decimal: number;
+};
+
+export type InPlayMarket = {
+  market_id: string;
+  market_label_zh: string;
+  market_category: string;
+  period: number;
+  in_running: boolean;
+  selections: InPlaySelection[];
+};
+
+export type InPlayMatch = {
+  no: string;
+  api_match_id: string;
+  home_team: string;
+  away_team: string;
+  start_time: string;
+  tournament: string;
+  country: string;
+  sr_id: string;
+  live: {
+    status: string | null;
+    serve: string | null;
+    scores: Record<string, { home: number; away: number }> | null;
+  } | null;
+  total_market_count: number;
+  markets: InPlayMarket[];
+};
+
+export type InPlayResponse = {
+  updated_at: string;
+  matches: InPlayMatch[];
+};
+
 export type BetRow = {
   bet_id: string;
   created_at: string;
@@ -77,7 +117,9 @@ export type BetSelection = {
   event_label: string;
   event_time?: string;
   api_match_id?: string;
+  no?: string;
   market_key?: string;
+  market_id?: string;
   outright_id?: string;
   selection_id?: string;
   market_category: string;
@@ -91,7 +133,9 @@ export type BetPostBody = {
   bet_type: BetType;
   stake: number;
   api_match_id?: string;
+  no?: string;
   market_key?: string;
+  market_id?: string;
   outright_id?: string;
   selection_id?: string;
 };

@@ -46,6 +46,17 @@ function TrophyIcon({ active }: { active: boolean }) {
   );
 }
 
+function LiveIcon({ active }: { active: boolean }) {
+  const c = active ? '#D4AF37' : '#6b7a6e';
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="8" stroke={c} strokeWidth="2" />
+      <circle cx="12" cy="12" r="3" fill="#dc2626" />
+      <path d="M12 1v3M12 20v3M1 12h3M20 12h3" stroke={c} strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function MyBetsIcon({ active }: { active: boolean }) {
   const c = active ? '#D4AF37' : '#6b7a6e';
   return (
@@ -84,6 +95,7 @@ function LeaderboardIcon({ active }: { active: boolean }) {
 
 const tabs = [
   { href: '/winwinwin/home', label: '賽事', Icon: HomeIcon },
+  { href: '/winwinwin/in-play', label: '場中', Icon: LiveIcon, live: true },
   { href: '/winwinwin/outrights', label: '冠軍', Icon: TrophyIcon },
   { href: '/winwinwin/my-bets', label: '我的', Icon: MyBetsIcon },
   { href: '/winwinwin/all-bets', label: '全部', Icon: AllBetsIcon },
@@ -107,8 +119,8 @@ export default function BottomNav() {
         zIndex: 20,
       }}
     >
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', height: 64 }}>
-        {tabs.map(({ href, label, Icon }) => {
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', height: 64 }}>
+        {tabs.map(({ href, label, Icon, live }) => {
           const active = pathname === href || pathname?.startsWith(`${href}/`);
           return (
             <button
@@ -146,11 +158,25 @@ export default function BottomNav() {
                 style={{
                   fontSize: 11,
                   fontWeight: active ? 700 : 500,
-                  color: active ? '#D4AF37' : '#6b7a6e',
+                  color: live && !active ? '#ef4444' : active ? '#D4AF37' : '#6b7a6e',
                   fontFamily: 'var(--font-sans), system-ui, sans-serif',
                   letterSpacing: '0.02em',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
                 }}
               >
+                {live && (
+                  <span
+                    style={{
+                      width: 5,
+                      height: 5,
+                      borderRadius: 999,
+                      background: '#dc2626',
+                      display: 'inline-block',
+                    }}
+                  />
+                )}
                 {label}
               </span>
             </button>
