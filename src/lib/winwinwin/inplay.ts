@@ -190,11 +190,13 @@ async function fetchLiveEvents() {
 
   pendingFetch = (async () => {
     try {
-      // No conditional GET / cache-buster: 運彩's CloudFront ignores query
-      // strings and request no-cache headers, and a stale-edge 304 used to
-      // pin old (empty) events. The function region is pinned to Asia
-      // (vercel.json regions=hkg1) so it hits a high-traffic, always-fresh edge.
-      const response = await fetch(LIVE_GAMES_URL, {
+      // 運彩 sends NO cache-control. CloudFront edges in datacenter regions
+      // (where Vercel functions run) cache this file STALE — consumer ISP edges
+      // stay fresh from traffic, but low-traffic datacenter edges serve an old
+      // copy under the default TTL. A unique query param per fetch is never in
+      // any edge's cache → forces a MISS → S3 origin → fresh data every time.
+      const bustUrl = `${LIVE_GAMES_URL}?_=${Date.now()}`;
+      const response = await fetch(bustUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (winwinwin-inplay)',
           Accept: 'application/json',
