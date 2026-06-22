@@ -346,13 +346,20 @@ export async function getInPlay(): Promise<InPlayResponse> {
     } catch {
       continue;
     }
-    match.markets = (match.markets ?? []).map((m) => ({
-      ...m,
-      selections: (m.selections ?? []).map((s) => ({
-        ...s,
-        price_decimal: applyInPlayMargin(numberValue(s.price_decimal)),
-      })),
-    }));
+    match.markets = (match.markets ?? [])
+      // Drop 不讓分 / 獨贏 (match-result 1X2, full + half = category 'Main') per Darren:
+      // 運彩 keeps only this market alive then locks it in the endgame, and the
+      // static feed can't expose that lock, so we remove it from in-play entirely.
+      .filter((m) => m.market_category !== 'Main')
+      .map((m) => ({
+        ...m,
+        selections: (m.selections ?? []).map((s) => ({
+          ...s,
+          price_decimal: applyInPlayMargin(numberValue(s.price_decimal)),
+        })),
+      }));
+    if (match.markets.length === 0) continue; // nothing bettable left (e.g. endgame)
+    match.total_market_count = match.markets.length;
     matches.push(match);
     const ts = stringValue(row.updated_at);
     if (ts > updatedAt) updatedAt = ts;

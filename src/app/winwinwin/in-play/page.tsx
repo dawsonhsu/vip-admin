@@ -69,6 +69,7 @@ function mainMarket(match: InPlayMatch) {
   return (
     match.markets.find((market) => market.market_category === 'Main' && market.period === 0) ??
     match.markets.find((market) => market.market_category === 'Main') ??
+    match.markets[0] ?? // 不讓分 (Main) is filtered out of in-play — show the first remaining market
     null
   );
 }
