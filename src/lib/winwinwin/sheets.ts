@@ -124,6 +124,21 @@ export function getOddsMargin(): number {
   return oddsMargin();
 }
 
+// In-play uses Taiwan Sports Lottery odds, which are already shaved harder than
+// Pinnacle. Instead of cutting, we BOOST the displayed in-play odds by +3%
+// (default) so they're more attractive. Configurable via WINWINWIN_INPLAY_MARGIN.
+function inPlayBoost(): number {
+  const raw = Number(process.env.WINWINWIN_INPLAY_MARGIN);
+  if (!Number.isFinite(raw) || raw < 0 || raw >= 1) return 0.03;
+  return raw;
+}
+
+function applyInPlayMargin(decimal: number): number {
+  if (!Number.isFinite(decimal) || decimal <= 1) return decimal;
+  const adjusted = decimal * (1 + inPlayBoost());
+  return Math.max(1.01, Math.round(adjusted * 100) / 100);
+}
+
 function hasSheetsConfig() {
   return Boolean(
     process.env.WINWINWIN_SHEETS_ID &&
@@ -316,8 +331,8 @@ export async function getOutrights() {
 // In-play is produced by the local Windows scheduler (inplay_scheduler.py), which
 // fetches Taiwan Sports Lottery from a fresh consumer edge and writes one row per
 // live match to the `inplay` tab: [no, updated_at, match_json]. We parse match_json
-// (already the InPlayMatch shape, raw decimal odds) and apply the house margin here,
-// matching how pre-match odds are handled in mapOdds.
+// (already the InPlayMatch shape, RAW decimal odds) and BOOST each price by +3%
+// (applyInPlayMargin) — unlike pre-match which CUTS 3% — because 運彩 odds are worse.
 export async function getInPlay(): Promise<InPlayResponse> {
   const rows = await readRows('inplay');
   const matches: InPlayMatch[] = [];
@@ -335,7 +350,7 @@ export async function getInPlay(): Promise<InPlayResponse> {
       ...m,
       selections: (m.selections ?? []).map((s) => ({
         ...s,
-        price_decimal: applyMargin(numberValue(s.price_decimal)),
+        price_decimal: applyInPlayMargin(numberValue(s.price_decimal)),
       })),
     }));
     matches.push(match);
