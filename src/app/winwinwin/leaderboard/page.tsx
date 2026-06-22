@@ -29,6 +29,13 @@ export default async function LeaderboardPage() {
     .map(([email, s]) => ({ email, ...s }))
     .sort((a, b) => b.net - a.net);
 
+  // House profit = sum of P&L across all settled bets from the house's side.
+  // It's zero-sum vs players, so house = -(sum of every player's net).
+  // Positive => house is ahead.
+  const houseNet = -rows.reduce((sum, r) => sum + r.net, 0);
+  const settledCount = rows.reduce((sum, r) => sum + r.won + r.lost, 0);
+  const houseColor = houseNet > 0 ? '#D4AF37' : houseNet < 0 ? '#f87171' : '#a89a72';
+
   const medals = ['🥇', '🥈', '🥉'];
 
   return (
@@ -62,6 +69,45 @@ export default async function LeaderboardPage() {
       </header>
 
       <div style={{ padding: '14px' }}>
+        {/* House profit banner — total of all settled bets' P&L (house side) */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, rgba(212,175,55,0.16) 0%, rgba(184,150,15,0.07) 100%)',
+            border: '1px solid rgba(212,175,55,0.4)',
+            borderRadius: 14,
+            padding: '16px 18px',
+            marginBottom: 14,
+            boxShadow: '0 4px 20px rgba(212,175,55,0.12)',
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{
+              fontSize: 12,
+              color: '#c4b078',
+              letterSpacing: '0.08em',
+              fontWeight: 700,
+              marginBottom: 6,
+            }}
+          >
+            🏦 莊家收益
+          </div>
+          <div
+            style={{
+              fontSize: 34,
+              fontWeight: 900,
+              color: houseColor,
+              fontFamily: 'var(--font-serif), serif',
+              lineHeight: 1,
+            }}
+          >
+            {houseNet > 0 ? `+${houseNet}` : houseNet}
+          </div>
+          <div style={{ fontSize: 11, color: '#6b7a6e', marginTop: 7 }}>
+            所有已結算注單輸贏總和（{settledCount} 注）
+          </div>
+        </div>
+
         {rows.length === 0 ? (
           <div
             style={{
