@@ -22,6 +22,8 @@ export interface DepositChannel {
    *  - 字串 (例 "huawei")：僅 source / X-App-Package header 為相同字串的客戶端可見
    */
   packageScope: string;
+  /** 扣除金額比例 (%)，僅 Huawei IAP 渠道適用。會員實際到帳金額 = 存款金額 * (1 - deductionRatio/100) */
+  deductionRatio?: number;
   lastUpdatedAt: string;
   updatedBy: string;
 }
@@ -67,7 +69,7 @@ export const depositChannels: DepositChannel[] = [
   { id: 6, channelId: '61638710873091051', nameEn: 'INSTA', nameTa: 'INSTA', category: 'InstaPay', iconUrl: '', callMode: '一般', weight: 1, status: true, clientTypes: ['PC', 'H5', 'Android', 'iOS'], amountMin: 100, amountMax: 200000, firstDepositButtons: DEFAULT_FIRST, repeatDepositButtons: DEFAULT_REPEAT, visibleVipLevels: ['ALL'], visibleRiskLabels: [], packageScope: '', lastUpdatedAt: '2026-06-02 09:31:08', updatedBy: 'davinci@filbetph.com' },
   { id: 7, channelId: '61638710873091052', nameEn: 'PESONET', nameTa: 'PESONET', category: 'PesoNet', iconUrl: '', callMode: '一般', weight: 1, status: false, clientTypes: ['PC', 'H5', 'Android', 'iOS'], amountMin: 500, amountMax: 1000000, firstDepositButtons: DEFAULT_FIRST, repeatDepositButtons: DEFAULT_REPEAT, visibleVipLevels: ['ALL'], visibleRiskLabels: [], packageScope: '', lastUpdatedAt: '2026-06-02 09:31:42', updatedBy: 'davinci@filbetph.com' },
   // 範例：華為包專屬渠道（packageScope = "huawei"）
-  { id: 99, channelId: 'HW-IAP-2026', nameEn: 'Huawei IAP', nameTa: 'Huawei IAP', category: 'Huawei IAP', iconUrl: '', callMode: '一般', weight: 1, status: true, clientTypes: ['Android'], amountMin: 100, amountMax: 10000, firstDepositButtons: [100, 300, 500], repeatDepositButtons: [100, 300, 500, 1000, 3000, 5000], visibleVipLevels: ['ALL'], visibleRiskLabels: [], packageScope: 'huawei', lastUpdatedAt: '2026-06-12 22:00:00', updatedBy: 'darren@filbetph.com' },
+  { id: 99, channelId: 'HW-IAP-2026', nameEn: 'Huawei IAP', nameTa: 'Huawei IAP', category: 'Huawei IAP', iconUrl: '', callMode: '一般', weight: 1, status: true, clientTypes: ['Android'], amountMin: 100, amountMax: 10000, firstDepositButtons: [100, 300, 500], repeatDepositButtons: [100, 300, 500, 1000, 3000, 5000], visibleVipLevels: ['ALL'], visibleRiskLabels: [], packageScope: 'huawei', deductionRatio: 30, lastUpdatedAt: '2026-06-12 22:00:00', updatedBy: 'darren@filbetph.com' },
 ];
 
 export const depositMerchants: DepositMerchant[] = [

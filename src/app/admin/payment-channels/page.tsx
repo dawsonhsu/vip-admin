@@ -250,6 +250,23 @@ export default function PaymentChannelsPage() {
       >
         <Input maxLength={32} placeholder="留空 = 所有客戶端可見；例：huawei" />
       </Form.Item>
+      <Form.Item noStyle shouldUpdate={(prev: any, cur: any) => prev.category !== cur.category}>
+        {({ getFieldValue }) =>
+          getFieldValue('category') === 'Huawei IAP' ? (
+            <Form.Item
+              label={
+                <Space size={4}>扣除金額比例
+                  <Tooltip title="會員實際到帳金額＝存款金額*（1-扣除金額比例）"><QuestionCircleOutlined style={{ color: '#999' }} /></Tooltip>
+                </Space>
+              }
+              name="deductionRatio"
+              extra="僅 Huawei IAP 渠道適用；會員實際到帳 = 存款金額 × (1 - 扣除金額比例)。"
+            >
+              <InputNumber min={0} max={100} step={0.1} suffix="%" style={{ width: 160 }} placeholder="例：30 表示扣除 30%" />
+            </Form.Item>
+          ) : null
+        }
+      </Form.Item>
     </Form>
   );
 
