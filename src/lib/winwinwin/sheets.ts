@@ -1,6 +1,7 @@
-import type { BetRow, BetStatus, MatchRow, OddsRow, OutrightRow, UserRow } from './types';
+import type { BetRow, BetStatus, InPlayMatch, InPlayResponse, MatchRow, OddsRow, OutrightRow, UserRow } from './types';
 
 const CACHE_MS = 30_000;
+const INPLAY_CACHE_MS = 10_000; // in-play moves fast — read Sheets at most ~6x/min/instance
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
 
 const BET_COLUMNS: Array<keyof BetRow> = [
@@ -22,7 +23,7 @@ const BET_COLUMNS: Array<keyof BetRow> = [
   'status',
 ];
 
-type SheetName = 'users' | 'matches' | 'odds' | 'outrights' | 'bets';
+type SheetName = 'users' | 'matches' | 'odds' | 'outrights' | 'bets' | 'inplay';
 type SheetRecord = Record<string, string>;
 
 let sheetsClient: any = null;
@@ -186,7 +187,8 @@ async function readRows(sheetName: SheetName) {
     );
 
   if (sheetName !== 'bets') {
-    cache.set(sheetName, { expiresAt: Date.now() + CACHE_MS, rows: normalized });
+    const ttl = sheetName === 'inplay' ? INPLAY_CACHE_MS : CACHE_MS;
+    cache.set(sheetName, { expiresAt: Date.now() + ttl, rows: normalized });
   }
 
   return normalized;
@@ -198,6 +200,7 @@ function mockRows(sheetName: SheetName): SheetRecord[] {
   if (sheetName === 'matches') return mockMatches.map((row) => stringifyRecord(row));
   if (sheetName === 'odds') return mockOdds.map((row) => stringifyRecord(row));
   if (sheetName === 'outrights') return mockOutrights.map((row) => stringifyRecord(row));
+  if (sheetName === 'inplay') return [];
   return mockBets.map((row) => stringifyRecord(row));
 }
 
@@ -308,6 +311,38 @@ export async function getOdds(matchId?: string) {
 
 export async function getOutrights() {
   return (await readRows('outrights')).map(mapOutright).filter((row) => row.outright_id);
+}
+
+// In-play is produced by the local Windows scheduler (inplay_scheduler.py), which
+// fetches Taiwan Sports Lottery from a fresh consumer edge and writes one row per
+// live match to the `inplay` tab: [no, updated_at, match_json]. We parse match_json
+// (already the InPlayMatch shape, raw decimal odds) and apply the house margin here,
+// matching how pre-match odds are handled in mapOdds.
+export async function getInPlay(): Promise<InPlayResponse> {
+  const rows = await readRows('inplay');
+  const matches: InPlayMatch[] = [];
+  let updatedAt = '';
+  for (const row of rows) {
+    const raw = stringValue(row.match_json);
+    if (!raw) continue;
+    let match: InPlayMatch;
+    try {
+      match = JSON.parse(raw) as InPlayMatch;
+    } catch {
+      continue;
+    }
+    match.markets = (match.markets ?? []).map((m) => ({
+      ...m,
+      selections: (m.selections ?? []).map((s) => ({
+        ...s,
+        price_decimal: applyMargin(numberValue(s.price_decimal)),
+      })),
+    }));
+    matches.push(match);
+    const ts = stringValue(row.updated_at);
+    if (ts > updatedAt) updatedAt = ts;
+  }
+  return { updated_at: updatedAt, matches };
 }
 
 export async function getBets() {

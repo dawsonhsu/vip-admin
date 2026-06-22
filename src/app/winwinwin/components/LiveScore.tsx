@@ -15,7 +15,11 @@ const statusLabels: Record<string, string> = {
   '1h': '上半場',
   '2h': '下半場',
   ht: '中場',
+  paused: '中場',
   ft: '完場',
+  ended: '完場',
+  aet: '延長賽',
+  pen: 'PK 大戰',
 };
 
 function statusLabel(status: string | null | undefined) {
