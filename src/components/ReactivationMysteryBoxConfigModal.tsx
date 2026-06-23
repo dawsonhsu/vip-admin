@@ -333,7 +333,7 @@ function PrizePanel({
 
       <Space direction="vertical" size={16} style={{ width: '100%' }}>
         <Row gutter={[16, 12]} align="top">
-          <Col span={6}>
+          <Col span={8}>
             <Form.Item
               {...compactItemProps}
               label="启用"
