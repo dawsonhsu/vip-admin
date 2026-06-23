@@ -89,6 +89,7 @@ const menuItems: MenuItem[] = [
     children: [
       { key: '/admin/activity-list', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-activity-list">活動列表</span> },
       { key: '/admin/ops-tools', icon: <ToolOutlined />, label: <span data-e2e-id="layout-menu-ops-tools">運營小工具</span> },
+      { key: '/admin/jackpot-board', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-jackpot-board">爆獎榜管理</span> },
     ],
   },
   { key: 'promotion', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-promotion">推廣管理</span> },
@@ -129,6 +130,7 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/game-management': '遊戲管理',
   '/admin/activity-list': '活動列表',
   '/admin/ops-tools': '運營小工具',
+  '/admin/jackpot-board': '爆獎榜管理',
   '/admin/deposit-records': '存款記錄',
   '/admin/payment-channels': '支付渠道 V2',
   '/admin/up-down-score': '上下分紀錄',
@@ -149,6 +151,7 @@ const parentBreadcrumbMap: Record<string, string> = {
   '/admin/game-management': '遊戲管理',
   '/admin/activity-list': '運營管理',
   '/admin/ops-tools': '運營管理',
+  '/admin/jackpot-board': '運營管理',
   '/admin/deposit-records': '財務管理',
   '/admin/payment-channels': '財務管理',
   '/admin/up-down-score': '風控管理',
