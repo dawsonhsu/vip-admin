@@ -2,7 +2,6 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  Card,
   Col,
   Divider,
   Form,
@@ -96,7 +95,7 @@ function ValueAmountFields({
   if (valueMode === 'range') {
     return (
       <>
-        <Col span={8}>
+        <Col span={6}>
           <Form.Item
             {...compactItemProps}
             label="最小值"
@@ -112,7 +111,7 @@ function ValueAmountFields({
             />
           </Form.Item>
         </Col>
-        <Col span={8}>
+        <Col span={6}>
           <Form.Item
             {...compactItemProps}
             label="最大值"
@@ -133,7 +132,7 @@ function ValueAmountFields({
   }
 
   return (
-    <Col span={8}>
+    <Col span={6}>
       <Form.Item
         {...compactItemProps}
         label="固定值"
@@ -149,98 +148,6 @@ function ValueAmountFields({
         />
       </Form.Item>
     </Col>
-  );
-}
-
-function FreeSpinQuantityFields({
-  form,
-  index,
-  enabled,
-}: {
-  form: FormInstance;
-  index: number;
-  enabled: boolean;
-}) {
-  const prizeValues = (Form.useWatch(['prizePool', index], form) ?? defaultPrizePool[index]) as PrizeConfig;
-  const quantityMode = prizeValues.fsQuantityMode ?? 'fixed';
-
-  return (
-    <Card size="small" title="FS 数量" style={{ marginTop: 16 }}>
-      <Row gutter={[16, 12]}>
-        <Col span={8}>
-          <Form.Item
-            {...compactItemProps}
-            label="出值模式"
-            name={['prizePool', index, 'fsQuantityMode']}
-            rules={[{ required: enabled, message: '请选择 FS 数量出值模式' }]}
-          >
-            <Radio.Group
-              data-e2e-id={`${E2E}-prize-freeSpins-fs-quantity-mode-radio`}
-              disabled={!enabled}
-            >
-              <Radio value="fixed">固定值</Radio>
-              <Radio value="range">区间随机</Radio>
-            </Radio.Group>
-          </Form.Item>
-        </Col>
-        {quantityMode === 'range' ? (
-          <>
-            <Col span={8}>
-              <Form.Item
-                {...compactItemProps}
-                label="最小次数"
-                name={['prizePool', index, 'fsQuantityMin']}
-                rules={[{ required: enabled, message: '请输入最小次数' }]}
-              >
-                <InputNumber
-                  data-e2e-id={`${E2E}-prize-freeSpins-fs-quantity-min-input`}
-                  min={1}
-                  precision={0}
-                  addonAfter="次"
-                  disabled={!enabled}
-                  style={{ width: '100%' }}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                {...compactItemProps}
-                label="最大次数"
-                name={['prizePool', index, 'fsQuantityMax']}
-                rules={[{ required: enabled, message: '请输入最大次数' }]}
-              >
-                <InputNumber
-                  data-e2e-id={`${E2E}-prize-freeSpins-fs-quantity-max-input`}
-                  min={1}
-                  precision={0}
-                  addonAfter="次"
-                  disabled={!enabled}
-                  style={{ width: '100%' }}
-                />
-              </Form.Item>
-            </Col>
-          </>
-        ) : (
-          <Col span={8}>
-            <Form.Item
-              {...compactItemProps}
-              label="固定次数"
-              name={['prizePool', index, 'fsQuantityFixed']}
-              rules={[{ required: enabled, message: '请输入固定次数' }]}
-            >
-              <InputNumber
-                data-e2e-id={`${E2E}-prize-freeSpins-fs-quantity-fixed-input`}
-                min={1}
-                precision={0}
-                addonAfter="次"
-                disabled={!enabled}
-                style={{ width: '100%' }}
-              />
-            </Form.Item>
-          </Col>
-        )}
-      </Row>
-    </Card>
   );
 }
 
@@ -262,7 +169,7 @@ function PrizePanel({
       case 'bonus':
         return (
           <Row gutter={[16, 12]}>
-            <Col span={24}>
+            <Col span={16}>
               <Form.Item
                 {...compactItemProps}
                 label="适用场馆"
@@ -294,18 +201,6 @@ function PrizePanel({
       case 'depositCoupon':
         return (
           <Row gutter={[16, 12]}>
-            <Col span={8}>
-              <Form.Item
-                {...compactItemProps}
-                label="加成型态"
-                name={['prizePool', index, 'bonusMode']}
-              >
-                <Radio.Group data-e2e-id={`${E2E}-prize-depositCoupon-bonus-mode-radio`} disabled={!enabled}>
-                  <Radio value="ratio">比例 %</Radio>
-                  <Radio value="fixed">固定额</Radio>
-                </Radio.Group>
-              </Form.Item>
-            </Col>
             <Col span={8}>
               <Form.Item
                 {...compactItemProps}
@@ -361,18 +256,6 @@ function PrizePanel({
             <Col span={8}>
               <Form.Item
                 {...compactItemProps}
-                label="返还型态"
-                name={['prizePool', index, 'rebateMode']}
-              >
-                <Radio.Group data-e2e-id={`${E2E}-prize-rebateCoupon-rebate-mode-radio`} disabled={!enabled}>
-                  <Radio value="ratio">比例 %</Radio>
-                  <Radio value="fixed">固定额</Radio>
-                </Radio.Group>
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                {...compactItemProps}
                 label="彩金上限"
                 name={['prizePool', index, 'bonusCap']}
               >
@@ -416,26 +299,20 @@ function PrizePanel({
         );
       case 'freeSpins':
         return (
-          <>
-            <FreeSpinQuantityFields form={form} index={index} enabled={enabled} />
-            <FreeSpinStep
-              form={form}
-              e2ePrefix={`${E2E}-freeSpins`}
-              showGoogleCode={false}
-            />
-          </>
+          <FreeSpinStep
+            form={form}
+            e2ePrefix={`${E2E}-freeSpins`}
+            showGoogleCode={false}
+          />
         );
       case 'filCoins':
-        return (
-          <Text type="secondary">
-            {prizeValues.purposeNote ?? defaultPrizePool[index].purposeNote}
-          </Text>
-        );
+        return null;
       default:
         return null;
     }
   };
   const extraFields = renderExtraFields();
+  const showExtraDivider = type === 'bonus' || type === 'depositCoupon' || type === 'rebateCoupon';
 
   return (
     <div
@@ -488,7 +365,10 @@ function PrizePanel({
               />
             </Form.Item>
           </Col>
-          <Col span={12}>
+        </Row>
+
+        <Row gutter={[16, 12]}>
+          <Col span={8}>
             <Form.Item
               {...compactItemProps}
               label="出值模式"
@@ -504,13 +384,10 @@ function PrizePanel({
               </Radio.Group>
             </Form.Item>
           </Col>
-        </Row>
-
-        <Row gutter={[16, 12]}>
           <ValueAmountFields form={form} index={index} type={type} enabled={enabled} />
         </Row>
 
-        {extraFields && (
+        {type === 'freeSpins' ? extraFields : showExtraDivider && extraFields && (
           <>
             <Divider orientation="left" style={{ margin: '4px 0 0' }}>
               专属设定
