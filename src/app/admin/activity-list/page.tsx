@@ -21,6 +21,7 @@ import {
   EditOutlined,
   ReloadOutlined,
   SearchOutlined,
+  SendOutlined,
   SettingOutlined,
   BarChartOutlined,
 } from '@ant-design/icons';
@@ -43,6 +44,7 @@ import DailyCumulativeConfigModal from '@/components/DailyCumulativeConfigModal'
 import KycFreespinConfigModal from '@/components/KycFreespinConfigModal';
 import DailyMultiDepositConfigModal from '@/components/DailyMultiDepositConfigModal';
 import ReactivationMysteryBoxConfigModal from '@/components/ReactivationMysteryBoxConfigModal';
+import ReactivationMysteryBoxGrantModal from '@/components/ReactivationMysteryBoxGrantModal';
 import ReactivationMysteryBoxReportModal from '@/components/ReactivationMysteryBoxReportModal';
 
 // 识别哪些活动是 FreeBet 类型（可拆独立配置 + 报表）
@@ -72,6 +74,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const [triDepositConfigOpen, setTriDepositConfigOpen] = useState(false);
   const [triDepositReportOpen, setTriDepositReportOpen] = useState(false);
   const [recallMysteryBoxConfigOpen, setRecallMysteryBoxConfigOpen] = useState(false);
+  const [recallMysteryBoxGrantOpen, setRecallMysteryBoxGrantOpen] = useState(false);
   const [recallMysteryBoxReportOpen, setRecallMysteryBoxReportOpen] = useState(false);
   const [vipCheckinConfigOpen, setVipCheckinConfigOpen] = useState(false);
   const [dailyCumulativeConfigOpen, setDailyCumulativeConfigOpen] = useState(false);
@@ -263,7 +266,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
     {
       title: '操作',
       key: 'actions',
-      width: 180,
+      width: 240,
       fixed: 'right',
       render: (_, record) => (
         <Space size={0} split={<span style={{ color: '#d9d9d9' }}>|</span>}>
@@ -287,6 +290,17 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
               onClick={() => handleViewReport(record)}
             >
               查看报表
+            </Button>
+          )}
+          {record.id === RECALL_MYSTERY_BOX_ID && (
+            <Button
+              data-e2e-id={`activity-list-table-grant-btn-${record.id}`}
+              type="link"
+              size="small"
+              icon={<SendOutlined />}
+              onClick={() => setRecallMysteryBoxGrantOpen(true)}
+            >
+              派發
             </Button>
           )}
         </Space>
@@ -399,6 +413,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <ReactivationMysteryBoxConfigModal
         open={recallMysteryBoxConfigOpen}
         onClose={() => setRecallMysteryBoxConfigOpen(false)}
+      />
+      <ReactivationMysteryBoxGrantModal
+        open={recallMysteryBoxGrantOpen}
+        onClose={() => setRecallMysteryBoxGrantOpen(false)}
       />
       <ReactivationMysteryBoxReportModal
         open={recallMysteryBoxReportOpen}
