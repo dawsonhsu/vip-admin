@@ -1,24 +1,20 @@
 import dayjs from 'dayjs';
 
 export type SlotProviderCode = 'FC' | 'JDB' | 'JILI' | 'PG' | 'PP';
-export type JackpotEventStatus = 'listed' | 'removed' | 'risk_blocked';
 
 export interface JackpotEvent {
   key: string;
   id: number;
-  triggerTime: string;
+  pushTime: string;
   account: string;
-  accountRaw: string;
+  phone: string;
   vipLevel: string;
   game: string;
   provider: SlotProviderCode;
   betAmount: number;
   multiplier: number;
   winAmount: number;
-  status: JackpotEventStatus;
   sourceBetNo: string;
-  lastOperator: string;
-  removedReason?: string;
 }
 
 export interface JackpotBlacklistEntry {
@@ -27,13 +23,6 @@ export interface JackpotBlacklistEntry {
   reason: string;
   operator: string;
   addedAt: string;
-}
-
-export interface JackpotOptOutEntry {
-  key: string;
-  account: string;
-  optOutAt: string;
-  scope: string;
 }
 
 export const slotProviders: Array<{ code: SlotProviderCode; name: string }> = [
@@ -70,10 +59,9 @@ export const providerGames: Record<SlotProviderCode, Array<{ code: string; name:
   ],
 };
 
-const removedReasons = ['風控標記帳號', '測試帳號', '注單作廢', '重複霸榜'];
-const operators = ['admin01', 'admin02', 'ops01', 'risk01'];
 const betAmounts = [5, 10, 20, 25, 50, 80, 100, 150, 200, 300, 500];
 const accounts = [
+  'goldentiger69',
   'jade8888',
   'jackpot77',
   'marco2688',
@@ -120,24 +108,15 @@ const randDec = (rng: () => number, min: number, max: number, digits = 2) =>
 
 const pick = <T>(rng: () => number, list: T[]): T => list[randInt(rng, 0, list.length - 1)];
 
-const maskAccount = (account: string) => {
-  if (account.length <= 4) return `${account.slice(0, 1)}***${account.slice(-1)}`;
-  return `${account.slice(0, 2)}***${account.slice(-2)}`;
-};
-
 const createMultiplier = (rng: () => number) => {
   const roll = rng();
-  if (roll < 0.8) return randDec(rng, 50, 300, 2);
-  if (roll < 0.95) return randDec(rng, 300, 1000, 2);
+  if (roll < 0.84) return randDec(rng, 50, 300, 2);
+  if (roll < 0.97) return randDec(rng, 300, 1000, 2);
   return randDec(rng, 1000, 5000, 2);
 };
 
-const createStatus = (rng: () => number): JackpotEventStatus => {
-  const roll = rng();
-  if (roll < 0.8) return 'listed';
-  if (roll < 0.92) return 'removed';
-  return 'risk_blocked';
-};
+const createPhone = (rng: () => number) =>
+  `09${Array.from({ length: 9 }, () => randInt(rng, 0, 9)).join('')}`;
 
 export function generateJackpotEvents(count = 110): JackpotEvent[] {
   const todaySeed = Number(dayjs().format('YYYYMMDD'));
@@ -151,31 +130,27 @@ export function generateJackpotEvents(count = 110): JackpotEvent[] {
     const game = pick(rng, providerGames[provider]).name;
     const betAmount = pick(rng, betAmounts);
     const multiplier = createMultiplier(rng);
-    const winAmount = Number((Math.round(betAmount * multiplier * 100) / 100).toFixed(2));
-    const status = createStatus(rng);
-    const accountRaw = `${pick(rng, accounts)}${randInt(rng, 10, 99)}`;
-    const triggerTime = baseTime
+    const winAmount = Math.round(betAmount * multiplier);
+    const account = `${pick(rng, accounts)}${randInt(rng, 10, 99)}`;
+    const pushTime = baseTime
       .subtract(randInt(rng, 0, 72 * 60), 'minute')
       .subtract(index * 3, 'minute');
 
     return {
       key: `jackpot-event-${id}`,
       id,
-      triggerTime: triggerTime.format('YYYY-MM-DD HH:mm:ss'),
-      account: maskAccount(accountRaw),
-      accountRaw,
+      pushTime: pushTime.format('YYYY-MM-DD HH:mm:ss'),
+      account,
+      phone: createPhone(rng),
       vipLevel: `VIP${randInt(rng, 0, 7)}`,
       game,
       provider,
       betAmount,
       multiplier,
       winAmount,
-      status,
-      sourceBetNo: `BET${triggerTime.format('YYYYMMDD')}${String(id).padStart(8, '0')}`,
-      lastOperator: status === 'listed' ? '-' : pick(rng, operators),
-      removedReason: status === 'removed' ? pick(rng, removedReasons) : undefined,
+      sourceBetNo: `BET${pushTime.format('YYYYMMDD')}${String(id).padStart(8, '0')}`,
     };
-  }).sort((a, b) => b.triggerTime.localeCompare(a.triggerTime));
+  }).sort((a, b) => b.pushTime.localeCompare(a.pushTime));
 }
 
 export function generateBlacklist(): JackpotBlacklistEntry[] {
@@ -186,15 +161,5 @@ export function generateBlacklist(): JackpotBlacklistEntry[] {
     { key: 'blacklist-3', account: 'internal_ops7', reason: '內部員工', operator: 'admin02', addedAt: now.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss') },
     { key: 'blacklist-4', account: 'chargeback09', reason: '風控標記帳號', operator: 'risk01', addedAt: now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss') },
     { key: 'blacklist-5', account: 'dup_board88', reason: '重複霸榜', operator: 'ops01', addedAt: now.subtract(4, 'day').format('YYYY-MM-DD HH:mm:ss') },
-  ];
-}
-
-export function generateOptOuts(): JackpotOptOutEntry[] {
-  const now = dayjs().startOf('hour');
-  return [
-    { key: 'opt-out-1', account: 'whale_king88', optOutAt: now.subtract(5, 'hour').format('YYYY-MM-DD HH:mm:ss'), scope: '榜單' },
-    { key: 'opt-out-2', account: 'vip_scarlet7', optOutAt: now.subtract(18, 'hour').format('YYYY-MM-DD HH:mm:ss'), scope: '榜單' },
-    { key: 'opt-out-3', account: 'privateace55', optOutAt: now.subtract(2, 'day').format('YYYY-MM-DD HH:mm:ss'), scope: '榜單' },
-    { key: 'opt-out-4', account: 'quietslot19', optOutAt: now.subtract(3, 'day').format('YYYY-MM-DD HH:mm:ss'), scope: '榜單' },
   ];
 }
