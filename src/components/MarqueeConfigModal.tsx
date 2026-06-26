@@ -156,7 +156,7 @@ export default function MarqueeConfigModal({
         >
           <Input.TextArea
             rows={2}
-            maxLength={120}
+            maxLength={200}
             showCount
             data-e2e-id={`${E2E}-content-input`}
           />
