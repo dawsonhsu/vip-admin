@@ -1,6 +1,6 @@
 import dayjs from 'dayjs';
 
-export type MarqueeType = 'announcement' | 'activity' | 'jackpot' | 'maintenance';
+export type MarqueeType = 'announcement' | 'activity' | 'jackpot' | 'maintenance' | 'other';
 export type MarqueeStatus = 'enabled' | 'disabled';
 export type MarqueeJumpType = 'none' | 'internal' | 'external';
 
@@ -25,6 +25,7 @@ export const marqueeTypeOptions: Array<{ value: MarqueeType; label: string }> = 
   { value: 'activity', label: '活動推廣' },
   { value: 'jackpot', label: '中獎播報' },
   { value: 'maintenance', label: '維護通知' },
+  { value: 'other', label: '其他' },
 ];
 
 export const marqueeJumpTypeOptions: Array<{ value: MarqueeJumpType; label: string }> = [

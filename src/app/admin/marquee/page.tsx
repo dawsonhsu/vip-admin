@@ -7,7 +7,6 @@ import {
   Card,
   DatePicker,
   Form,
-  Input,
   Popconfirm,
   Select,
   Space,
@@ -42,14 +41,12 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 interface FilterValues {
-  keyword?: string;
   type?: MarqueeType | 'all';
   status?: MarqueeStatus | 'all';
   updatedRange?: [Dayjs, Dayjs];
 }
 
 const createDefaultFilters = (): FilterValues => ({
-  keyword: undefined,
   type: 'all',
   status: 'all',
   updatedRange: undefined,
@@ -70,6 +67,7 @@ const typeColorMap: Record<MarqueeType, string> = {
   activity: 'green',
   jackpot: 'gold',
   maintenance: 'volcano',
+  other: 'default',
 };
 
 export default function MarqueePage() {
@@ -82,9 +80,6 @@ export default function MarqueePage() {
   const [editingRecord, setEditingRecord] = useState<MarqueeItem | null>(null);
 
   const filteredData = useMemo(() => data.filter((record) => {
-    const keyword = filters.keyword?.trim().toLowerCase();
-    if (keyword && !record.content.toLowerCase().includes(keyword)) return false;
-
     if (filters.type && filters.type !== 'all' && record.type !== filters.type) return false;
     if (filters.status && filters.status !== 'all' && record.status !== filters.status) return false;
 
@@ -299,14 +294,6 @@ export default function MarqueePage() {
           style={{ rowGap: 12, flexWrap: 'wrap', marginBottom: 16 }}
           data-e2e-id="marquee-filter-form"
         >
-          <Form.Item name="keyword" label="內容關鍵字">
-            <Input
-              allowClear
-              placeholder="輸入內容關鍵字"
-              style={{ width: 220 }}
-              data-e2e-id="marquee-filter-keyword-input"
-            />
-          </Form.Item>
           <Form.Item name="type" label="類型">
             <Select style={{ width: 160 }} data-e2e-id="marquee-filter-type-select">
               <Select.Option value="all">全部</Select.Option>
