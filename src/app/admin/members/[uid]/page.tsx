@@ -15,8 +15,8 @@ import dayjs from 'dayjs';
 import {
   getMemberByUid, updateMember, getVipHistory, appendVipHistory,
   getVipConfig, vipConfig, type MemberItem, type VipLevelHistoryItem, type VipLevelHistoryTy,
-  VipHistoryTyColor, VipHistoryTyLabel,
-  capabilityDict, capabilitySourceLabel, capabilitySourceColor,
+  VipHistoryTyLabel,
+  capabilityDict, capabilitySourceLabel,
   getCapabilityDictItem,
   getMemberCapabilityStates, setMemberCapabilityState,
   getMemberCapabilityLogs, appendMemberCapabilityLog,
@@ -25,6 +25,7 @@ import {
   type CapabilitySource, type CapabilityAction, type AutoRestriction,
 } from '@/data/mockData';
 import { gameStats, inviteStats, personalStats, gameTypes, type GameStat, type GameType, type InviteStat, type PersonalStat } from '@/data/memberStatsData';
+import { getTurnoverDetailsByUid, TURNOVER_SOURCES, type TurnoverDetailItem, type TurnoverSource, type VenueRestrictionItem } from '@/data/turnoverDetailData';
 import RecalcButton from '@/components/RecalcButton';
 
 const { Title, Text } = Typography;
@@ -65,6 +66,12 @@ interface DateRangeFilter {
 
 interface GameDateRangeFilter extends DateRangeFilter {
   gameType: 'ALL' | GameType;
+}
+
+interface TurnoverDetailFilter {
+  sourceOrderIds?: string;
+  dateRange?: [any, any] | null;
+  sources: TurnoverSource[];
 }
 
 type KycPhotoCategory =
@@ -177,12 +184,6 @@ const restrictionActionLabel: Record<CapabilityAction, string> = {
   open: '開啟',
   close: '關閉',
   update: '修改',
-};
-
-const restrictionActionColor: Record<CapabilityAction, string> = {
-  open: 'green',
-  close: 'red',
-  update: 'gold',
 };
 
 const acceptedMimeTypes = '.jpg,.jpeg,.png,.pdf';
@@ -525,7 +526,7 @@ export default function MemberDetailPage() {
           <Descriptions.Item label="保級到期日">
             {dayjs(member.keepExpire, 'YYYYMMDD').format('YYYY-MM-DD')}
             <Text type="secondary" style={{ marginLeft: 8 }}>
-              （{Math.max(0, dayjs(member.keepExpire, 'YYYYMMDD').diff(dayjs(), 'day'))} 天）
+              （{Math.max(0, dayjs(member.keepExpire, 'YYYYMMDD').startOf('day').diff(dayjs().startOf('day'), 'day'))} 天）
             </Text>
           </Descriptions.Item>
         </Descriptions>
@@ -561,23 +562,19 @@ export default function MemberDetailPage() {
       title: '異動前等級',
       dataIndex: 'beforeLevel',
       width: 110,
-      render: (val: number) => <Tag color="blue">V{val}</Tag>,
+      render: (val: number) => `V${val}`,
     },
     {
       title: '異動後等級',
       dataIndex: 'afterLevel',
       width: 110,
-      render: (val: number, r) => (
-        <Tag color={r.afterLevel > r.beforeLevel ? 'green' : r.afterLevel < r.beforeLevel ? 'red' : 'blue'}>V{val}</Tag>
-      ),
+      render: (val: number) => `V${val}`,
     },
     {
       title: '類型',
       dataIndex: 'ty',
       width: 110,
-      render: (val: VipLevelHistoryTy) => (
-        <Tag color={VipHistoryTyColor[val]}>{VipHistoryTyLabel[val]}</Tag>
-      ),
+      render: (val: VipLevelHistoryTy) => VipHistoryTyLabel[val],
     },
     {
       title: '變動前 XP',
@@ -1370,6 +1367,252 @@ export default function MemberDetailPage() {
     );
   };
 
+  const TurnoverDetailTab = () => {
+    const defaultTurnoverRange = (): [any, any] => [dayjs().subtract(30, 'day'), dayjs()];
+    const [form] = Form.useForm<TurnoverDetailFilter>();
+    const [filters, setFilters] = useState<TurnoverDetailFilter>({
+      sourceOrderIds: '',
+      dateRange: defaultTurnoverRange(),
+      sources: [...TURNOVER_SOURCES],
+    });
+    const [venueModalData, setVenueModalData] = useState<VenueRestrictionItem[] | null>(null);
+
+    const allRows = useMemo(() => (
+      uid ? getTurnoverDetailsByUid(uid) : []
+    ), [uid]);
+
+    const rows = useMemo(() => {
+      const idSet = new Set((filters.sourceOrderIds || '')
+        .split(/[\n,，]+/)
+        .map(item => item.trim())
+        .filter(Boolean));
+      const selectedSources = filters.sources.length > 0 ? filters.sources : TURNOVER_SOURCES;
+
+      return allRows
+        .filter((row) => {
+          if (idSet.size > 0 && !idSet.has(row.sourceOrderId)) return false;
+          if (!selectedSources.includes(row.source)) return false;
+          if (filters.dateRange?.[0] && filters.dateRange?.[1]) {
+            const transactionAt = dayjs(row.transactionTime);
+            if (transactionAt.isBefore(filters.dateRange[0].startOf('day'))) return false;
+            if (transactionAt.isAfter(filters.dateRange[1].endOf('day'))) return false;
+          }
+          return true;
+        })
+        .sort((a, b) => b.transactionTime.localeCompare(a.transactionTime));
+    }, [allRows, filters]);
+
+    const renderVenueRestriction = (value: VenueRestrictionItem[], recordId: string) => (
+      <Button
+        data-e2e-id={`member-detail-turnover-venue-detail-btn-${recordId}`}
+        type="link"
+        size="small"
+        style={{ padding: 0 }}
+        onClick={() => setVenueModalData(value)}
+      >
+        詳情
+      </Button>
+    );
+
+    const columns: ColumnsType<TurnoverDetailItem> = [
+      {
+        title: '來源訂單ID',
+        dataIndex: 'sourceOrderId',
+        width: 190,
+        render: (value: string) => (
+          <Space size={2}>
+            <Text code style={{ fontSize: 11 }}>{value}</Text>
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined />}
+              onClick={() => {
+                navigator.clipboard.writeText(value);
+                message.success('已複製');
+              }}
+            />
+          </Space>
+        ),
+      },
+      {
+        title: '帳變時間',
+        dataIndex: 'transactionTime',
+        width: 170,
+        sorter: (a, b) => a.transactionTime.localeCompare(b.transactionTime),
+        defaultSortOrder: 'descend',
+      },
+      {
+        title: '流水來源',
+        dataIndex: 'source',
+        width: 120,
+        render: (value: TurnoverSource) => value,
+      },
+      {
+        title: '金額',
+        dataIndex: 'amount',
+        width: 120,
+        align: 'right',
+        render: (value: number) => formatAmount(value),
+      },
+      {
+        title: '流水倍數',
+        dataIndex: 'multiplier',
+        width: 100,
+        align: 'right',
+        render: (value: number) => `×${value}`,
+      },
+      {
+        title: '流水要求',
+        dataIndex: 'requirement',
+        width: 130,
+        align: 'right',
+        render: (value: number) => formatAmount(value),
+      },
+      {
+        title: '是否完成',
+        dataIndex: 'completed',
+        width: 100,
+        render: (value: boolean) => (value ? '是' : '否'),
+      },
+      {
+        title: '剩餘流水要求',
+        dataIndex: 'remaining',
+        width: 130,
+        align: 'right',
+        render: (value: number) => formatAmount(value),
+      },
+      {
+        title: '場館限制',
+        dataIndex: 'venueRestriction',
+        width: 220,
+        render: (value: VenueRestrictionItem[], record) => renderVenueRestriction(value, record.id),
+      },
+      {
+        title: '執行人',
+        dataIndex: 'operator',
+        width: 160,
+      },
+    ];
+
+    return (
+      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+        <MemberStatCard>
+          <Form
+            form={form}
+            layout="vertical"
+            initialValues={{
+              sourceOrderIds: '',
+              dateRange: defaultTurnoverRange(),
+              sources: TURNOVER_SOURCES,
+            }}
+          >
+            <Row gutter={16}>
+              <Col span={7}>
+                <Form.Item label="來源訂單ID" name="sourceOrderIds">
+                  <TextArea
+                    data-e2e-id="member-detail-turnover-filter-source-order-id-input"
+                    placeholder="支持批量查詢，多筆以換行或逗號分隔"
+                    maxLength={5000}
+                    showCount
+                    autoSize={{ minRows: 1, maxRows: 2 }}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={7}>
+                <Form.Item label="帳變時間" name="dateRange">
+                  <RangePicker data-e2e-id="member-detail-turnover-filter-date-range" style={{ width: '100%' }} allowClear />
+                </Form.Item>
+              </Col>
+              <Col span={6}>
+                <Form.Item label="流水來源" name="sources">
+                  <Select
+                    data-e2e-id="member-detail-turnover-filter-source-select"
+                    mode="multiple"
+                    allowClear
+                    placeholder="默認全選"
+                    style={{ width: 280 }}
+                    options={TURNOVER_SOURCES.map(source => ({ label: source, value: source }))}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={4}>
+                <Form.Item label=" ">
+                  <Space>
+                    <Button
+                      data-e2e-id="member-detail-turnover-filter-query-btn"
+                      type="primary"
+                      onClick={() => setFilters({
+                        sourceOrderIds: form.getFieldValue('sourceOrderIds') || '',
+                        dateRange: form.getFieldValue('dateRange') || null,
+                        sources: form.getFieldValue('sources') || [],
+                      })}
+                    >
+                      查詢
+                    </Button>
+                    <Button
+                      data-e2e-id="member-detail-turnover-filter-reset-btn"
+                      onClick={() => {
+                        const nextRange = defaultTurnoverRange();
+                        const nextSources = [...TURNOVER_SOURCES];
+                        form.setFieldsValue({ sourceOrderIds: '', dateRange: nextRange, sources: nextSources });
+                        setFilters({ sourceOrderIds: '', dateRange: nextRange, sources: nextSources });
+                      }}
+                    >
+                      重置
+                    </Button>
+                  </Space>
+                </Form.Item>
+              </Col>
+            </Row>
+          </Form>
+        </MemberStatCard>
+
+        <MemberStatCard
+          title="流水明細"
+          extra={(
+            <Button
+              data-e2e-id="member-detail-turnover-refresh-btn"
+              size="small"
+              onClick={() => message.success('已刷新流水明細')}
+            >
+              刷新記錄
+            </Button>
+          )}
+        >
+          <Table
+            data-e2e-id="member-detail-turnover-table"
+            rowKey="id"
+            columns={columns}
+            dataSource={rows}
+            onRow={(record) => ({ 'data-e2e-id': `member-detail-turnover-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
+            scroll={{ x: 1500 }}
+            pagination={{ pageSize: 20, showTotal: total => `共 ${total} 筆` }}
+            size="small"
+          />
+        </MemberStatCard>
+
+        <Modal
+          title="場館限制詳情"
+          open={!!venueModalData}
+          onCancel={() => setVenueModalData(null)}
+          footer={[
+            <Button key="close" onClick={() => setVenueModalData(null)}>
+              關閉
+            </Button>,
+          ]}
+        >
+          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+            {venueModalData?.map(item => (
+              <div key={`${item.category}-${item.provider}`} style={{ padding: '4px 0' }}>
+                <Text>{item.category} / {item.provider}</Text>
+              </div>
+            ))}
+          </div>
+        </Modal>
+      </Space>
+    );
+  };
+
   const sortedKycUploadHistory = useMemo(
     () => kycUploadHistory.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [kycUploadHistory],
@@ -1610,15 +1853,13 @@ export default function MemberDetailPage() {
       title: '動作',
       dataIndex: 'action',
       width: 100,
-      render: (value: KycPhotoAction) => (
-        <Tag color={value === '刪除' ? 'red' : value === '編輯' ? 'gold' : 'green'}>{value}</Tag>
-      ),
+      render: (value: KycPhotoAction) => value,
     },
     {
       title: '分類',
       dataIndex: 'category',
       width: 140,
-      render: (value: KycPhotoCategory) => <Tag color={kycPhotoTagColor[value]}>{value}</Tag>,
+      render: (value: KycPhotoCategory) => value,
     },
     { title: '檔名', dataIndex: 'fileName', width: 220 },
     { title: '備註', dataIndex: 'note' },
@@ -1633,20 +1874,20 @@ export default function MemberDetailPage() {
       width: 120,
       render: (value: string) => {
         const dict = getCapabilityDictItem(value);
-        return dict ? <Tag color={dict.color}>{dict.nameZh}</Tag> : <Tag>{value}</Tag>;
+        return dict ? dict.nameZh : value;
       },
     },
     {
       title: '動作',
       dataIndex: 'action',
       width: 90,
-      render: (value: CapabilityAction) => <Tag color={restrictionActionColor[value]}>{restrictionActionLabel[value]}</Tag>,
+      render: (value: CapabilityAction) => restrictionActionLabel[value],
     },
     {
       title: '來源',
       dataIndex: 'source',
       width: 110,
-      render: (value: CapabilitySource) => <Tag color={capabilitySourceColor[value]}>{capabilitySourceLabel[value]}</Tag>,
+      render: (value: CapabilitySource) => capabilitySourceLabel[value],
     },
     { title: '限制原因 / 備註', dataIndex: 'reason' },
   ];
@@ -1809,7 +2050,7 @@ export default function MemberDetailPage() {
 
     const renderAutoCell = (autoLocks: AutoRestriction[]) => {
       if (autoLocks.length === 0) return <Text type="secondary">—</Text>;
-      // 同 source 同 capability 多條規則合併為單一 Tag，Tooltip 列出所有 reason
+      // 同 source 同 capability 多條規則合併顯示，Tooltip 列出所有 reason
       const grouped = new Map<CapabilitySource, string[]>();
       for (const lock of autoLocks) {
         const arr = grouped.get(lock.source) ?? [];
@@ -1827,9 +2068,9 @@ export default function MemberDetailPage() {
                 </Space>
               }
             >
-              <Tag color={capabilitySourceColor[source]} icon={<WarningOutlined />} style={{ cursor: 'help' }}>
-                {capabilitySourceLabel[source]}{reasons.length > 1 ? ` ×${reasons.length}` : ''}
-              </Tag>
+              <Text style={{ cursor: 'help' }}>
+                <WarningOutlined /> {capabilitySourceLabel[source]}{reasons.length > 1 ? ` ×${reasons.length}` : ''}
+              </Text>
             </Tooltip>
           ))}
         </Space>
@@ -1857,25 +2098,19 @@ export default function MemberDetailPage() {
       const s = row.manualLock;
       return (
         <Tooltip title={s.reason}>
-          <Tag color="blue">已加鎖</Tag>
+          <Text>已加鎖</Text>
         </Tooltip>
       );
     };
 
-    const renderFinalCell = (row: Row) => (
-      <Tag color={row.finalLocked ? 'red' : 'green'}>
-        {row.finalLocked ? '❌ 禁止' : '✅ 允許'}
-      </Tag>
-    );
+    const renderFinalCell = (row: Row) => (row.finalLocked ? '❌ 禁止' : '✅ 允許');
 
     const columns: ColumnsType<Row> = [
       {
         title: '功能',
         key: 'capability',
         width: 120,
-        render: (_: unknown, r: Row) => (
-          <Tag color={r.capability.color}>{r.capability.nameZh}</Tag>
-        ),
+        render: (_: unknown, r: Row) => r.capability.nameZh,
       },
       {
         title: <Tooltip title="由 KYC / 帳號狀態 / 風控標籤推導，無法在此處取消">自動規則</Tooltip>,
@@ -1979,7 +2214,7 @@ export default function MemberDetailPage() {
     { key: 'deposit', label: '存款日誌', children: <Empty description="（demo 略）" /> },
     { key: 'withdraw', label: '提現日誌', children: <Empty description="（demo 略）" /> },
     { key: 'bonus', label: '禮金日誌', children: <Empty description="（demo 略）" /> },
-    { key: 'turnover', label: '流水明細', children: <Empty description="（demo 略）" /> },
+    { key: 'turnover', label: '流水明細', children: <TurnoverDetailTab /> },
     {
       key: 'daily-stats',
       label: '日統計',
