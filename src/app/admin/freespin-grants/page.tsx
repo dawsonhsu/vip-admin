@@ -838,7 +838,7 @@ const filteredData = useMemo(() => {
       </Col>
 
       {currentProviders.includes('GEMINI') && (
-        <Col span={12}>
+        <Col span={24}>
           <Form.Item
             name="providerActivityCode"
             label="供應商活動代碼"
