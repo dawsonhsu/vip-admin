@@ -841,13 +841,13 @@ const filteredData = useMemo(() => {
         <Col span={24}>
           <Form.Item
             name="providerActivityCode"
-            label="供應商活動代碼"
-            rules={[{ required: true, message: '請輸入供應商活動代碼' }]}
+            label="活動代碼"
+            rules={[{ required: true, message: '請輸入活動代碼' }]}
             tooltip="Gemini 需先於廠商後台建立活動，將其活動代碼填入此處對應"
           >
             <Input
               data-e2e-id={isBatch ? 'freespin-grants-batch-form-provider-activity-code-input' : 'freespin-grants-form-provider-activity-code-input'}
-              placeholder="請輸入 Gemini 供應商活動代碼"
+              placeholder="請輸入 Gemini 活動代碼"
             />
           </Form.Item>
         </Col>
@@ -1363,7 +1363,7 @@ const filteredData = useMemo(() => {
               </Descriptions.Item>
               <Descriptions.Item label="廠商">{drawerGrant.providerName || '—'}</Descriptions.Item>
               {drawerGrant.providerActivityCode && (
-                <Descriptions.Item label="供應商活動代碼">{drawerGrant.providerActivityCode}</Descriptions.Item>
+                <Descriptions.Item label="活動代碼">{drawerGrant.providerActivityCode}</Descriptions.Item>
               )}
               <Descriptions.Item label="贈送遊戲" span={2}>
                 {drawerGrant.grantedGames && drawerGrant.grantedGames.length > 0
