@@ -137,6 +137,7 @@ export interface FreeSpinGrantItem {
   grantType: 'open' | 'provider' | 'game';
   providerCode: string | null;
   providerName: string | null;
+  providerActivityCode?: string | null;
   grantedGames: { code: string; name: string }[] | null;
   selectedGame: { code: string; name: string } | null;
   totalSpins: number;

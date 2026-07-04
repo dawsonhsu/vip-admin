@@ -24,6 +24,7 @@ const providers = [
   { code: 'JILI', name: 'JILI' },
   { code: 'PG', name: 'PG SOFT' },
   { code: 'PP', name: 'Pragmatic Play' },
+  { code: 'GEMINI', name: 'Gemini' },
 ];
 
 const activityOptions = ['春節首存活動', 'VIP月禮', '週年慶活動', '新遊戲推廣'];
@@ -458,6 +459,7 @@ const filteredData = useMemo(() => {
       grantType: values.grantType,
       providerCode,
       providerName: values.grantType === 'open' ? null : providers.find((provider) => provider.code === providerCode)?.name || null,
+      providerActivityCode: (values.providerCodes || []).includes('GEMINI') ? (values.providerActivityCode || null) : null,
       grantedGames: getGrantedGames(values.grantType, values.providerCodes, values.gameCodes),
       selectedGame: null,
       totalSpins: values.totalSpins,
@@ -799,7 +801,7 @@ const filteredData = useMemo(() => {
               const nextValue = event.target.value as GrantTypeValue;
               setGrantType(nextValue);
               setProviders([]);
-              formInstance.setFieldsValue({ providerCodes: undefined, gameCodes: undefined });
+              formInstance.setFieldsValue({ providerCodes: undefined, gameCodes: undefined, providerActivityCode: undefined });
             }}
           >
             <Radio.Button value="open">OPEN</Radio.Button>
@@ -809,7 +811,14 @@ const filteredData = useMemo(() => {
         </Form.Item>
       </Col>
       <Col span={12}>
-        <Form.Item name="providerCodes" label="廠商" rules={currentGrantType === 'provider' || currentGrantType === 'game' ? [{ required: true, message: '請選擇廠商' }] : []}>
+        <Form.Item
+          name="providerCodes"
+          label="廠商"
+          rules={currentGrantType === 'provider' || currentGrantType === 'game' ? [{ required: true, message: '請選擇廠商' }] : []}
+          extra={currentProviders.includes('GEMINI')
+            ? <span style={{ color: '#d46b08' }}>Gemini 除次數外，其他參數以廠商後台為準</span>
+            : undefined}
+        >
           <Select
             data-e2e-id={isBatch ? 'freespin-grants-batch-form-provider-codes-select' : 'freespin-grants-form-provider-codes-select'}
             mode={currentGrantType === 'provider' ? 'multiple' : 'multiple'}
@@ -817,13 +826,32 @@ const filteredData = useMemo(() => {
             disabled={currentGrantType !== 'provider' && currentGrantType !== 'game'}
             onChange={(vals: string[]) => {
               setProviders(vals);
-              formInstance.setFieldsValue({ gameCodes: undefined });
+              formInstance.setFieldsValue({
+                gameCodes: undefined,
+                ...(vals.includes('GEMINI') ? {} : { providerActivityCode: undefined }),
+              });
             }}
           >
             {providers.map((provider) => <Select.Option key={provider.code} value={provider.code}>{provider.name}</Select.Option>)}
           </Select>
         </Form.Item>
       </Col>
+
+      {currentProviders.includes('GEMINI') && (
+        <Col span={12}>
+          <Form.Item
+            name="providerActivityCode"
+            label="供應商活動代碼"
+            rules={[{ required: true, message: '請輸入供應商活動代碼' }]}
+            tooltip="Gemini 需先於廠商後台建立活動，將其活動代碼填入此處對應"
+          >
+            <Input
+              data-e2e-id={isBatch ? 'freespin-grants-batch-form-provider-activity-code-input' : 'freespin-grants-form-provider-activity-code-input'}
+              placeholder="請輸入 Gemini 供應商活動代碼"
+            />
+          </Form.Item>
+        </Col>
+      )}
 
       {currentGrantType === 'game' && (
         <Col span={24}>
@@ -1334,6 +1362,9 @@ const filteredData = useMemo(() => {
                 {drawerGrant.grantType === 'open' ? '不限' : drawerGrant.grantType === 'provider' ? '廠商' : '遊戲'}
               </Descriptions.Item>
               <Descriptions.Item label="廠商">{drawerGrant.providerName || '—'}</Descriptions.Item>
+              {drawerGrant.providerActivityCode && (
+                <Descriptions.Item label="供應商活動代碼">{drawerGrant.providerActivityCode}</Descriptions.Item>
+              )}
               <Descriptions.Item label="贈送遊戲" span={2}>
                 {drawerGrant.grantedGames && drawerGrant.grantedGames.length > 0
                   ? drawerGrant.grantedGames.map((game) => <Tag key={game.code}>{game.name}</Tag>)
