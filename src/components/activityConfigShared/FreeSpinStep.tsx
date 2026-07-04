@@ -23,6 +23,11 @@ const LEVEL_OPTIONS = [
   { value: 'GAME', label: 'GAME' },
 ];
 
+// Gemini is scoped to Free Spin config only (do NOT add to the shared providerOptions,
+// which also feeds the game-management provider filter).
+const GEMINI_PROVIDER_VALUE = 'Gemini';
+const freeSpinProviderOptions = [...providerOptions, { value: GEMINI_PROVIDER_VALUE, label: 'Gemini' }];
+
 const uploadButton = (e2eId: string, label = '上传') => (
   <button
     data-e2e-id={e2eId}
@@ -64,6 +69,7 @@ export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideField
   const hide = (field: string) => hideFields.includes(field);
   const freeSpinValues = (Form.useWatch('freeSpin', form) ?? {}) as Record<string, any>;
   const selectedProvider = freeSpinValues.provider as string | undefined;
+  const isGemini = selectedProvider === GEMINI_PROVIDER_VALUE;
 
   const filteredGameOptions = useMemo(
     () => (selectedProvider ? gameOptions.filter((g) => g.provider === selectedProvider) : []),
@@ -125,11 +131,33 @@ export function FreeSpinStep({ form, e2ePrefix, showGoogleCode = true, hideField
                 data-e2e-id={`${e2ePrefix}-freespin-provider-select`}
                 allowClear
                 placeholder="请选择厂商"
-                options={providerOptions}
-                onChange={() => form.setFieldValue(['freeSpin', 'gameId'], undefined)}
+                options={freeSpinProviderOptions}
+                onChange={(value) => {
+                  form.setFieldValue(['freeSpin', 'gameId'], undefined);
+                  if (value !== GEMINI_PROVIDER_VALUE) {
+                    form.setFieldValue(['freeSpin', 'activityCode'], undefined);
+                  }
+                }}
               />
             </Form.Item>
           </Col>
+
+          {isGemini && (
+            <Col span={16}>
+              <Form.Item
+                {...freeSpinItemProps}
+                label="活动代码"
+                name={['freeSpin', 'activityCode']}
+                rules={[{ required: true, message: '请输入活动代码' }]}
+                extra={<span style={{ color: '#d46b08' }}>Gemini 除次数外，其他参数以厂商后台为准</span>}
+              >
+                <Input
+                  data-e2e-id={`${e2ePrefix}-freespin-activity-code-input`}
+                  placeholder="请输入 Gemini 活动代码"
+                />
+              </Form.Item>
+            </Col>
+          )}
 
           <Col span={8}>
             <Form.Item
