@@ -746,6 +746,11 @@ export function generateVipConfig(): VipConfigItem[] {
 }
 
 // ==================== Members ====================
+export interface LinkedAccount {
+  provider: 'facebook' | 'google';
+  account: string;
+}
+
 export interface MemberItem {
   id: number;
   uid: string;
@@ -753,6 +758,9 @@ export interface MemberItem {
   nickname: string;
   realName: string;
   phone: string;
+  gender: '男' | '女';
+  email: string;
+  linkedAccounts: LinkedAccount[];
   mallTokenBalance: number;
   trafficSource: string;
   storeName: string;
@@ -851,10 +859,35 @@ const phFirstNames = ['Juan', 'Maria', 'Jose', 'Ana', 'Carlo', 'Rosa', 'Miguel',
   'Felix', 'Gloria', 'Dante', 'Elena', 'Rico', 'Nora', 'Mark', 'Jessa', 'Leo', 'Tina'];
 const phLastNames = ['Santos', 'Reyes', 'Cruz', 'Bautista', 'Ocampo', 'Garcia', 'Torres', 'Ramos', 'Flores', 'Mendoza',
   'Dela Cruz', 'Aquino', 'Villanueva', 'Gonzales', 'Castillo', 'Morales', 'Diaz', 'Pascual', 'Andres', 'Lim'];
-const phStores = [
-  'Quezon City Branch', 'Makati Main Store', 'Cebu City Hub', 'Davao Branch', 'Pasig Outlet',
-  'Mandaluyong Store', 'Taguig Branch', 'Antipolo Hub', 'Caloocan Store', 'Parañaque Branch',
-  'Las Piñas Outlet', 'Muntinlupa Store', 'Valenzuela Branch', 'Marikina Hub', 'Pasay Store',
+export interface StoreOption {
+  id: number;
+  name: string;
+  domain: string;
+}
+
+// 真實門店列表（來源：門店列表 Excel，門店ID 2–22）
+export const storeList: StoreOption[] = [
+  { id: 2,  name: '2040 Taft Ave',                  domain: 'taft.filbet.com' },
+  { id: 3,  name: 'OVG Estancia - Cebu City',       domain: 'estancia.filbet.com' },
+  { id: 4,  name: 'OVG Banilad - Cebu City',        domain: 'banilad.filbet.com' },
+  { id: 5,  name: 'OVG Canduman - Cebu City',       domain: 'canduman.filbet.com' },
+  { id: 6,  name: 'OVG Punta Princesa - Cebu City', domain: 'puntaprincesa.filbet.com' },
+  { id: 7,  name: 'OVG Runway2 - Cebu City',        domain: 'runway2.filbet.com' },
+  { id: 8,  name: 'Egames – Sta. Ana',              domain: 'staana.filbet.com' },
+  { id: 9,  name: 'Egames – Malibay',               domain: 'malibay.filbet.com' },
+  { id: 10, name: 'eBingo - RDM Pandacan',          domain: 'pandacan.filbet.com' },
+  { id: 11, name: 'eBingo – San Andres',            domain: 'sanandres.filbet.com' },
+  { id: 12, name: 'gotech-test',                    domain: 'gotech-test.filbet.com' },
+  { id: 13, name: 'Besteam',                        domain: 'besteam.filbet.com' },
+  { id: 14, name: 'Ganado',                         domain: 'ganado.filbet.com' },
+  { id: 15, name: 'Grey Force',                     domain: 'greyforce.filbet.com' },
+  { id: 16, name: 'NAS Masinag',                    domain: 'masinag.filbet.com' },
+  { id: 17, name: 'Olympus Priderock',              domain: 'priderock.filbet.com' },
+  { id: 18, name: 'Olympus Banlic',                 domain: 'banlic.filbet.com' },
+  { id: 19, name: 'PJS Mayamot',                    domain: 'mayamot.filbet.com' },
+  { id: 20, name: 'PJS Promenade',                  domain: 'promenade.filbet.com' },
+  { id: 21, name: 'PowerUp - Paco',                 domain: 'paco.filbet.com' },
+  { id: 22, name: 'Radiant Bay - Carmona',          domain: 'carmona.filbet.com' },
 ];
 const trafficSources = ['adjust', 'organic', 'facebook', 'google', 'tiktok'];
 const loginDevices = ['Android', 'iOS', 'H5'];
@@ -930,17 +963,24 @@ export function generateMembers(count: number = 50): MemberItem[] {
     const isBlockedDemo = BLOCKED_DEMO_UIDS.has(memberUid);
     const isBannedDemo = memberUid === 'U10005';
     const isAnyAutoRuleDemo = isFrozenDemo || isSuspendedDemo || isBlockedDemo || isBannedDemo;
+    const account = statSeed?.username ?? `filbet_${rand(10000, 99999)}`;
 
     members.push({
       id: i + 1,
       uid: memberUid,
-      account: statSeed?.username ?? `filbet_${rand(10000, 99999)}`,
+      account,
       nickname: `${firstName}${rand(10, 99)}`,
       realName: `${firstName} ${lastName}`,
       phone: generatePHPhone(),
+      gender: Math.random() < 0.5 ? '男' : '女',
+      email: `${account.toLowerCase()}@mail.com`,
+      // 一個會員同時間只會綁定一種社群帳號（目前僅 Facebook）：約半數已綁定、半數未綁定
+      linkedAccounts: Math.random() < 0.5
+        ? [{ provider: 'facebook' as const, account: `${account.toLowerCase()}@mail.com` }]
+        : [],
       mallTokenBalance: rand(0, 5000),
       trafficSource: pick(trafficSources),
-      storeName: pick(phStores),
+      storeName: pick(storeList).name,
       walletBalance: randDec(0, 100000),
       agentStatus: Math.random() < 0.15 ? '已開啟' : '未開啟',
       // Suspended demo 強制 Suspended；其他 auto-rule demo 強制 Verified 避免規則互相干擾；一般會員隨機
@@ -1050,6 +1090,17 @@ export const VipHistoryTyIsManual: Record<VipLevelHistoryTy, boolean> = {
 let _members: MemberItem[] | null = null;
 const _vipHistoryByUid = new Map<string, VipLevelHistoryItem[]>();
 
+export interface StoreTransferRecord {
+  id: string;
+  changeTime: string;      // 'YYYY-MM-DD HH:mm:ss'
+  fromStoreName: string;
+  toStoreName: string;
+  operator: string;
+  remark: string;
+}
+
+const _storeHistoryByUid = new Map<string, StoreTransferRecord[]>();
+
 export function getMembers(): MemberItem[] {
   if (!_members) {
     _members = generateMembers(50);
@@ -1108,6 +1159,18 @@ export function getVipHistory(uid: string): VipLevelHistoryItem[] {
 export function appendVipHistory(uid: string, item: VipLevelHistoryItem) {
   const list = getVipHistory(uid);
   list.unshift(item);   // 新的在前
+}
+
+export function getStoreHistory(uid: string): StoreTransferRecord[] {
+  if (!_storeHistoryByUid.has(uid)) {
+    _storeHistoryByUid.set(uid, []);
+  }
+  return _storeHistoryByUid.get(uid) || [];
+}
+
+export function appendStoreHistory(uid: string, record: StoreTransferRecord) {
+  const list = getStoreHistory(uid);
+  list.unshift(record); // 新的在前
 }
 
 // ==================== 會員能力（功能限制）字典與狀態 ====================

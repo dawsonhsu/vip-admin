@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
-  Card, Tabs, Tag, Button, Space, Typography, Descriptions, Table, Modal, Form, Select, Input, Alert, message, Empty, Tooltip, DatePicker, Row, Col, Statistic, Segmented, Upload,
+  Card, Tabs, Tag, Button, Space, Typography, Descriptions, Table, Modal, Form, Select, Input, Alert, message, Empty, Tooltip, DatePicker, Row, Col, Statistic, Segmented, Upload, Avatar, Divider, Radio,
 } from 'antd';
 const { RangePicker } = DatePicker;
 import {
-  ArrowLeftOutlined, CrownOutlined, CopyOutlined, WarningOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, EyeOutlined, FilePdfOutlined, UploadOutlined, PlusOutlined,
+  ArrowLeftOutlined, CrownOutlined, CopyOutlined, WarningOutlined, CheckCircleOutlined, EditOutlined, DeleteOutlined, EyeOutlined, FilePdfOutlined, UploadOutlined, PlusOutlined, UserOutlined, FacebookFilled, GoogleOutlined, InfoCircleOutlined, ExportOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile, UploadProps } from 'antd';
@@ -21,11 +21,13 @@ import {
   getMemberCapabilityStates, setMemberCapabilityState,
   getMemberCapabilityLogs, appendMemberCapabilityLog,
   deriveAutoRestrictions,
+  storeList, getStoreHistory, appendStoreHistory,
   type CapabilityDictItem, type MemberCapabilityState, type MemberCapabilityLog,
   type CapabilitySource, type CapabilityAction, type AutoRestriction,
+  type LinkedAccount, type StoreTransferRecord,
 } from '@/data/mockData';
 import { gameStats, inviteStats, personalStats, gameTypes, type GameStat, type GameType, type InviteStat, type PersonalStat } from '@/data/memberStatsData';
-import { getTurnoverDetailsByUid, TURNOVER_SOURCES, type TurnoverDetailItem, type TurnoverSource, type VenueRestrictionItem } from '@/data/turnoverDetailData';
+import { getTurnoverDetailsByUid, SLOT_PROVIDERS, TURNOVER_SOURCES, type TurnoverDetailItem, type TurnoverSource, type VenueRestrictionItem } from '@/data/turnoverDetailData';
 import RecalcButton from '@/components/RecalcButton';
 
 const { Title, Text } = Typography;
@@ -311,11 +313,19 @@ export default function MemberDetailPage() {
     uid ? [...getVipHistory(uid)] : []
   ));
   const [refreshKey, setRefreshKey] = useState(0);
+  // 避免 SSR/CSR 因 mock 資料使用 Math.random() 產生的水合(hydration)不一致：
+  // 首屏(伺服器與用戶端首次渲染)先顯示占位，掛載後才渲染會員資料
+  const [mounted, setMounted] = useState(false);
   const [kycSummary, setKycSummary] = useState<KycSummaryInfo | null>(null);
   const [kycPhotos, setKycPhotos] = useState<KycPhotoRecord[]>([]);
   const [kycUploadHistory, setKycUploadHistory] = useState<KycUploadHistoryRecord[]>([]);
+  const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [restrictionStates, setRestrictionStates] = useState<MemberCapabilityState[]>([]);
   const [restrictionHistory, setRestrictionHistory] = useState<MemberCapabilityLog[]>([]);
+  const [storeChangeOpen, setStoreChangeOpen] = useState(false);
+  const [storeHistoryOpen, setStoreHistoryOpen] = useState(false);
+  const [storeChangeForm] = Form.useForm();
+  const [storeHistory, setStoreHistory] = useState<StoreTransferRecord[]>([]);
   const [photoModal, setPhotoModal] = useState<KycPhotoModalState>({ open: false, mode: 'create', category: null, record: null });
   const [photoDeleteModal, setPhotoDeleteModal] = useState<KycDeleteModalState>({ open: false, record: null });
   const [photoPreviewModal, setPhotoPreviewModal] = useState<KycPreviewModalState>({ open: false, record: null });
@@ -333,6 +343,9 @@ export default function MemberDetailPage() {
   const [kycPhotoForm] = Form.useForm();
   const [kycDeleteForm] = Form.useForm();
   const [restrictionForm] = Form.useForm();
+  const watchedCapabilityKey = Form.useWatch('capabilityKey', restrictionForm);
+  const watchedBetScope = Form.useWatch('betScope', restrictionForm);
+  const modalTargetKey = restrictionModal.capabilityKey ?? watchedCapabilityKey;
 
   // VIP 等級紀錄 篩選
   const [historyFilters, setHistoryFilters] = useState<{
@@ -341,9 +354,15 @@ export default function MemberDetailPage() {
   }>({});
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     const nextMember = uid ? getMemberByUid(uid) : undefined;
     setMember(nextMember);
     setHistory(uid ? [...getVipHistory(uid)] : []);
+    setLinkedAccounts(nextMember ? [...nextMember.linkedAccounts] : []);
+    setStoreHistory(uid ? [...getStoreHistory(uid)] : []);
     if (nextMember && uid) {
       setKycSummary(getKycSummarySeed(nextMember));
       setKycPhotos(getKycPhotoSeed(nextMember));
@@ -360,6 +379,20 @@ export default function MemberDetailPage() {
       restrictionForm.resetFields();
     }
   }, [kycDeleteForm, kycPhotoForm, restrictionForm, uid, refreshKey]);
+
+  const handleUnlink = (provider: LinkedAccount['provider']) => {
+    Modal.confirm({
+      title: '確認解除綁定',
+      content: `確定要解除此帳號的 ${provider === 'facebook' ? 'Facebook' : 'Google'} 關聯？`,
+      okText: '解綁',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: () => {
+        setLinkedAccounts(prev => prev.filter(a => a.provider !== provider));
+        message.success('已解除綁定');
+      },
+    });
+  };
 
   const calcUpgradeBonus = (from: number, to: number): number => {
     if (to <= from) return 0;
@@ -459,80 +492,275 @@ export default function MemberDetailPage() {
   }
 
   // ============== 詳情 Tab ==============
-  const renderDetailTab = () => (
-    <>
-      <Card size="small" title="會員資訊" style={{ marginBottom: 16 }}>
-        <Descriptions size="small" column={3} colon>
-          <Descriptions.Item label="UID">
+  const renderDetailTab = () => {
+    const demo = () => {
+      message.info('（demo）功能未實作');
+    };
+    const openStoreChange = () => {
+      storeChangeForm.setFieldsValue({ storeName: member.storeName, remark: '' });
+      setStoreChangeOpen(true);
+    };
+    const submitStoreChange = async () => {
+      const values = await storeChangeForm.validateFields();
+      const toStoreName = values.storeName as string;
+      if (toStoreName === member.storeName) {
+        message.info('門店未變更');
+        return;
+      }
+      const rec: StoreTransferRecord = {
+        id: `ST-${Date.now()}`,
+        changeTime: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        fromStoreName: member.storeName || '-',
+        toStoreName,
+        operator: 'admin',           // demo 操作人
+        remark: values.remark || '',
+      };
+      updateMember(member.id, { storeName: toStoreName });
+      setMember({ ...member, storeName: toStoreName });
+      if (uid) appendStoreHistory(uid, rec);
+      setStoreHistory(prev => [rec, ...prev]);
+      message.success('歸屬門店已變更');
+      setStoreChangeOpen(false);
+    };
+    const SectionTitle = ({ title, extra }: { title: string; extra?: React.ReactNode }) => (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '20px 0 16px' }}>
+        <span style={{ fontSize: 17, fontWeight: 600, borderBottom: '2px solid #333', paddingBottom: 2, lineHeight: 1.4 }}>{title}</span>
+        {extra}
+      </div>
+    );
+    const F = ({ label, span = 6, children }: { label: string; span?: number; children: React.ReactNode }) => (
+      <Col span={span} style={{ marginBottom: 4 }}>
+        <Space size={6} wrap>
+          <Text type="secondary">{label}：</Text>
+          <span>{children}</span>
+        </Space>
+      </Col>
+    );
+    const LinkA = ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
+      <a onClick={onClick || demo} style={{ color: '#1677ff' }}>{children}</a>
+    );
+    const kycLabelMap: Record<MemberItem['kycStatus'], string> = {
+      Approved: '已通過',
+      Pending: '審核中',
+      Rejected: 'Resubmit Required',
+      'Not Submitted': '待提交',
+    };
+
+    return (
+      <div style={{ padding: '4px 8px' }}>
+        <SectionTitle
+          title="用戶資訊"
+          extra={(
+            <Space size={12}>
+              <Avatar size={40} icon={<UserOutlined />} />
+              <Text style={{ fontSize: 15 }}>{member.nickname || '此用戶的暱稱'}（{member.gender}）</Text>
+              <Button type="text" size="small" icon={<EditOutlined style={{ color: '#1677ff' }} />} onClick={demo} />
+            </Space>
+          )}
+        />
+        <Row gutter={[16, 12]}>
+          <F label="UID">
             <Space size={4}>
-              <Text>{member.uid}</Text>
+              {member.uid}
               <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => { navigator.clipboard.writeText(member.uid); message.success('已複製'); }} />
             </Space>
-          </Descriptions.Item>
-          <Descriptions.Item label="帳號">{member.account}</Descriptions.Item>
-          <Descriptions.Item label="暱稱">{member.nickname || '-'}</Descriptions.Item>
-          <Descriptions.Item label="真實姓名">{member.realName}</Descriptions.Item>
-          <Descriptions.Item label="手機">{member.phone}</Descriptions.Item>
-          <Descriptions.Item label="會員狀態">
-            <Tag color={memberStatusColor[member.memberStatus]}>{member.memberStatus}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="KYC 狀態">
-            <Tag color={kycStatusColor[member.kycStatus]}>{member.kycStatus}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="代理資格">
-            <Tag color={member.agentStatus === '已開啟' ? 'blue' : 'default'}>{member.agentStatus}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="風控等級">
-            <Tag color={member.riskLevel === '高' ? 'red' : member.riskLevel === '中' ? 'orange' : 'default'}>{member.riskLevel}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="註冊時間">{member.registerTime}</Descriptions.Item>
-          <Descriptions.Item label="註冊 IP">{member.registerIP}</Descriptions.Item>
-          <Descriptions.Item label="最近登錄">{member.lastLoginTime}</Descriptions.Item>
-        </Descriptions>
-      </Card>
+          </F>
+          <F label="帳號">{member.account}</F>
+          <F label="手機號">
+            <Space size={6}>{member.phone}<LinkA>查看歷史</LinkA></Space>
+          </F>
+          <F label="真實姓名">
+            <Space size={6}>{member.realName}<LinkA>查看歷史</LinkA></Space>
+          </F>
+          <F label="郵箱">
+            <Space size={6}>
+              {member.email}
+              <Button type="text" size="small" icon={<EditOutlined style={{ color: '#1677ff' }} />} onClick={demo} />
+            </Space>
+          </F>
+          <F label="關聯帳號" span={12}>
+            {linkedAccounts.length === 0 ? (
+              <Text type="secondary">-</Text>
+            ) : (
+              <Space size={20} wrap>
+                {linkedAccounts.map(a => (
+                  <Space key={a.provider} size={6}>
+                    {a.provider === 'facebook'
+                      ? <FacebookFilled style={{ color: '#1877F2', fontSize: 16 }} />
+                      : <GoogleOutlined style={{ color: '#EA4335', fontSize: 16 }} />}
+                    <Text>{a.account}</Text>
+                    <LinkA onClick={() => handleUnlink(a.provider)}>解綁</LinkA>
+                  </Space>
+                ))}
+              </Space>
+            )}
+          </F>
+          <F label="帳號類型">{member.accountType === '測試' ? '測試會員' : '正式會員'}</F>
+          <F label="會員狀態"><Tag color={memberStatusColor[member.memberStatus]}>{member.memberStatus}</Tag></F>
+          <F label="受限狀態" span={12}>
+            <Space size={8} wrap>
+              <Text>{member.restrictedStatus || '-'}</Text>
+              <Button type="text" size="small" icon={<EditOutlined style={{ color: '#1677ff' }} />} onClick={demo} />
+              <LinkA>封禁記錄</LinkA>
+              <LinkA>解封</LinkA>
+              <LinkA>風控</LinkA>
+            </Space>
+          </F>
+        </Row>
+        <Divider style={{ margin: '12px 0' }} />
+        <Row gutter={[16, 12]}>
+          <F label="錢包餘額">
+            <Space size={6}>{member.walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}<LinkA>流水明細</LinkA><LinkA>上下分</LinkA></Space>
+          </F>
+          <F label="可提現金額">{member.walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</F>
+          <F label="剩餘流水要求">
+            <Space size={6}>0.00<LinkA>流水要求調整</LinkA></Space>
+          </F>
+          <F label="剩餘購買免費旋轉">
+            <Space size={6}>否<LinkA>記錄</LinkA></Space>
+          </F>
+          <F label="一般充值倍率" span={12}>
+            <Space size={6}>
+              <InfoCircleOutlined style={{ color: '#999' }} />
+              <Text>平台配置</Text>
+              <LinkA><ExportOutlined /></LinkA>
+              <LinkA>操作記錄</LinkA>
+            </Space>
+          </F>
+        </Row>
 
-      <Card size="small" title="財務概覽" style={{ marginBottom: 16 }}>
-        <Descriptions size="small" column={4} colon>
-          <Descriptions.Item label="錢包餘額">₱{member.walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Descriptions.Item>
-          <Descriptions.Item label="商城代幣">{member.mallTokenBalance.toLocaleString()}</Descriptions.Item>
-          <Descriptions.Item label="累計存款">₱{member.totalDeposit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Descriptions.Item>
-          <Descriptions.Item label="累計提款">₱{member.totalWithdraw.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Descriptions.Item>
-          <Descriptions.Item label="存提差">₱{member.depositWithdrawDiff.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Descriptions.Item>
-          <Descriptions.Item label="GGR">₱{member.ggr.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Descriptions.Item>
-          <Descriptions.Item label="累計投注">₱{member.totalBet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Descriptions.Item>
-          <Descriptions.Item label="活動禮金">₱{member.activityBonus.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Descriptions.Item>
-        </Descriptions>
-      </Card>
+        <SectionTitle title="推廣" />
+        <Row gutter={[16, 12]}>
+          <F label="推薦人ID">
+            <Space size={6}>{member.inviterPhone && member.inviterPhone !== '-' ? '1' : '-'}<LinkA>變更</LinkA><LinkA>查看歷史</LinkA></Space>
+          </F>
+          <F label="代理資格">{member.agentStatus}</F>
+          <F label="開啟時間">-</F>
+          <F label="結算類型">未設置</F>
+          <F label="歸屬門店">
+            <Space size={6}>
+              {member.storeName || '-'}
+              <LinkA onClick={openStoreChange}>變更</LinkA>
+              <LinkA onClick={() => setStoreHistoryOpen(true)}>查看歷史</LinkA>
+            </Space>
+          </F>
+          <F label="引流渠道">{member.trafficSource}</F>
+          <F label="獲客渠道">-</F>
+        </Row>
 
-      <Card size="small" title={
-        <Space>
-          <CrownOutlined style={{ color: '#faad14' }} />
-          <span>VIP 狀態</span>
-        </Space>
-      }>
-        <Descriptions size="small" column={3} colon>
-          <Descriptions.Item label="當前等級">
-            <Tag color="blue" style={{ fontSize: 13 }}>V{member.vipLevel}</Tag>
-            <Tag color="purple">{getTierRangeName(member.vipLevel)}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="總 XP">{member.xpPoints.toLocaleString()}</Descriptions.Item>
-          <Descriptions.Item label="當前等級已累積">{member.currentLevelXp.toLocaleString()} XP</Descriptions.Item>
-          <Descriptions.Item label="升下一級需 XP">
-            {member.vipLevel >= 30 ? <Text type="secondary">已達上限</Text> : (getVipConfig(member.vipLevel + 1)?.upgradeDiffXp || 0).toLocaleString()}
-          </Descriptions.Item>
-          <Descriptions.Item label="保級門檻 XP">
-            {(getVipConfig(member.vipLevel)?.keepLevelXp ?? 0).toLocaleString()}
-          </Descriptions.Item>
-          <Descriptions.Item label="保級到期日">
-            {dayjs(member.keepExpire, 'YYYYMMDD').format('YYYY-MM-DD')}
-            <Text type="secondary" style={{ marginLeft: 8 }}>
-              （{Math.max(0, dayjs(member.keepExpire, 'YYYYMMDD').startOf('day').diff(dayjs().startOf('day'), 'day'))} 天）
-            </Text>
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
-    </>
-  );
+        <SectionTitle
+          title="KYC"
+          extra={<Tag color={kycStatusColor[member.kycStatus]} style={{ marginInlineEnd: 0 }}>{kycLabelMap[member.kycStatus]}</Tag>}
+        />
+        <Row gutter={[16, 12]}>
+          <F label="KYC證件類型">POSTAL</F>
+          <F label="國家">Philippines</F>
+          <F label="職業">Employed - Permanent/Contractual</F>
+          <F label="居住地">地址資訊</F>
+        </Row>
+
+        <SectionTitle
+          title="安全"
+          extra={(
+            <Space size={6}>
+              <Text type="secondary">重置登錄密碼：</Text>
+              <Text>******</Text>
+              <Button type="text" size="small" icon={<EditOutlined style={{ color: '#1677ff' }} />} onClick={demo} />
+            </Space>
+          )}
+        />
+        <Row gutter={[16, 12]}>
+          <F label="風控標籤">{member.riskTag || '-'}</F>
+          <F label="風控等級">{member.riskLevel}</F>
+        </Row>
+        <Row gutter={[16, 12]}>
+          <F label="註冊信息">
+            <Space size={6}>{member.registerIP || '-'}<LinkA>登錄日誌</LinkA></Space>
+          </F>
+          <F label="最後登錄時間">{member.lastLoginTime}</F>
+          <F label="最近登錄設備">{member.loginDevice}</F>
+          <F label="客戶端版本">{member.clientVersion}</F>
+        </Row>
+
+        <SectionTitle title="統計" />
+        <Row gutter={[16, 12]}>
+          <F label="會員等級">
+            <Space size={6}>XP{member.xpPoints.toLocaleString()}/V{member.vipLevel}<LinkA>XP流水</LinkA></Space>
+          </F>
+          <F label="可用商城代幣">
+            <Space size={6}>{member.mallTokenBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}<LinkA>查看代幣錢包</LinkA></Space>
+          </F>
+          <F label="貨幣類型">PHP</F>
+          <Col span={6} />
+          <F label="累計存款金額">{member.totalDeposit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</F>
+          <F label="存款次數">{member.depositCount}</F>
+          <F label="活動禮金">{member.activityBonus.toLocaleString(undefined, { minimumFractionDigits: 2 })}</F>
+          <F label="累計上分">
+            <Space size={6}>0.00<LinkA>查看上下分記錄</LinkA></Space>
+          </F>
+          <F label="累計提現金額">{member.totalWithdraw.toLocaleString(undefined, { minimumFractionDigits: 2 })}</F>
+          <F label="提現次數">{member.withdrawCount}</F>
+          <F label="存提差額">{member.depositWithdrawDiff.toLocaleString(undefined, { minimumFractionDigits: 2 })}</F>
+          <Col span={6} />
+          <F label="累計投注">{member.totalBet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</F>
+          <F label="有效投注">{member.totalBet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</F>
+          <F label="GGR">{member.ggr.toLocaleString(undefined, { minimumFractionDigits: 2 })}</F>
+        </Row>
+
+        <Modal
+          title="變更歸屬門店"
+          open={storeChangeOpen}
+          onOk={submitStoreChange}
+          onCancel={() => setStoreChangeOpen(false)}
+          okText="確認變更"
+          cancelText="取消"
+          destroyOnClose
+        >
+          <div style={{ marginBottom: 12, color: '#888' }}>目前歸屬門店：{member.storeName || '-'}</div>
+          <Form form={storeChangeForm} layout="vertical">
+            <Form.Item
+              name="storeName"
+              label="變更為"
+              rules={[{ required: true, message: '請選擇門店' }]}
+            >
+              <Select
+                showSearch
+                placeholder="請選擇門店（僅可選一個）"
+                optionFilterProp="label"
+                options={storeList.map(s => ({ label: s.name, value: s.name }))}
+              />
+            </Form.Item>
+            <Form.Item name="remark" label="備註">
+              <Input.TextArea rows={3} maxLength={200} placeholder="選填，變更原因" />
+            </Form.Item>
+          </Form>
+        </Modal>
+
+        <Modal
+          title="歸屬門店變更歷史"
+          open={storeHistoryOpen}
+          onCancel={() => setStoreHistoryOpen(false)}
+          footer={[<Button key="close" onClick={() => setStoreHistoryOpen(false)}>關閉</Button>]}
+          width={720}
+        >
+          <Table
+            size="small"
+            rowKey="id"
+            dataSource={storeHistory}
+            pagination={false}
+            locale={{ emptyText: '尚無變更紀錄' }}
+            columns={[
+              { title: '變更時間', dataIndex: 'changeTime', width: 170 },
+              { title: '變更前門店', dataIndex: 'fromStoreName' },
+              { title: '變更後門店', dataIndex: 'toStoreName' },
+              { title: '操作人', dataIndex: 'operator', width: 100 },
+              { title: '備註', dataIndex: 'remark', ellipsis: true },
+            ]}
+          />
+        </Modal>
+      </div>
+    );
+  };
 
   // ============== VIP 等級紀錄 Tab ==============
   const historyColumns: ColumnsType<VipLevelHistoryItem> = [
@@ -1746,15 +1974,33 @@ export default function MemberDetailPage() {
 
   const openCreateRestrictionModal = () => {
     restrictionForm.resetFields();
+    restrictionForm.setFieldsValue({ betScope: 'all' });
     setRestrictionModal({ open: true, mode: 'create', capabilityKey: null });
   };
 
   const openEditRestrictionModal = (state: MemberCapabilityState) => {
     restrictionForm.resetFields();
-    restrictionForm.setFieldsValue({
-      capabilityKey: state.capabilityKey,
-      reason: state.reason,
-    });
+    const providerSuffixMatch = state.capabilityKey === 'bet'
+      ? state.reason.match(/（限制廠商：(.+?)）\s*$/)
+      : null;
+    if (providerSuffixMatch) {
+      const betProviders = providerSuffixMatch[1]
+        .split('、')
+        .map(provider => provider.toLowerCase())
+        .filter(provider => SLOT_PROVIDERS.includes(provider));
+      restrictionForm.setFieldsValue({
+        capabilityKey: state.capabilityKey,
+        reason: state.reason.replace(/（限制廠商：(.+?)）\s*$/, '').trimEnd(),
+        betScope: 'partial',
+        betProviders,
+      });
+    } else {
+      restrictionForm.setFieldsValue({
+        capabilityKey: state.capabilityKey,
+        reason: state.reason,
+        betScope: 'all',
+      });
+    }
     setRestrictionModal({ open: true, mode: 'edit', capabilityKey: state.capabilityKey });
   };
 
@@ -1780,6 +2026,8 @@ export default function MemberDetailPage() {
 
     const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
     const source: CapabilitySource = 'manual';
+    const shouldAppendBetProviders = targetKey === 'bet' && restrictionModal.mode !== 'release'
+      && values.betScope === 'partial' && Array.isArray(values.betProviders) && values.betProviders.length > 0;
 
     if (restrictionModal.mode === 'release') {
       const nextState: MemberCapabilityState = {
@@ -1812,11 +2060,17 @@ export default function MemberDetailPage() {
 
     // 不再提供暫時限制，所有手動鎖一律永久（restrictedUntil=null）
     const restrictedUntil: string | null = null;
+    let finalReason = values.reason;
+    if (shouldAppendBetProviders) {
+      const providers: string[] = values.betProviders;
+      const label = providers.map(p => p.toUpperCase()).join('、');
+      finalReason = `${values.reason}（限制廠商：${label}）`;
+    }
 
     const nextState: MemberCapabilityState = {
       capabilityKey: targetKey,
       restricted: true,
-      reason: values.reason,
+      reason: finalReason,
       source,
       restrictedAt: restrictionModal.mode === 'edit'
         ? (restrictionStates.find(s => s.capabilityKey === targetKey)?.restrictedAt ?? now)
@@ -1831,7 +2085,7 @@ export default function MemberDetailPage() {
       createdAt: now,
       capabilityKey: targetKey,
       action: restrictionModal.mode === 'edit' ? 'update' : 'close',
-      reason: values.reason,
+      reason: finalReason,
       source,
       restrictedUntil,
       operator: currentOperator,
@@ -2087,7 +2341,7 @@ export default function MemberDetailPage() {
             icon={<PlusOutlined />}
             onClick={() => {
               restrictionForm.resetFields();
-              restrictionForm.setFieldsValue({ capabilityKey: row.capability.key });
+              restrictionForm.setFieldsValue({ capabilityKey: row.capability.key, betScope: 'all' });
               setRestrictionModal({ open: true, mode: 'create', capabilityKey: row.capability.key });
             }}
           >
@@ -2233,6 +2487,12 @@ export default function MemberDetailPage() {
     { key: 'risk', label: '風控日誌', children: <Empty description="（demo 略）" /> },
     { key: 'login', label: '登錄日誌', children: <Empty description="（demo 略）" /> },
   ];
+
+  // 掛載前(SSR 與用戶端首次渲染)先顯示占位，避免 mock 隨機資料造成的水合不一致。
+  // 放在所有 Hook（含上方 render*Tab() 內部 Hook）執行之後，確保 Hook 呼叫順序穩定。
+  if (!mounted) {
+    return <div style={{ padding: 24, color: '#999' }}>載入中…</div>;
+  }
 
   return (
     <div>
@@ -2434,6 +2694,35 @@ export default function MemberDetailPage() {
               })()}
             </Form.Item>
           )}
+
+          {modalTargetKey === 'bet' && restrictionModal.mode !== 'release' ? (
+            <Form.Item
+              label="鎖定範圍"
+              name="betScope"
+            >
+              <Radio.Group data-e2e-id="member-detail-restriction-modal-bet-scope-radio">
+                <Radio value="all">全部廠商</Radio>
+                <Radio value="partial">部分廠商</Radio>
+              </Radio.Group>
+            </Form.Item>
+          ) : null}
+
+          {modalTargetKey === 'bet' && restrictionModal.mode !== 'release' && watchedBetScope === 'partial' ? (
+            <Form.Item
+              label="限制廠商"
+              name="betProviders"
+              rules={[{ required: true, message: '請至少選擇一個廠商' }]}
+            >
+              <Select
+                data-e2e-id="member-detail-restriction-modal-bet-providers-select"
+                mode="multiple"
+                allowClear
+                showSearch
+                placeholder="選擇要限制的廠商（可多選）"
+                options={SLOT_PROVIDERS.map(p => ({ value: p, label: p.toUpperCase() }))}
+              />
+            </Form.Item>
+          ) : null}
 
           <Form.Item
             label={restrictionModal.mode === 'release' ? '解除原因' : '限制原因'}
