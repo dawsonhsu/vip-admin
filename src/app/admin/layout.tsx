@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 import zhTW from 'antd/locale/zh_TW';
 import AdminLayout from '@/components/AdminLayout';
+import { ComplianceProvider } from '@/components/ComplianceContext';
 
 export default function AdminRootLayout({ children }: { children: React.ReactNode }) {
   const [isDark, setIsDark] = useState(true);
@@ -50,9 +51,11 @@ export default function AdminRootLayout({ children }: { children: React.ReactNod
         algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
       }}
     >
-      <AdminLayout isDark={isDark} onThemeChange={handleThemeChange}>
-        {children}
-      </AdminLayout>
+      <ComplianceProvider>
+        <AdminLayout isDark={isDark} onThemeChange={handleThemeChange}>
+          {children}
+        </AdminLayout>
+      </ComplianceProvider>
     </ConfigProvider>
   );
 }

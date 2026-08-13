@@ -1,8 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import dayjs from 'dayjs';
 import { useRouter, usePathname } from 'next/navigation';
-import { Layout, Menu, Typography, Switch, Space, Avatar, Dropdown, Breadcrumb } from 'antd';
+import { Layout, Menu, Typography, Switch, Space, Avatar, Dropdown, Breadcrumb, Badge, Tooltip } from 'antd';
+import { useCompliance } from '@/components/ComplianceContext';
+import { complianceInputFromConfig, resolveCompliance } from '@/data/clientConfigData';
 import {
   TeamOutlined,
   GiftOutlined,
@@ -179,6 +182,19 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
   const router = useRouter();
   const pathname = usePathname();
 
+  // Live compliance status shown in the header. Time-dependent (schedule windows),
+  // so it ticks every 30s and is only rendered after mount to avoid SSR hydration
+  // mismatch (server has no wall-clock agreement with the client).
+  const { config: complianceConfig } = useCompliance();
+  const [mounted, setMounted] = useState(false);
+  const [now, setNow] = useState(() => dayjs());
+  useEffect(() => {
+    setMounted(true);
+    const timer = setInterval(() => setNow(dayjs()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+  const compliance = resolveCompliance(complianceInputFromConfig(complianceConfig), now);
+
   const onClick: MenuProps['onClick'] = ({ key }) => {
     if (key.startsWith('/admin') || key.startsWith('/client-demo')) {
       router.push(key);
@@ -270,6 +286,20 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
             ]}
           />
           <Space size="middle">
+            {mounted && (
+              <Tooltip title={`合規狀態：${compliance.label}`}>
+                <span
+                  data-e2e-id="layout-compliance-status"
+                  style={{ display: 'inline-flex', alignItems: 'center', fontSize: 13, color: headerTextColor, whiteSpace: 'nowrap' }}
+                >
+                  合規狀態：
+                  <Badge
+                    status={compliance.open ? 'success' : 'default'}
+                    text={<span style={{ color: headerTextColor }}>{compliance.open ? '開' : '關'}</span>}
+                  />
+                </span>
+              </Tooltip>
+            )}
             <Switch
               data-e2e-id="layout-theme-toggle"
               checked={isDark}

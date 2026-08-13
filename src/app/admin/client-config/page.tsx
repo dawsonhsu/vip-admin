@@ -18,6 +18,7 @@ import {
   Table,
   Tabs,
   TimePicker,
+  Tooltip,
   Typography,
   Upload,
   message,
@@ -25,17 +26,19 @@ import {
 import {
   DownloadOutlined,
   ImportOutlined,
+  InfoCircleOutlined,
   SettingOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
 import type { UploadFile, UploadProps } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import { useCompliance } from '@/components/ComplianceContext';
 import {
   clientConfigTabLabels,
   complianceGameTemplateRows,
-  defaultComplianceConfig,
+  complianceInputFromConfig,
   defaultFirstDepositAmount,
-  type ComplianceConfig,
+  resolveCompliance,
   type ComplianceGameRow,
 } from '@/data/clientConfigData';
 
@@ -56,57 +59,6 @@ interface FirstDepositFormValues {
   firstDeposit: number;
 }
 
-interface ResolveInput {
-  manualEnabled?: boolean;
-  scheduleEnabled?: boolean;
-  dateStart?: Dayjs | null;
-  dateEnd?: Dayjs | null;
-  timeStart?: Dayjs | null;
-  timeEnd?: Dayjs | null;
-}
-
-const secondsOfDay = (d: Dayjs) => d.hour() * 3600 + d.minute() * 60 + d.second();
-
-// Resolved compliance state = 手動強制開啟 OR 排程時段內.
-// Manual only forces ON; manual-off has no power (never forces OFF), so there is
-// no manual-vs-schedule conflict — off means "let the schedule decide".
-const resolveEffective = (input: ResolveInput, now: Dayjs): { open: boolean; label: string } => {
-  const manualOn = !!input.manualEnabled;
-
-  let scheduleActive = false;
-  let scheduleReason = '';
-  let dailyWindow = '';
-  if (input.scheduleEnabled && input.dateStart && input.dateEnd && input.timeStart && input.timeEnd) {
-    const dateStart = input.dateStart.startOf('day');
-    const dateEnd = input.dateEnd.endOf('day');
-    const inDate =
-      (now.isAfter(dateStart) || now.isSame(dateStart)) &&
-      (now.isBefore(dateEnd) || now.isSame(dateEnd));
-    const nowSec = secondsOfDay(now);
-    const inTime = nowSec >= secondsOfDay(input.timeStart) && nowSec <= secondsOfDay(input.timeEnd);
-    scheduleActive = inDate && inTime;
-    dailyWindow = `${input.timeStart.format('HH:mm')}~${input.timeEnd.format('HH:mm')}`;
-    if (!inDate) {
-      scheduleReason = now.isBefore(dateStart) ? '排程未開始' : '排程已結束';
-    } else if (!inTime) {
-      scheduleReason = `非每日時段（每日 ${dailyWindow} 才開啟）`;
-    }
-  }
-
-  const open = manualOn || scheduleActive;
-  let label: string;
-  if (open) {
-    if (manualOn && scheduleActive) label = '開啟中（手動＋排程時段內）';
-    else if (manualOn) label = '開啟中（手動強制開啟）';
-    else label = `開啟中（排程時段內，每日 ${dailyWindow}）`;
-  } else if (!input.scheduleEnabled) {
-    label = '關閉（手動關、未啟用排程）';
-  } else {
-    label = `關閉（${scheduleReason || '排程外'}）`;
-  }
-  return { open, label };
-};
-
 const complianceGameColumns: ColumnsType<ComplianceGameRow> = [
   { title: '遊戲ID', dataIndex: 'gameId' },
   { title: '英文名', dataIndex: 'gameNameEn' },
@@ -116,7 +68,7 @@ const complianceGameColumns: ColumnsType<ComplianceGameRow> = [
 export default function ClientConfigPage() {
   const [complianceForm] = Form.useForm<ComplianceFormValues>();
   const [firstDepositForm] = Form.useForm<FirstDepositFormValues>();
-  const [config, setConfig] = useState<ComplianceConfig>(defaultComplianceConfig);
+  const { config, setConfig } = useCompliance();
   const [firstDeposit, setFirstDeposit] = useState(defaultFirstDepositAmount);
   const [importedGames, setImportedGames] = useState<ComplianceGameRow[]>([]);
   const [complianceModalOpen, setComplianceModalOpen] = useState(false);
@@ -136,7 +88,7 @@ export default function ClientConfigPage() {
   const watchedScheduleEnabled = Form.useWatch('scheduleEnabled', complianceForm);
   const watchedDateRange = Form.useWatch('dateRange', complianceForm);
   const watchedTimeRange = Form.useWatch('timeRange', complianceForm);
-  const previewState = resolveEffective(
+  const previewState = resolveCompliance(
     {
       manualEnabled: watchedManual,
       scheduleEnabled: watchedScheduleEnabled,
@@ -149,17 +101,7 @@ export default function ClientConfigPage() {
   );
 
   // What is actually live right now, from the saved config.
-  const currentState = resolveEffective(
-    {
-      manualEnabled: config.manualEnabled,
-      scheduleEnabled: config.scheduleEnabled,
-      dateStart: dayjs(config.scheduleDateStart, dateFormat),
-      dateEnd: dayjs(config.scheduleDateEnd, dateFormat),
-      timeStart: dayjs(config.scheduleTimeStart, timeFormat),
-      timeEnd: dayjs(config.scheduleTimeEnd, timeFormat),
-    },
-    dayjs(),
-  );
+  const currentState = resolveCompliance(complianceInputFromConfig(config), dayjs());
 
   const openComplianceModal = () => {
     complianceForm.setFieldsValue({
@@ -339,24 +281,31 @@ export default function ClientConfigPage() {
           }}
           data-e2e-id="client-config-preview-state"
         >
-          <Text type="secondary" style={{ marginRight: 8 }}>設定後生效狀態：</Text>
+          <Text type="secondary" style={{ marginRight: 8 }}>
+            設定後生效狀態
+            <Tooltip title="合規 = 手動強制開啟 或 排程時段內（任一為開即開）">
+              <InfoCircleOutlined style={{ marginLeft: 4, cursor: 'help' }} />
+            </Tooltip>
+            ：
+          </Text>
           <Badge
             status={previewState.open ? 'success' : 'default'}
             text={previewState.label}
           />
-          <div style={{ marginTop: 4 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              合規 = 手動強制開啟 或 排程時段內（任一為開即開）
-            </Text>
-          </div>
         </div>
 
         <Form form={complianceForm} layout="vertical" requiredMark>
           <Form.Item
             name="manualEnabled"
-            label="手動強制開啟"
+            label={(
+              <span>
+                手動強制開啟
+                <Tooltip title="開啟＝立即強制合規；關閉＝不強制，交由排程判定">
+                  <InfoCircleOutlined style={{ marginLeft: 4, cursor: 'help' }} />
+                </Tooltip>
+              </span>
+            )}
             valuePropName="checked"
-            extra="開啟＝立即強制合規；關閉＝不強制，交由排程判定"
           >
             <Switch
               checkedChildren="開"
@@ -394,7 +343,7 @@ export default function ClientConfigPage() {
               {
                 validator: (_, value?: [Dayjs, Dayjs]) => {
                   if (!value || !value[0] || !value[1]) return Promise.resolve();
-                  return secondsOfDay(value[1]) > secondsOfDay(value[0])
+                  return value[1].isAfter(value[0])
                     ? Promise.resolve()
                     : Promise.reject(new Error('結束時間需晚於開始時間（同日窗口）'));
                 },

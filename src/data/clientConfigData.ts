@@ -1,3 +1,5 @@
+import dayjs, { type Dayjs } from 'dayjs';
+
 export interface ComplianceConfig {
   /** 手動強制開啟：true = 立即強制合規開；false = 不強制（交由排程判定） */
   manualEnabled: boolean;
@@ -59,3 +61,79 @@ export const clientConfigTabLabels: string[] = [
   '合規開關',
   '門店客戶端',
 ];
+
+// ---- Compliance effective-state resolution (shared by the page + the header) ----
+
+export interface ComplianceResolveInput {
+  manualEnabled?: boolean;
+  scheduleEnabled?: boolean;
+  dateStart?: Dayjs | null;
+  dateEnd?: Dayjs | null;
+  timeStart?: Dayjs | null;
+  timeEnd?: Dayjs | null;
+}
+
+export interface ComplianceEffective {
+  open: boolean;
+  label: string;
+}
+
+const secondsOfDay = (d: Dayjs) => d.hour() * 3600 + d.minute() * 60 + d.second();
+
+// Resolved compliance state = 手動強制開啟 OR 排程時段內.
+// Manual only forces ON; manual-off has no power (never forces OFF), so there is
+// no manual-vs-schedule conflict — off means "let the schedule decide".
+export const resolveCompliance = (input: ComplianceResolveInput, now: Dayjs): ComplianceEffective => {
+  const manualOn = !!input.manualEnabled;
+
+  let scheduleActive = false;
+  let scheduleReason = '';
+  let dailyWindow = '';
+  if (input.scheduleEnabled && input.dateStart && input.dateEnd && input.timeStart && input.timeEnd) {
+    const dateStart = input.dateStart.startOf('day');
+    const dateEnd = input.dateEnd.endOf('day');
+    const inDate =
+      (now.isAfter(dateStart) || now.isSame(dateStart)) &&
+      (now.isBefore(dateEnd) || now.isSame(dateEnd));
+    const nowSec = secondsOfDay(now);
+    const inTime = nowSec >= secondsOfDay(input.timeStart) && nowSec <= secondsOfDay(input.timeEnd);
+    scheduleActive = inDate && inTime;
+    dailyWindow = `${input.timeStart.format('HH:mm')}~${input.timeEnd.format('HH:mm')}`;
+    if (!inDate) {
+      scheduleReason = now.isBefore(dateStart) ? '排程未開始' : '排程已結束';
+    } else if (!inTime) {
+      scheduleReason = `非每日時段（每日 ${dailyWindow} 才開啟）`;
+    }
+  }
+
+  const open = manualOn || scheduleActive;
+  let label: string;
+  if (open) {
+    if (manualOn && scheduleActive) label = '開啟中（手動＋排程時段內）';
+    else if (manualOn) label = '開啟中（手動強制開啟）';
+    else label = `開啟中（排程時段內，每日 ${dailyWindow}）`;
+  } else if (!input.scheduleEnabled) {
+    label = '關閉（手動關、未啟用排程）';
+  } else {
+    label = `關閉（${scheduleReason || '排程外'}）`;
+  }
+  return { open, label };
+};
+
+// Build a resolve-input from the saved config. Time strings are split manually
+// (not parsed via dayjs custom format) so this works regardless of which dayjs
+// plugins happen to be loaded on the current page.
+export const complianceInputFromConfig = (cfg: ComplianceConfig): ComplianceResolveInput => {
+  const parseTimeOfDay = (value: string): Dayjs => {
+    const [h, m, s] = value.split(':').map((part) => Number(part) || 0);
+    return dayjs().hour(h).minute(m).second(s).millisecond(0);
+  };
+  return {
+    manualEnabled: cfg.manualEnabled,
+    scheduleEnabled: cfg.scheduleEnabled,
+    dateStart: dayjs(cfg.scheduleDateStart),
+    dateEnd: dayjs(cfg.scheduleDateEnd),
+    timeStart: parseTimeOfDay(cfg.scheduleTimeStart),
+    timeEnd: parseTimeOfDay(cfg.scheduleTimeEnd),
+  };
+};
