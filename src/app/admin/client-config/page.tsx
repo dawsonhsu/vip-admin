@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import dayjs, { type Dayjs } from 'dayjs';
 import {
+  Badge,
   Button,
   Card,
   DatePicker,
@@ -14,6 +15,7 @@ import {
   Modal,
   Radio,
   Space,
+  Switch,
   Table,
   Tabs,
   Typography,
@@ -31,12 +33,12 @@ import type { ColumnsType } from 'antd/es/table';
 import {
   clientConfigTabLabels,
   complianceGameTemplateRows,
-  complianceStatusOptions,
+  complianceModeOptions,
   defaultComplianceConfig,
   defaultFirstDepositAmount,
   type ComplianceConfig,
   type ComplianceGameRow,
-  type ComplianceStatus,
+  type ComplianceMode,
 } from '@/data/clientConfigData';
 
 const { Title, Text } = Typography;
@@ -44,9 +46,9 @@ const { RangePicker } = DatePicker;
 const dateTimeFormat = 'YYYY-MM-DD HH:mm:ss';
 
 interface ComplianceFormValues {
-  frontStatus: ComplianceStatus;
-  backStatus: ComplianceStatus;
-  deadline: [Dayjs, Dayjs];
+  mode: ComplianceMode;
+  manualEnabled: boolean;
+  deadline?: [Dayjs, Dayjs];
   googleCode: string;
 }
 
@@ -54,15 +56,43 @@ interface FirstDepositFormValues {
   firstDeposit: number;
 }
 
+interface EffectiveState {
+  open: boolean;
+  label: string;
+}
+
+// Resolve the actual live compliance state from a mode/manual/schedule combo.
+// This is what turns a "setting" into a plain-language "生效狀態" the operator can trust.
+const resolveEffective = (
+  mode: ComplianceMode | undefined,
+  manualEnabled: boolean | undefined,
+  start: Dayjs | undefined,
+  end: Dayjs | undefined,
+  now: Dayjs,
+): EffectiveState => {
+  if (mode === 'manual') {
+    return manualEnabled
+      ? { open: true, label: '開啟中（手動）' }
+      : { open: false, label: '關閉（手動）' };
+  }
+  if (!start || !end) {
+    return { open: false, label: '排程未設定' };
+  }
+  const range = `${start.format(dateTimeFormat)} ~ ${end.format(dateTimeFormat)}`;
+  if (now.isBefore(start)) {
+    return { open: false, label: `未開始（排程 ${range}，將於起始時間開啟）` };
+  }
+  if (now.isAfter(end)) {
+    return { open: false, label: `已過期自動關閉（排程 ${range} 已結束）` };
+  }
+  return { open: true, label: `開啟中（排程），剩 ${end.diff(now, 'day')} 天後自動關閉` };
+};
+
 const complianceGameColumns: ColumnsType<ComplianceGameRow> = [
   { title: '遊戲ID', dataIndex: 'gameId' },
   { title: '英文名', dataIndex: 'gameNameEn' },
   { title: '是否合規', dataIndex: 'isCompliant' },
 ];
-
-const statusLabel = (status: ComplianceStatus) => (
-  complianceStatusOptions.find((option) => option.value === status)?.label ?? status
-);
 
 export default function ClientConfigPage() {
   const [complianceForm] = Form.useForm<ComplianceFormValues>();
@@ -82,11 +112,32 @@ export default function ClientConfigPage() {
     setMounted(true);
   }, []);
 
+  // Live preview inside the modal — reflects the pending selection, not what is live now.
+  const watchedMode = Form.useWatch('mode', complianceForm);
+  const watchedManual = Form.useWatch('manualEnabled', complianceForm);
+  const watchedDeadline = Form.useWatch('deadline', complianceForm);
+  const previewState = resolveEffective(
+    watchedMode ?? config.mode,
+    watchedManual,
+    watchedDeadline?.[0],
+    watchedDeadline?.[1],
+    dayjs(),
+  );
+
+  // What is actually live right now, from the saved config.
+  const currentState = resolveEffective(
+    config.mode,
+    config.manualEnabled,
+    dayjs(config.scheduleStart),
+    dayjs(config.scheduleEnd),
+    dayjs(),
+  );
+
   const openComplianceModal = () => {
     complianceForm.setFieldsValue({
-      frontStatus: config.frontStatus,
-      backStatus: config.backStatus,
-      deadline: [dayjs(config.deadlineStart), dayjs(config.deadlineEnd)],
+      mode: config.mode,
+      manualEnabled: config.manualEnabled,
+      deadline: [dayjs(config.scheduleStart), dayjs(config.scheduleEnd)],
       googleCode: '',
     });
     setComplianceModalOpen(true);
@@ -95,10 +146,16 @@ export default function ClientConfigPage() {
   const handleComplianceConfirm = async () => {
     const values = await complianceForm.validateFields();
     setConfig({
-      frontStatus: values.frontStatus,
-      backStatus: values.backStatus,
-      deadlineStart: values.deadline[0].format(dateTimeFormat),
-      deadlineEnd: values.deadline[1].format(dateTimeFormat),
+      mode: values.mode,
+      manualEnabled: values.mode === 'manual' ? !!values.manualEnabled : config.manualEnabled,
+      scheduleStart:
+        values.mode === 'schedule' && values.deadline
+          ? values.deadline[0].format(dateTimeFormat)
+          : config.scheduleStart,
+      scheduleEnd:
+        values.mode === 'schedule' && values.deadline
+          ? values.deadline[1].format(dateTimeFormat)
+          : config.scheduleEnd,
     });
     message.success('合規化設定已更新');
     setComplianceModalOpen(false);
@@ -162,12 +219,30 @@ export default function ClientConfigPage() {
         column={3}
         data-e2e-id="client-config-compliance-state"
         items={[
-          { key: 'frontStatus', label: '前端狀態', children: statusLabel(config.frontStatus) },
-          { key: 'backStatus', label: '後端狀態', children: statusLabel(config.backStatus) },
           {
-            key: 'deadline',
-            label: '預期截止時間',
-            children: `${config.deadlineStart} ~ ${config.deadlineEnd}`,
+            key: 'effective',
+            label: '當前生效狀態',
+            span: 3,
+            children: (
+              <Badge
+                status={currentState.open ? 'success' : 'default'}
+                text={currentState.label}
+              />
+            ),
+          },
+          {
+            key: 'mode',
+            label: '生效方式',
+            children: config.mode === 'manual' ? '立即手動' : '排程時間',
+          },
+          {
+            key: 'schedule',
+            label: '排程時間',
+            span: 2,
+            children:
+              config.mode === 'schedule'
+                ? `${config.scheduleStart} ~ ${config.scheduleEnd}`
+                : '—',
           },
           {
             key: 'firstDeposit',
@@ -177,6 +252,7 @@ export default function ClientConfigPage() {
           {
             key: 'importedGames',
             label: '已匯入合規遊戲數',
+            span: 2,
             children: importedGames.length,
           },
         ]}
@@ -227,39 +303,65 @@ export default function ClientConfigPage() {
         forceRender
         data-e2e-id="client-config-compliance-modal"
       >
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '10px 12px',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(140,140,140,0.25)',
+            borderRadius: 6,
+          }}
+          data-e2e-id="client-config-preview-state"
+        >
+          <Text type="secondary" style={{ marginRight: 8 }}>設定後生效狀態：</Text>
+          <Badge
+            status={previewState.open ? 'success' : 'default'}
+            text={previewState.label}
+          />
+        </div>
+
         <Form form={complianceForm} layout="vertical" requiredMark>
           <Form.Item
-            name="frontStatus"
-            label="前端狀態"
-            rules={[{ required: true, message: '請選擇前端狀態' }]}
+            name="mode"
+            label="生效方式"
+            rules={[{ required: true, message: '請選擇生效方式' }]}
           >
             <Radio.Group
-              options={complianceStatusOptions}
-              data-e2e-id="client-config-front-status-radio"
+              options={complianceModeOptions}
+              optionType="button"
+              data-e2e-id="client-config-mode-radio"
             />
           </Form.Item>
-          <Form.Item
-            name="backStatus"
-            label="後端狀態"
-            rules={[{ required: true, message: '請選擇後端狀態' }]}
-          >
-            <Radio.Group
-              options={complianceStatusOptions}
-              data-e2e-id="client-config-back-status-radio"
-            />
-          </Form.Item>
-          <Form.Item
-            name="deadline"
-            label="預期截止時間"
-            rules={[{ required: true, message: '請選擇預期截止時間' }]}
-          >
-            <RangePicker
-              showTime
-              format={dateTimeFormat}
-              style={{ width: '100%' }}
-              data-e2e-id="client-config-deadline-range-picker"
-            />
-          </Form.Item>
+
+          {watchedMode === 'manual' ? (
+            <Form.Item
+              name="manualEnabled"
+              label="合規開關"
+              valuePropName="checked"
+              extra="立即生效，直到你手動切換為止"
+            >
+              <Switch
+                checkedChildren="開"
+                unCheckedChildren="關"
+                data-e2e-id="client-config-manual-switch"
+              />
+            </Form.Item>
+          ) : (
+            <Form.Item
+              name="deadline"
+              label="排程時間"
+              rules={[{ required: true, message: '請選擇排程時間' }]}
+              extra="到區間起自動開啟；過期後自動恢復為『關閉』"
+            >
+              <RangePicker
+                showTime
+                format={dateTimeFormat}
+                style={{ width: '100%' }}
+                data-e2e-id="client-config-deadline-range-picker"
+              />
+            </Form.Item>
+          )}
+
           <Form.Item
             name="googleCode"
             label="Google 驗證碼"

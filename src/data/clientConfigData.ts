@@ -1,10 +1,13 @@
-export type ComplianceStatus = 'enabled' | 'disabled';
+export type ComplianceMode = 'manual' | 'schedule';
 
 export interface ComplianceConfig {
-  frontStatus: ComplianceStatus;
-  backStatus: ComplianceStatus;
-  deadlineStart: string;
-  deadlineEnd: string;
+  /** 立即手動 or 排程時間 — mutually exclusive */
+  mode: ComplianceMode;
+  /** used when mode === 'manual' */
+  manualEnabled: boolean;
+  /** used when mode === 'schedule', 'YYYY-MM-DD HH:mm:ss' */
+  scheduleStart: string;
+  scheduleEnd: string;
 }
 
 export interface ComplianceGameRow {
@@ -15,17 +18,17 @@ export interface ComplianceGameRow {
 }
 
 export const defaultComplianceConfig: ComplianceConfig = {
-  frontStatus: 'disabled',
-  backStatus: 'disabled',
-  deadlineStart: '2026-03-01 08:00:00',
-  deadlineEnd: '2026-04-30 08:00:00',
+  mode: 'schedule',
+  manualEnabled: false,
+  scheduleStart: '2026-03-01 08:00:00',
+  scheduleEnd: '2026-04-30 08:00:00',
 };
 
 export const defaultFirstDepositAmount = 500;
 
-export const complianceStatusOptions: Array<{ value: ComplianceStatus; label: string }> = [
-  { value: 'enabled', label: '啟用' },
-  { value: 'disabled', label: '禁用' },
+export const complianceModeOptions: Array<{ value: ComplianceMode; label: string }> = [
+  { value: 'manual', label: '立即手動' },
+  { value: 'schedule', label: '排程時間' },
 ];
 
 export const complianceGameTemplateRows: ComplianceGameRow[] = [
