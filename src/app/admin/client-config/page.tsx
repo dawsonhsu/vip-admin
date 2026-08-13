@@ -70,7 +70,6 @@ export default function ClientConfigPage() {
   const [firstDepositForm] = Form.useForm<FirstDepositFormValues>();
   const { config, setConfig } = useCompliance();
   const [firstDeposit, setFirstDeposit] = useState(defaultFirstDepositAmount);
-  const [importedGames, setImportedGames] = useState<ComplianceGameRow[]>([]);
   const [complianceModalOpen, setComplianceModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [firstDepositModalOpen, setFirstDepositModalOpen] = useState(false);
@@ -134,7 +133,6 @@ export default function ClientConfigPage() {
   };
 
   const handleImportConfirm = () => {
-    setImportedGames(complianceGameTemplateRows);
     message.success('合規遊戲名單已匯入');
     setImportModalOpen(false);
   };
@@ -211,17 +209,6 @@ export default function ClientConfigPage() {
             label: '排程（每日時段）',
             span: 2,
             children: scheduleSummary,
-          },
-          {
-            key: 'firstDeposit',
-            label: '新會員首存起步金額',
-            children: `₱ ${firstDeposit}`,
-          },
-          {
-            key: 'importedGames',
-            label: '已匯入合規遊戲數',
-            span: 2,
-            children: importedGames.length,
           },
         ]}
       />
