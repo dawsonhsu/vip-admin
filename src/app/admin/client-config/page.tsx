@@ -13,11 +13,11 @@ import {
   Input,
   InputNumber,
   Modal,
-  Radio,
   Space,
   Switch,
   Table,
   Tabs,
+  TimePicker,
   Typography,
   Upload,
   message,
@@ -33,22 +33,22 @@ import type { ColumnsType } from 'antd/es/table';
 import {
   clientConfigTabLabels,
   complianceGameTemplateRows,
-  complianceModeOptions,
   defaultComplianceConfig,
   defaultFirstDepositAmount,
   type ComplianceConfig,
   type ComplianceGameRow,
-  type ComplianceMode,
 } from '@/data/clientConfigData';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
-const dateTimeFormat = 'YYYY-MM-DD HH:mm:ss';
+const dateFormat = 'YYYY-MM-DD';
+const timeFormat = 'HH:mm:ss';
 
 interface ComplianceFormValues {
-  mode: ComplianceMode;
   manualEnabled: boolean;
-  deadline?: [Dayjs, Dayjs];
+  scheduleEnabled: boolean;
+  dateRange?: [Dayjs, Dayjs];
+  timeRange?: [Dayjs, Dayjs];
   googleCode: string;
 }
 
@@ -56,36 +56,55 @@ interface FirstDepositFormValues {
   firstDeposit: number;
 }
 
-interface EffectiveState {
-  open: boolean;
-  label: string;
+interface ResolveInput {
+  manualEnabled?: boolean;
+  scheduleEnabled?: boolean;
+  dateStart?: Dayjs | null;
+  dateEnd?: Dayjs | null;
+  timeStart?: Dayjs | null;
+  timeEnd?: Dayjs | null;
 }
 
-// Resolve the actual live compliance state from a mode/manual/schedule combo.
-// This is what turns a "setting" into a plain-language "生效狀態" the operator can trust.
-const resolveEffective = (
-  mode: ComplianceMode | undefined,
-  manualEnabled: boolean | undefined,
-  start: Dayjs | undefined,
-  end: Dayjs | undefined,
-  now: Dayjs,
-): EffectiveState => {
-  if (mode === 'manual') {
-    return manualEnabled
-      ? { open: true, label: '開啟中（手動）' }
-      : { open: false, label: '關閉（手動）' };
+const secondsOfDay = (d: Dayjs) => d.hour() * 3600 + d.minute() * 60 + d.second();
+
+// Resolved compliance state = 手動強制開啟 OR 排程時段內.
+// Manual only forces ON; manual-off has no power (never forces OFF), so there is
+// no manual-vs-schedule conflict — off means "let the schedule decide".
+const resolveEffective = (input: ResolveInput, now: Dayjs): { open: boolean; label: string } => {
+  const manualOn = !!input.manualEnabled;
+
+  let scheduleActive = false;
+  let scheduleReason = '';
+  let dailyWindow = '';
+  if (input.scheduleEnabled && input.dateStart && input.dateEnd && input.timeStart && input.timeEnd) {
+    const dateStart = input.dateStart.startOf('day');
+    const dateEnd = input.dateEnd.endOf('day');
+    const inDate =
+      (now.isAfter(dateStart) || now.isSame(dateStart)) &&
+      (now.isBefore(dateEnd) || now.isSame(dateEnd));
+    const nowSec = secondsOfDay(now);
+    const inTime = nowSec >= secondsOfDay(input.timeStart) && nowSec <= secondsOfDay(input.timeEnd);
+    scheduleActive = inDate && inTime;
+    dailyWindow = `${input.timeStart.format('HH:mm')}~${input.timeEnd.format('HH:mm')}`;
+    if (!inDate) {
+      scheduleReason = now.isBefore(dateStart) ? '排程未開始' : '排程已結束';
+    } else if (!inTime) {
+      scheduleReason = `非每日時段（每日 ${dailyWindow} 才開啟）`;
+    }
   }
-  if (!start || !end) {
-    return { open: false, label: '排程未設定' };
+
+  const open = manualOn || scheduleActive;
+  let label: string;
+  if (open) {
+    if (manualOn && scheduleActive) label = '開啟中（手動＋排程時段內）';
+    else if (manualOn) label = '開啟中（手動強制開啟）';
+    else label = `開啟中（排程時段內，每日 ${dailyWindow}）`;
+  } else if (!input.scheduleEnabled) {
+    label = '關閉（手動關、未啟用排程）';
+  } else {
+    label = `關閉（${scheduleReason || '排程外'}）`;
   }
-  const range = `${start.format(dateTimeFormat)} ~ ${end.format(dateTimeFormat)}`;
-  if (now.isBefore(start)) {
-    return { open: false, label: `未開始（排程 ${range}，將於起始時間開啟）` };
-  }
-  if (now.isAfter(end)) {
-    return { open: false, label: `已過期自動關閉（排程 ${range} 已結束）` };
-  }
-  return { open: true, label: `開啟中（排程），剩 ${end.diff(now, 'day')} 天後自動關閉` };
+  return { open, label };
 };
 
 const complianceGameColumns: ColumnsType<ComplianceGameRow> = [
@@ -113,31 +132,41 @@ export default function ClientConfigPage() {
   }, []);
 
   // Live preview inside the modal — reflects the pending selection, not what is live now.
-  const watchedMode = Form.useWatch('mode', complianceForm);
   const watchedManual = Form.useWatch('manualEnabled', complianceForm);
-  const watchedDeadline = Form.useWatch('deadline', complianceForm);
+  const watchedScheduleEnabled = Form.useWatch('scheduleEnabled', complianceForm);
+  const watchedDateRange = Form.useWatch('dateRange', complianceForm);
+  const watchedTimeRange = Form.useWatch('timeRange', complianceForm);
   const previewState = resolveEffective(
-    watchedMode ?? config.mode,
-    watchedManual,
-    watchedDeadline?.[0],
-    watchedDeadline?.[1],
+    {
+      manualEnabled: watchedManual,
+      scheduleEnabled: watchedScheduleEnabled,
+      dateStart: watchedDateRange?.[0],
+      dateEnd: watchedDateRange?.[1],
+      timeStart: watchedTimeRange?.[0],
+      timeEnd: watchedTimeRange?.[1],
+    },
     dayjs(),
   );
 
   // What is actually live right now, from the saved config.
   const currentState = resolveEffective(
-    config.mode,
-    config.manualEnabled,
-    dayjs(config.scheduleStart),
-    dayjs(config.scheduleEnd),
+    {
+      manualEnabled: config.manualEnabled,
+      scheduleEnabled: config.scheduleEnabled,
+      dateStart: dayjs(config.scheduleDateStart, dateFormat),
+      dateEnd: dayjs(config.scheduleDateEnd, dateFormat),
+      timeStart: dayjs(config.scheduleTimeStart, timeFormat),
+      timeEnd: dayjs(config.scheduleTimeEnd, timeFormat),
+    },
     dayjs(),
   );
 
   const openComplianceModal = () => {
     complianceForm.setFieldsValue({
-      mode: config.mode,
       manualEnabled: config.manualEnabled,
-      deadline: [dayjs(config.scheduleStart), dayjs(config.scheduleEnd)],
+      scheduleEnabled: config.scheduleEnabled,
+      dateRange: [dayjs(config.scheduleDateStart, dateFormat), dayjs(config.scheduleDateEnd, dateFormat)],
+      timeRange: [dayjs(config.scheduleTimeStart, timeFormat), dayjs(config.scheduleTimeEnd, timeFormat)],
       googleCode: '',
     });
     setComplianceModalOpen(true);
@@ -146,16 +175,12 @@ export default function ClientConfigPage() {
   const handleComplianceConfirm = async () => {
     const values = await complianceForm.validateFields();
     setConfig({
-      mode: values.mode,
-      manualEnabled: values.mode === 'manual' ? !!values.manualEnabled : config.manualEnabled,
-      scheduleStart:
-        values.mode === 'schedule' && values.deadline
-          ? values.deadline[0].format(dateTimeFormat)
-          : config.scheduleStart,
-      scheduleEnd:
-        values.mode === 'schedule' && values.deadline
-          ? values.deadline[1].format(dateTimeFormat)
-          : config.scheduleEnd,
+      manualEnabled: !!values.manualEnabled,
+      scheduleEnabled: !!values.scheduleEnabled,
+      scheduleDateStart: values.dateRange ? values.dateRange[0].format(dateFormat) : config.scheduleDateStart,
+      scheduleDateEnd: values.dateRange ? values.dateRange[1].format(dateFormat) : config.scheduleDateEnd,
+      scheduleTimeStart: values.timeRange ? values.timeRange[0].format(timeFormat) : config.scheduleTimeStart,
+      scheduleTimeEnd: values.timeRange ? values.timeRange[1].format(timeFormat) : config.scheduleTimeEnd,
     });
     message.success('合規化設定已更新');
     setComplianceModalOpen(false);
@@ -183,6 +208,10 @@ export default function ClientConfigPage() {
     message.success('首存金額已更新');
     setFirstDepositModalOpen(false);
   };
+
+  const scheduleSummary = config.scheduleEnabled
+    ? `${config.scheduleDateStart} ~ ${config.scheduleDateEnd}　每日 ${config.scheduleTimeStart.slice(0, 5)}~${config.scheduleTimeEnd.slice(0, 5)}`
+    : '未啟用';
 
   const complianceTabBody = (
     <div style={{ paddingTop: 8 }}>
@@ -231,18 +260,15 @@ export default function ClientConfigPage() {
             ),
           },
           {
-            key: 'mode',
-            label: '生效方式',
-            children: config.mode === 'manual' ? '立即手動' : '排程時間',
+            key: 'manual',
+            label: '手動強制開啟',
+            children: config.manualEnabled ? '開' : '關',
           },
           {
             key: 'schedule',
-            label: '排程時間',
+            label: '排程（每日時段）',
             span: 2,
-            children:
-              config.mode === 'schedule'
-                ? `${config.scheduleStart} ~ ${config.scheduleEnd}`
-                : '—',
+            children: scheduleSummary,
           },
           {
             key: 'firstDeposit',
@@ -318,49 +344,72 @@ export default function ClientConfigPage() {
             status={previewState.open ? 'success' : 'default'}
             text={previewState.label}
           />
+          <div style={{ marginTop: 4 }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              合規 = 手動強制開啟 或 排程時段內（任一為開即開）
+            </Text>
+          </div>
         </div>
 
         <Form form={complianceForm} layout="vertical" requiredMark>
           <Form.Item
-            name="mode"
-            label="生效方式"
-            rules={[{ required: true, message: '請選擇生效方式' }]}
+            name="manualEnabled"
+            label="手動強制開啟"
+            valuePropName="checked"
+            extra="開啟＝立即強制合規；關閉＝不強制，交由排程判定"
           >
-            <Radio.Group
-              options={complianceModeOptions}
-              optionType="button"
-              data-e2e-id="client-config-mode-radio"
+            <Switch
+              checkedChildren="開"
+              unCheckedChildren="關"
+              data-e2e-id="client-config-manual-switch"
             />
           </Form.Item>
 
-          {watchedMode === 'manual' ? (
-            <Form.Item
-              name="manualEnabled"
-              label="合規開關"
-              valuePropName="checked"
-              extra="立即生效，直到你手動切換為止"
-            >
-              <Switch
-                checkedChildren="開"
-                unCheckedChildren="關"
-                data-e2e-id="client-config-manual-switch"
-              />
-            </Form.Item>
-          ) : (
-            <Form.Item
-              name="deadline"
-              label="排程時間"
-              rules={[{ required: true, message: '請選擇排程時間' }]}
-              extra="到區間起自動開啟；過期後自動恢復為『關閉』"
-            >
-              <RangePicker
-                showTime
-                format={dateTimeFormat}
-                style={{ width: '100%' }}
-                data-e2e-id="client-config-deadline-range-picker"
-              />
-            </Form.Item>
-          )}
+          <Divider style={{ margin: '8px 0 16px' }}>排程（自動）</Divider>
+
+          <Form.Item name="scheduleEnabled" label="啟用排程" valuePropName="checked">
+            <Switch
+              checkedChildren="開"
+              unCheckedChildren="關"
+              data-e2e-id="client-config-schedule-switch"
+            />
+          </Form.Item>
+          <Form.Item
+            name="dateRange"
+            label="日期範圍"
+            rules={[{ required: true, message: '請選擇日期範圍' }]}
+          >
+            <RangePicker
+              format={dateFormat}
+              style={{ width: '100%' }}
+              disabled={watchedScheduleEnabled === false}
+              data-e2e-id="client-config-date-range-picker"
+            />
+          </Form.Item>
+          <Form.Item
+            name="timeRange"
+            label="每日時段"
+            rules={[
+              { required: true, message: '請選擇每日時段' },
+              {
+                validator: (_, value?: [Dayjs, Dayjs]) => {
+                  if (!value || !value[0] || !value[1]) return Promise.resolve();
+                  return secondsOfDay(value[1]) > secondsOfDay(value[0])
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('結束時間需晚於開始時間（同日窗口）'));
+                },
+              },
+            ]}
+            extra="僅在日期範圍內、每日此時段開啟，其餘（夜間、範圍外）自動關閉"
+          >
+            <TimePicker.RangePicker
+              format={timeFormat}
+              style={{ width: '100%' }}
+              order={false}
+              disabled={watchedScheduleEnabled === false}
+              data-e2e-id="client-config-time-range-picker"
+            />
+          </Form.Item>
 
           <Form.Item
             name="googleCode"

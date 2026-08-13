@@ -1,13 +1,14 @@
-export type ComplianceMode = 'manual' | 'schedule';
-
 export interface ComplianceConfig {
-  /** 立即手動 or 排程時間 — mutually exclusive */
-  mode: ComplianceMode;
-  /** used when mode === 'manual' */
+  /** 手動強制開啟：true = 立即強制合規開；false = 不強制（交由排程判定） */
   manualEnabled: boolean;
-  /** used when mode === 'schedule', 'YYYY-MM-DD HH:mm:ss' */
-  scheduleStart: string;
-  scheduleEnd: string;
+  /** 是否啟用排程 */
+  scheduleEnabled: boolean;
+  /** 排程日期範圍 'YYYY-MM-DD' */
+  scheduleDateStart: string;
+  scheduleDateEnd: string;
+  /** 排程每日時段 'HH:mm:ss'（同日窗口，結束需晚於開始） */
+  scheduleTimeStart: string;
+  scheduleTimeEnd: string;
 }
 
 export interface ComplianceGameRow {
@@ -18,18 +19,15 @@ export interface ComplianceGameRow {
 }
 
 export const defaultComplianceConfig: ComplianceConfig = {
-  mode: 'schedule',
   manualEnabled: false,
-  scheduleStart: '2026-03-01 08:00:00',
-  scheduleEnd: '2026-04-30 08:00:00',
+  scheduleEnabled: true,
+  scheduleDateStart: '2026-03-01',
+  scheduleDateEnd: '2026-04-30',
+  scheduleTimeStart: '08:00:00',
+  scheduleTimeEnd: '18:00:00',
 };
 
 export const defaultFirstDepositAmount = 500;
-
-export const complianceModeOptions: Array<{ value: ComplianceMode; label: string }> = [
-  { value: 'manual', label: '立即手動' },
-  { value: 'schedule', label: '排程時間' },
-];
 
 export const complianceGameTemplateRows: ComplianceGameRow[] = [
   {
