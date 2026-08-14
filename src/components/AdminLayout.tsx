@@ -34,6 +34,7 @@ import {
   LogoutOutlined,
   MobileOutlined,
   MonitorOutlined,
+  PictureOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -96,6 +97,7 @@ const menuItems: MenuItem[] = [
       { key: '/admin/ops-tools', icon: <ToolOutlined />, label: <span data-e2e-id="layout-menu-ops-tools">運營小工具</span> },
       { key: '/admin/jackpot-board', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-jackpot-board">爆獎榜管理</span> },
       { key: '/admin/marquee', icon: <SoundOutlined />, label: <span data-e2e-id="layout-menu-marquee">跑馬燈管理</span> },
+      { key: '/admin/material-management', icon: <PictureOutlined />, label: <span data-e2e-id="layout-menu-material-management">素材管理</span> },
     ],
   },
   { key: 'promotion', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-promotion">推廣管理</span> },
@@ -139,6 +141,7 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/ops-tools': '運營小工具',
   '/admin/jackpot-board': '爆獎榜管理',
   '/admin/marquee': '跑馬燈管理',
+  '/admin/material-management': '素材管理',
   '/admin/deposit-records': '存款記錄',
   '/admin/payment-channels': '支付渠道 V2',
   '/admin/up-down-score': '上下分紀錄',
@@ -162,6 +165,7 @@ const parentBreadcrumbMap: Record<string, string> = {
   '/admin/ops-tools': '運營管理',
   '/admin/jackpot-board': '運營管理',
   '/admin/marquee': '運營管理',
+  '/admin/material-management': '運營管理',
   '/admin/deposit-records': '財務管理',
   '/admin/payment-channels': '財務管理',
   '/admin/up-down-score': '風控管理',
