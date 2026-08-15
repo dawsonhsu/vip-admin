@@ -93,6 +93,7 @@ const menuItems: MenuItem[] = [
     label: <span data-e2e-id="layout-menu-operations">運營管理</span>,
     children: [
       { key: '/admin/client-config', icon: <MobileOutlined />, label: <span data-e2e-id="layout-menu-client-config">客戶端配置</span> },
+      { key: '/admin/home-sections', icon: <AppstoreOutlined />, label: <span data-e2e-id="layout-menu-home-sections">首頁板塊配置</span> },
       { key: '/admin/activity-list', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-activity-list">活動列表</span> },
       { key: '/admin/ops-tools', icon: <ToolOutlined />, label: <span data-e2e-id="layout-menu-ops-tools">運營小工具</span> },
       { key: '/admin/jackpot-board', icon: <NotificationOutlined />, label: <span data-e2e-id="layout-menu-jackpot-board">爆獎榜管理</span> },
@@ -137,6 +138,7 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/freebet-campaign': 'FreeBet 活動管理',
   '/admin/game-management': '遊戲管理',
   '/admin/client-config': '客戶端配置',
+  '/admin/home-sections': '首頁板塊配置',
   '/admin/activity-list': '活動列表',
   '/admin/ops-tools': '運營小工具',
   '/admin/jackpot-board': '爆獎榜管理',
@@ -161,6 +163,7 @@ const parentBreadcrumbMap: Record<string, string> = {
   '/admin/freebet-campaign': '遊戲管理',
   '/admin/game-management': '遊戲管理',
   '/admin/client-config': '運營管理',
+  '/admin/home-sections': '運營管理',
   '/admin/activity-list': '運營管理',
   '/admin/ops-tools': '運營管理',
   '/admin/jackpot-board': '運營管理',
