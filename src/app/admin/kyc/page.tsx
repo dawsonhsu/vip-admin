@@ -8,6 +8,7 @@ import {
   Form,
   Input,
   Modal,
+  Segmented,
   Select,
   Space,
   Table,
@@ -23,9 +24,11 @@ import dayjs, { type Dayjs } from 'dayjs';
 import KycEditModal from '@/components/KycEditModal';
 import KycReviewModal from '@/components/KycReviewModal';
 import KycChangeLogModal from '@/components/KycChangeLogModal';
+import KycEditReviewDrawer from '@/components/KycEditReviewDrawer';
 import KycEkycConfigModal, { type KycEkycConfig } from '@/components/KycEkycConfigModal';
 import {
   getKycChannelCounts,
+  kycOperators,
   kycSeedData,
   kycStatusColorMap,
   kycStatusLabelMap,
@@ -58,19 +61,52 @@ const getVerifyColor = (result: KycVerifyResult, token: ReturnType<typeof theme.
 
 const valueOrDash = (value?: string) => value?.trim() || '-';
 
+const cloneSeedRecords = () => kycSeedData.map((record) => ({
+  ...record,
+  changeLog: record.changeLog.map((entry) => ({ ...entry })),
+  pendingEdit: record.pendingEdit
+    ? { ...record.pendingEdit, changes: record.pendingEdit.changes.map((change) => ({ ...change })) }
+    : null,
+}));
+
+const editableFieldNames = new Set([
+  'firstName',
+  'middleName',
+  'lastName',
+  'birthday',
+  'gender',
+  'nationality',
+  'birthplace',
+  'currentAddress',
+  'permanentAddress',
+  'nearestBranch',
+  'occupation',
+  'incomeSource',
+]);
+
+const applyPendingEdit = (record: KycRecord): KycRecord => {
+  if (!record.pendingEdit) return record;
+  const liveChanges = Object.fromEntries(
+    record.pendingEdit.changes
+      .filter((change) => editableFieldNames.has(change.field))
+      .map((change) => [change.field, change.newValue]),
+  ) as Partial<KycRecord>;
+  return { ...record, ...liveChanges };
+};
+
 export default function KycPage() {
   const [form] = Form.useForm<KycFilters>();
   const { token } = theme.useToken();
-  const [records, setRecords] = useState<KycRecord[]>(() => kycSeedData.map((record) => ({
-    ...record,
-    changeLog: [...record.changeLog],
-  })));
+  const [records, setRecords] = useState<KycRecord[]>(cloneSeedRecords);
   const [filters, setFilters] = useState<KycFilters>({});
   const [activeChannel, setActiveChannel] = useState<KycChannel>('主站APP/H5');
+  const [queueView, setQueueView] = useState<'all' | 'pending'>('all');
+  const [currentOperator, setCurrentOperator] = useState('Darren');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [editRecord, setEditRecord] = useState<KycRecord | null>(null);
   const [reviewRecord, setReviewRecord] = useState<KycRecord | null>(null);
+  const [editReviewRecord, setEditReviewRecord] = useState<KycRecord | null>(null);
   const [logRecord, setLogRecord] = useState<KycRecord | null>(null);
   const [preview, setPreview] = useState<{ record: KycRecord; label: string; tone: number } | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
@@ -84,9 +120,14 @@ export default function KycPage() {
     '主站APP/H5': getKycChannelCounts(records, '主站APP/H5', today),
     '未分類渠道': getKycChannelCounts(records, '未分類渠道', today),
   }), [records, today]);
+  const pendingEditCount = useMemo(
+    () => records.filter((record) => record.channel === activeChannel && record.pendingEdit).length,
+    [activeChannel, records],
+  );
 
   const filteredData = useMemo(() => records.filter((record) => {
     if (record.channel !== activeChannel) return false;
+    if (queueView === 'pending' && !record.pendingEdit) return false;
     if (filters.phone) {
       const query = filters.phone.replace(/\s|\+63/g, '').toLowerCase();
       if (!record.phone.toLowerCase().includes(query)) return false;
@@ -101,7 +142,7 @@ export default function KycPage() {
       if (submittedAt.isBefore(filters.submittedRange[0]) || submittedAt.isAfter(filters.submittedRange[1])) return false;
     }
     return true;
-  }), [activeChannel, filters, records]);
+  }), [activeChannel, filters, queueView, records]);
 
   const confirmEditGuard = (title: string, content: string) => new Promise<boolean>((resolve) => {
     Modal.confirm({
@@ -115,6 +156,11 @@ export default function KycPage() {
   });
 
   const handleOpenEdit = async (record: KycRecord) => {
+    if (record.pendingEdit) {
+      message.warning('此筆已有待複核的編輯，請先完成複核');
+      return;
+    }
+
     if (record.status === 'Approved') {
       const continueApproved = await confirmEditGuard(
         '編輯已通過紀錄',
@@ -139,7 +185,6 @@ export default function KycPage() {
       record.key === updatedRecord.key ? updatedRecord : record
     )));
     setEditRecord(null);
-    message.success('KYC 資料已更新');
   };
 
   const handleReview = (
@@ -156,14 +201,14 @@ export default function KycPage() {
         ? {
             ...record,
             status: decision,
-            reviewer: 'Darren',
+            reviewer: currentOperator,
             reviewedAt,
             remark,
             changeLog: [
               {
                 id: `${record.key}-${reviewedAt}`,
                 time: reviewedAt,
-                operator: 'Darren',
+                operator: currentOperator,
                 action,
                 detail,
               },
@@ -174,6 +219,57 @@ export default function KycPage() {
     )));
     setReviewRecord(null);
     message.success('KYC 審核結果已保存');
+  };
+
+  const handleApproveEdit = () => {
+    if (!editReviewRecord?.pendingEdit) return;
+    const reviewedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
+
+    setRecords((current) => current.map((record) => {
+      if (record.key !== editReviewRecord.key || !record.pendingEdit) return record;
+      const changedFields = record.pendingEdit.changes.map((change) => change.label).join('、');
+      const updatedRecord = applyPendingEdit(record);
+      return {
+        ...updatedRecord,
+        pendingEdit: null,
+        changeLog: [
+          {
+            id: `${record.key}-edit-approved-${reviewedAt}`,
+            time: reviewedAt,
+            operator: currentOperator,
+            action: '編輯核准',
+            detail: `已核准欄位：${changedFields}`,
+          },
+          ...record.changeLog,
+        ],
+      };
+    }));
+    setEditReviewRecord(null);
+  };
+
+  const handleRejectEdit = (reason: string) => {
+    if (!editReviewRecord?.pendingEdit) return;
+    const reviewedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
+
+    setRecords((current) => current.map((record) => {
+      if (record.key !== editReviewRecord.key || !record.pendingEdit) return record;
+      const changedFields = record.pendingEdit.changes.map((change) => change.label).join('、');
+      return {
+        ...record,
+        pendingEdit: null,
+        changeLog: [
+          {
+            id: `${record.key}-edit-rejected-${reviewedAt}`,
+            time: reviewedAt,
+            operator: currentOperator,
+            action: '編輯駁回',
+            detail: `駁回原因：${reason}；已捨棄欄位：${changedFields}`,
+          },
+          ...record.changeLog,
+        ],
+      };
+    }));
+    setEditReviewRecord(null);
   };
 
   const documentTone = [token.colorInfoBg, token.colorWarningBg, token.colorSuccessBg];
@@ -196,11 +292,14 @@ export default function KycPage() {
     {
       title: 'KYC狀態',
       dataIndex: 'status',
-      width: 150,
-      render: (status: KycStatus) => (
-        <span style={{ color: kycStatusColorMap[status], fontWeight: 500 }}>
-          {status}
-        </span>
+      width: 160,
+      render: (status: KycStatus, record) => (
+        <div>
+          <div style={{ color: kycStatusColorMap[status], fontWeight: 500 }}>{status}</div>
+          {record.pendingEdit && (
+            <div style={{ color: token.colorWarning, fontSize: 12, fontWeight: 500 }}>● 待複核</div>
+          )}
+        </div>
       ),
     },
     {
@@ -326,7 +425,7 @@ export default function KycPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 210,
+      width: 290,
       fixed: 'right',
       render: (_, record) => {
         const reviewDisabled = record.status === 'Approved' || record.status === 'Rejected';
@@ -341,6 +440,17 @@ export default function KycPage() {
             >
               編輯
             </Button>
+            {record.pendingEdit && (
+              <Button
+                data-e2e-id={`kyc-table-edit-review-btn-${record.uid}`}
+                type="link"
+                size="small"
+                style={{ paddingInline: 4 }}
+                onClick={() => setEditReviewRecord(record)}
+              >
+                複核編輯
+              </Button>
+            )}
             <Button
               data-e2e-id={`kyc-table-review-btn-${record.uid}`}
               type="link"
@@ -382,7 +492,7 @@ export default function KycPage() {
   };
 
   const handleReload = () => {
-    setRecords(kycSeedData.map((record) => ({ ...record, changeLog: [...record.changeLog] })));
+    setRecords(cloneSeedRecords());
     setCurrentPage(1);
     message.success('KYC 列表已刷新');
   };
@@ -462,6 +572,16 @@ export default function KycPage() {
           }}
           tabBarExtraContent={(
             <Space>
+              <Space size={6}>
+                <Text type="secondary">當前操作員：</Text>
+                <Select
+                  data-e2e-id="kyc-toolbar-current-operator-select"
+                  value={currentOperator}
+                  style={{ width: 110 }}
+                  options={kycOperators.map((operator) => ({ value: operator, label: operator }))}
+                  onChange={setCurrentOperator}
+                />
+              </Space>
               <Button
                 data-e2e-id="kyc-toolbar-ekyc-config-btn"
                 icon={<SettingOutlined />}
@@ -475,6 +595,22 @@ export default function KycPage() {
             </Space>
           )}
         />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <Segmented
+            data-e2e-id="kyc-edit-review-queue-filter"
+            value={queueView}
+            options={[
+              { label: '全部', value: 'all' },
+              { label: `待複核（${pendingEditCount}）`, value: 'pending' },
+            ]}
+            onChange={(value) => {
+              setQueueView(value as 'all' | 'pending');
+              setCurrentPage(1);
+            }}
+          />
+          <Text type="secondary">待複核共 {pendingEditCount} 筆</Text>
+        </div>
 
         <Table
           data-e2e-id="kyc-table"
@@ -501,8 +637,17 @@ export default function KycPage() {
       <KycEditModal
         open={Boolean(editRecord)}
         record={editRecord}
+        currentOperator={currentOperator}
         onCancel={() => setEditRecord(null)}
         onSave={handleSaveEdit}
+      />
+      <KycEditReviewDrawer
+        open={Boolean(editReviewRecord)}
+        record={editReviewRecord}
+        currentOperator={currentOperator}
+        onClose={() => setEditReviewRecord(null)}
+        onApprove={handleApproveEdit}
+        onReject={handleRejectEdit}
       />
       <KycReviewModal
         open={Boolean(reviewRecord)}

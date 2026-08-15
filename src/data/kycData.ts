@@ -16,6 +16,19 @@ export interface KycChangeLogEntry {
   detail: string;
 }
 
+export type KycEditFieldChange = {
+  field: string;
+  label: string;
+  oldValue: string;
+  newValue: string;
+};
+
+export type KycPendingEdit = {
+  submittedBy: string;
+  submittedAt: string;
+  changes: KycEditFieldChange[];
+};
+
 export interface KycRecord {
   key: string;
   uid: string;
@@ -44,6 +57,7 @@ export interface KycRecord {
   userMessage: string;
   remark: string;
   changeLog: KycChangeLogEntry[];
+  pendingEdit?: KycPendingEdit | null;
 }
 
 export const KYC_SEED_DATE = '2026-08-15';
@@ -55,6 +69,8 @@ export const kycStatuses: KycStatus[] = [
   'Approved',
   'Rejected',
 ];
+
+export const kycOperators = ['Darren', 'Alice', 'Ben'];
 
 export const kycStatusLabelMap: Record<KycStatus, string> = {
   Pending: '待審核',
@@ -163,6 +179,76 @@ const makeChangeLog = (
   ];
 };
 
+const makePendingEdit = (
+  index: number,
+  values: Pick<KycRecord, 'currentAddress' | 'nearestBranch' | 'occupation' | 'incomeSource'>,
+): KycPendingEdit | null => {
+  if (index === 0) {
+    return {
+      submittedBy: 'Alice',
+      submittedAt: '2026-08-15 13:20:00',
+      changes: [
+        {
+          field: 'currentAddress',
+          label: '現住址',
+          oldValue: values.currentAddress,
+          newValue: '88 Ayala Avenue, Makati',
+        },
+        {
+          field: 'occupation',
+          label: '職業',
+          oldValue: values.occupation,
+          newValue: '自僱',
+        },
+      ],
+    };
+  }
+
+  if (index === 1) {
+    return {
+      submittedBy: 'Darren',
+      submittedAt: '2026-08-15 14:05:00',
+      changes: [
+        {
+          field: 'nearestBranch',
+          label: '鄰近分行',
+          oldValue: values.nearestBranch,
+          newValue: 'Makati Branch',
+        },
+        {
+          field: 'occupation',
+          label: '職業',
+          oldValue: values.occupation,
+          newValue: '受僱',
+        },
+      ],
+    };
+  }
+
+  if (index === 4) {
+    return {
+      submittedBy: 'Ben',
+      submittedAt: '2026-08-15 15:40:00',
+      changes: [
+        {
+          field: 'currentAddress',
+          label: '現住址',
+          oldValue: values.currentAddress,
+          newValue: '27 Bonifacio Street, Davao City',
+        },
+        {
+          field: 'incomeSource',
+          label: '收入來源',
+          oldValue: values.incomeSource,
+          newValue: '薪資',
+        },
+      ],
+    };
+  }
+
+  return null;
+};
+
 export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) => {
   const status = statusPattern[index % statusPattern.length];
   const submittedAt = getSubmittedAt(index);
@@ -171,6 +257,27 @@ export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) =>
   const city = cities[index % cities.length];
   const channel: KycChannel = index % 5 === 4 ? '未分類渠道' : '主站APP/H5';
   const phone = `9${String(170000000 + index * 137).slice(-9)}`;
+  const currentAddress = `${128 + index} Rizal Street, ${city}`;
+  const nearestBranch = branches[index % branches.length];
+  const occupation = occupations[index % occupations.length];
+  const incomeSource = incomeSources[index % incomeSources.length];
+  const pendingEdit = makePendingEdit(index, {
+    currentAddress,
+    nearestBranch,
+    occupation,
+    incomeSource,
+  });
+  const changeLog = makeChangeLog(index, status, reviewedAt, reviewer);
+
+  if (pendingEdit) {
+    changeLog.unshift({
+      id: `log-${index + 1}-edit-submit`,
+      time: pendingEdit.submittedAt,
+      operator: pendingEdit.submittedBy,
+      action: '提交編輯複核',
+      detail: `已提交 ${pendingEdit.changes.length} 個欄位變更：${pendingEdit.changes.map((change) => change.label).join('、')}`,
+    });
+  }
 
   return {
     key: `kyc-${index + 1}`,
@@ -185,11 +292,11 @@ export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) =>
     gender: index % 2 === 0 ? '女' : '男',
     nationality: index % 13 === 0 ? 'Others' : 'Philippines',
     birthplace: `${city}, Philippines`,
-    currentAddress: `${128 + index} Rizal Street, ${city}`,
+    currentAddress,
     permanentAddress: index % 6 === 0 ? '' : `${52 + index} Mabini Avenue, ${city}`,
-    nearestBranch: branches[index % branches.length],
-    occupation: occupations[index % occupations.length],
-    incomeSource: incomeSources[index % incomeSources.length],
+    nearestBranch,
+    occupation,
+    incomeSource,
     verifyResult: getVerifyResult(status, index),
     regIp: `112.${20 + (index % 20)}.${40 + (index % 30)}.${80 + index}`,
     registeredAt: `2026-07-${pad(3 + (index % 25))} ${pad(7 + (index % 12))}:${pad((index * 13) % 60)}:00`,
@@ -203,7 +310,8 @@ export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) =>
       : status === 'Resubmit Required'
         ? '請重新提交證件照片'
         : '',
-    changeLog: makeChangeLog(index, status, reviewedAt, reviewer),
+    changeLog,
+    pendingEdit,
   };
 });
 

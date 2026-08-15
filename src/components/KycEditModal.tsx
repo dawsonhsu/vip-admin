@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { Button, DatePicker, Form, Input, Modal, Select, Space, Typography, theme } from 'antd';
+import { Button, DatePicker, Form, Input, Modal, Select, Space, Typography, message, theme } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
-import type { KycRecord } from '@/data/kycData';
+import type { KycEditFieldChange, KycRecord } from '@/data/kycData';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -28,13 +28,35 @@ interface EditFormValues {
 interface KycEditModalProps {
   open: boolean;
   record: KycRecord | null;
+  currentOperator: string;
   onCancel: () => void;
   onSave: (record: KycRecord) => void;
 }
 
 const branchOptions = ['Makati Branch', 'Quezon City Branch', 'Cebu Branch', 'Davao Branch', 'Pasay Branch'];
 
-export default function KycEditModal({ open, record, onCancel, onSave }: KycEditModalProps) {
+const editableFields = [
+  { field: 'firstName', label: 'First Name' },
+  { field: 'middleName', label: 'Middle Name' },
+  { field: 'lastName', label: 'Last Name' },
+  { field: 'birthday', label: '生日' },
+  { field: 'gender', label: '性別' },
+  { field: 'nationality', label: '國籍' },
+  { field: 'birthplace', label: '出生地' },
+  { field: 'currentAddress', label: '現住址' },
+  { field: 'permanentAddress', label: '常住地址' },
+  { field: 'nearestBranch', label: '鄰近分行' },
+  { field: 'occupation', label: '職業' },
+  { field: 'incomeSource', label: '收入來源' },
+] as const;
+
+export default function KycEditModal({
+  open,
+  record,
+  currentOperator,
+  onCancel,
+  onSave,
+}: KycEditModalProps) {
   const [form] = Form.useForm<EditFormValues>();
   const { token } = theme.useToken();
 
@@ -61,15 +83,57 @@ export default function KycEditModal({ open, record, onCancel, onSave }: KycEdit
 
   const handleSave = async () => {
     if (!record) return;
+    if (record.pendingEdit) {
+      message.warning('此筆已有待複核的編輯，請先完成複核');
+      return;
+    }
+
     const values = await form.validateFields();
+    const nextValues = {
+      firstName: values.firstName,
+      middleName: values.middleName || '',
+      lastName: values.lastName,
+      birthday: values.birthday.format('YYYY-MM-DD'),
+      gender: values.gender,
+      nationality: values.nationality,
+      birthplace: values.birthplace,
+      currentAddress: values.currentAddress,
+      permanentAddress: values.permanentAddress,
+      nearestBranch: values.nearestBranch,
+      occupation: values.occupation,
+      incomeSource: values.incomeSource,
+    };
+    const changes: KycEditFieldChange[] = editableFields.flatMap(({ field, label }) => {
+      const oldValue = String(record[field] ?? '');
+      const newValue = String(nextValues[field] ?? '');
+      return oldValue === newValue ? [] : [{ field, label, oldValue, newValue }];
+    });
+
+    if (!changes.length) {
+      message.info('未變更任何欄位');
+      return;
+    }
+
+    const submittedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
     onSave({
       ...record,
-      ...values,
-      phone: record.phone,
-      middleName: values.middleName || '',
-      birthday: values.birthday.format('YYYY-MM-DD'),
-      userMessage: record.userMessage,
+      pendingEdit: {
+        submittedBy: currentOperator,
+        submittedAt,
+        changes,
+      },
+      changeLog: [
+        {
+          id: `${record.key}-edit-submit-${submittedAt}`,
+          time: submittedAt,
+          operator: currentOperator,
+          action: '提交編輯複核',
+          detail: `已提交 ${changes.length} 個欄位變更：${changes.map((change) => change.label).join('、')}`,
+        },
+        ...record.changeLog,
+      ],
     });
+    message.success('已提交編輯複核，待他人核准');
   };
 
   const documentLabels = ['證件照-正面', '證件照-反面', '手持證件照'];
