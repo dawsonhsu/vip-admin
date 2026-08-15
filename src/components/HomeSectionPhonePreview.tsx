@@ -9,6 +9,7 @@ import {
   type Platform,
 } from '@/data/homeSectionsData';
 import type { GameManagementRecord } from '@/data/gameManagementData';
+import { renderSectionIcon } from '@/components/homeSectionIcons';
 
 const { Text } = Typography;
 
@@ -159,7 +160,11 @@ export default function HomeSectionPhonePreview({
             style={{ marginBottom: 18 }}
             data-e2e-id={`home-preview-section-${section.id}`}
           >
-            <Text strong style={{ display: 'block', marginBottom: 8, fontSize: 13 }}>
+            <Text
+              strong
+              style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8, fontSize: 13 }}
+            >
+              {section.type === 'custom' && renderSectionIcon(section.icon)}
               {section.name}
             </Text>
             {section.type === 'system' ? <RankingBlock /> : section.layout === 'landscape' ? (

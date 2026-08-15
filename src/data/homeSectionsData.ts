@@ -11,6 +11,7 @@ export type SectionLayout = 'landscape' | 'portrait';
 export interface HomeSection {
   id: string;
   name: string;
+  icon?: string;
   type: SectionType;
   enabled: boolean;
   locked: boolean;
@@ -90,12 +91,14 @@ const customSection = (
   platform: Platform,
   id: string,
   name: string,
+  icon: string,
   layout: SectionLayout,
   displayCount: number,
   gameIds: string[],
 ): HomeSection => ({
   id: `${platform}-${id}`,
   name,
+  icon,
   type: 'custom',
   enabled: true,
   locked: false,
@@ -129,6 +132,7 @@ const buildFilbetSections = (): HomeSection[] => [
     'filbet',
     'new-games',
     'New Games',
+    'rocket',
     'landscape',
     20,
     preferredPool('filbet', (game) => game.isNew || game.gameType === 'Slot'),
@@ -137,6 +141,7 @@ const buildFilbetSections = (): HomeSection[] => [
     'filbet',
     'hot-games',
     'Hot Games',
+    'fire',
     'portrait',
     20,
     preferredPool('filbet', (game) => game.hot),
@@ -154,6 +159,7 @@ const buildLighterSections = (platform: Exclude<Platform, 'filbet'>): HomeSectio
       platform,
       useHotGames ? 'hot-games' : 'new-games',
       useHotGames ? 'Hot Games' : 'New Games',
+      useHotGames ? 'fire' : 'rocket',
       platform === 'filslot' ? 'portrait' : 'landscape',
       platform === 'filslot' ? 8 : 12,
       preferredPool(

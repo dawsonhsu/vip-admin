@@ -38,6 +38,7 @@ import {
   type GameType,
   type ProviderName,
 } from '@/data/gameManagementData';
+import { SECTION_ICON_OPTIONS, renderSectionIcon } from '@/components/homeSectionIcons';
 
 const { Text, Title } = Typography;
 
@@ -145,6 +146,19 @@ export default function HomeSectionEditorDrawer({
   const shownCount = Math.min(draft.displayCount, candidateCount);
   const backfillCount = Math.max(0, candidateCount - draft.displayCount);
   const isSystem = draft.type === 'system';
+  const filteredGameIds = filteredGames.map((game) => game.gameId);
+  const checkedFilteredCount = filteredGameIds.filter((gameId) => checkedIds.includes(gameId)).length;
+  const allFilteredChecked = filteredGameIds.length > 0
+    && checkedFilteredCount === filteredGameIds.length;
+  const someFilteredChecked = checkedFilteredCount > 0 && !allFilteredChecked;
+
+  const toggleAllFilteredGames = (checked: boolean) => {
+    setCheckedIds((current) => {
+      if (checked) return Array.from(new Set([...current, ...filteredGameIds]));
+      const filteredIdSet = new Set(filteredGameIds);
+      return current.filter((gameId) => !filteredIdSet.has(gameId));
+    });
+  };
 
   return (
     <Drawer
@@ -184,6 +198,28 @@ export default function HomeSectionEditorDrawer({
             data-e2e-id="home-section-editor-type-input"
           />
         </div>
+        {draft.type === 'custom' && (
+          <div>
+            <Text type="secondary">圖示</Text>
+            <Select
+              allowClear
+              placeholder="選擇圖示（選填）"
+              value={draft.icon}
+              onChange={(icon) => setDraft({ ...draft, icon })}
+              options={SECTION_ICON_OPTIONS.map((option) => ({
+                value: option.value,
+                label: (
+                  <Space size={8}>
+                    {renderSectionIcon(option.value)}
+                    <span>{option.label}</span>
+                  </Space>
+                ),
+              }))}
+              style={{ width: '100%', marginTop: 6 }}
+              data-e2e-id="home-section-editor-icon-select"
+            />
+          </div>
+        )}
         {!isSystem && (
           <div>
             <Text type="secondary">版型</Text>
@@ -284,6 +320,17 @@ export default function HomeSectionEditorDrawer({
                   data-e2e-id="home-section-editor-keyword-search"
                 />
               </div>
+              <div style={{ padding: '4px 2px 8px' }}>
+                <Checkbox
+                  checked={allFilteredChecked}
+                  indeterminate={someFilteredChecked}
+                  disabled={filteredGames.length === 0}
+                  onChange={(event) => toggleAllFilteredGames(event.target.checked)}
+                  data-e2e-id="home-section-picker-select-all"
+                >
+                  全選（{filteredGames.length}）
+                </Checkbox>
+              </div>
               <div style={{ height: 398, overflowY: 'auto', borderTop: `1px solid ${token.colorSplit}` }}>
                 {filteredGames.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} /> : filteredGames.map((game) => (
                   <label
@@ -309,7 +356,10 @@ export default function HomeSectionEditorDrawer({
                     <div style={{ minWidth: 0 }}>
                       <Text ellipsis style={{ display: 'block', fontSize: 12 }}>{game.gameNameEn}</Text>
                       <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>
-                        {game.provider} ｜ {game.status}
+                        {game.provider} ｜ {game.status} ｜{' '}
+                        <span style={{ color: game.compliant ? token.colorTextSecondary : token.colorError }}>
+                          {game.compliant ? '合規' : '非合規'}
+                        </span>
                       </Text>
                     </div>
                   </label>
@@ -372,14 +422,14 @@ export default function HomeSectionEditorDrawer({
                         <div style={{ height: 32, borderRadius: 5, background: 'linear-gradient(145deg, #0f766e, #2563eb)' }} />
                         <div style={{ minWidth: 0 }}>
                           <Text ellipsis style={{ display: 'block', fontSize: 12 }}>{game.gameNameEn}</Text>
-                          <Text
-                            style={{
-                              display: 'block',
-                              fontSize: 11,
-                              color: warning ? token.colorError : token.colorTextSecondary,
-                            }}
-                          >
-                            {game.status}
+                          <Text style={{ display: 'block', fontSize: 11 }}>
+                            <span style={{ color: warning ? token.colorError : token.colorTextSecondary }}>
+                              {game.status}
+                            </span>
+                            <span style={{ color: token.colorTextSecondary }}> ｜ </span>
+                            <span style={{ color: game.compliant ? token.colorTextSecondary : token.colorError }}>
+                              {game.compliant ? '合規' : '非合規'}
+                            </span>
                           </Text>
                         </div>
                         <Button

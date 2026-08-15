@@ -27,6 +27,7 @@ import {
 import HomeSectionCopyModal from '@/components/HomeSectionCopyModal';
 import HomeSectionEditorDrawer from '@/components/HomeSectionEditorDrawer';
 import HomeSectionPhonePreview from '@/components/HomeSectionPhonePreview';
+import { renderSectionIcon } from '@/components/homeSectionIcons';
 import {
   buildHomeSectionConfigs,
   cloneSections,
@@ -285,6 +286,7 @@ export default function HomeSectionsPage() {
                   </span>
                   <div style={{ minWidth: 0 }}>
                     <Space size={6}>
+                      {renderSectionIcon(section.icon, { color: token.colorTextSecondary })}
                       <Text strong ellipsis>{section.name}</Text>
                       {section.locked && (
                         <Tooltip title={section.type === 'system' ? '系統板塊已鎖定' : '基礎分類名稱已鎖定'}>
