@@ -4,6 +4,7 @@ import React from 'react';
 import { FireOutlined, RiseOutlined, StarOutlined } from '@ant-design/icons';
 import { Empty, Space, Typography, theme } from 'antd';
 import {
+  gamesForPlatform,
   resolveDisplayGames,
   type HomeSection,
   type Platform,
@@ -101,6 +102,26 @@ function RankingBlock() {
   );
 }
 
+function RecentPlayedBlock({ platform }: { platform: Platform }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 8,
+        overflowX: 'auto',
+        paddingBottom: 3,
+      }}
+      data-e2e-id="home-preview-recent-played"
+    >
+      {gamesForPlatform(platform).slice(0, 6).map((game) => (
+        <div key={game.gameId} style={{ flex: '0 0 92px' }}>
+          <GameTile game={game} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function HomeSectionPhonePreview({
   platform,
   sections,
@@ -167,7 +188,11 @@ export default function HomeSectionPhonePreview({
               {section.type === 'custom' && renderSectionIcon(section.icon)}
               {section.name}
             </Text>
-            {section.type === 'system' ? <RankingBlock /> : section.layout === 'landscape' ? (
+            {section.type === 'system' ? (
+              section.systemKind === 'recentPlayed'
+                ? <RecentPlayedBlock platform={platform} />
+                : <RankingBlock />
+            ) : section.layout === 'landscape' ? (
               <div
                 style={{
                   display: 'flex',

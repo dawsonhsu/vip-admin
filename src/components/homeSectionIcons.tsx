@@ -51,6 +51,22 @@ export const renderSectionIcon = (
   style?: React.CSSProperties,
 ): React.ReactNode => {
   if (!iconKey) return null;
+  if (iconKey.startsWith('data:') || iconKey.startsWith('http') || iconKey.startsWith('/')) {
+    return (
+      <img
+        src={iconKey}
+        alt=""
+        style={{
+          width: '1em',
+          height: '1em',
+          objectFit: 'cover',
+          borderRadius: 3,
+          verticalAlign: 'middle',
+          ...style,
+        }}
+      />
+    );
+  }
   const Icon = sectionIcons[iconKey as keyof typeof sectionIcons];
   return Icon ? <Icon style={style} /> : null;
 };

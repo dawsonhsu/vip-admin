@@ -15,14 +15,17 @@ import {
   Space,
   Switch,
   Typography,
+  Upload,
   message,
   theme,
 } from 'antd';
 import {
   CloseOutlined,
+  DeleteOutlined,
   HolderOutlined,
   LockOutlined,
   PlusOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 import {
   gamesForPlatform,
@@ -38,7 +41,7 @@ import {
   type GameType,
   type ProviderName,
 } from '@/data/gameManagementData';
-import { SECTION_ICON_OPTIONS, renderSectionIcon } from '@/components/homeSectionIcons';
+import { renderSectionIcon } from '@/components/homeSectionIcons';
 
 const { Text, Title } = Typography;
 
@@ -201,23 +204,68 @@ export default function HomeSectionEditorDrawer({
         {draft.type === 'custom' && (
           <div>
             <Text type="secondary">圖示</Text>
-            <Select
-              allowClear
-              placeholder="選擇圖示（選填）"
-              value={draft.icon}
-              onChange={(icon) => setDraft({ ...draft, icon })}
-              options={SECTION_ICON_OPTIONS.map((option) => ({
-                value: option.value,
-                label: (
-                  <Space size={8}>
-                    {renderSectionIcon(option.value)}
-                    <span>{option.label}</span>
-                  </Space>
-                ),
-              }))}
-              style={{ width: '100%', marginTop: 6 }}
-              data-e2e-id="home-section-editor-icon-select"
-            />
+            <div style={{ marginTop: 6 }}>
+              {draft.icon && (
+                <Space size={8} style={{ marginBottom: 8 }}>
+                  <div
+                    style={{
+                      width: 52,
+                      height: 52,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: `1px solid ${token.colorBorder}`,
+                      borderRadius: token.borderRadius,
+                    }}
+                  >
+                    {renderSectionIcon(draft.icon, { fontSize: 44, width: 44, height: 44 })}
+                  </div>
+                  <Button
+                    type="text"
+                    icon={<DeleteOutlined />}
+                    onClick={() => setDraft((current) => (
+                      current ? { ...current, icon: undefined } : current
+                    ))}
+                    data-e2e-id="home-section-editor-icon-remove-btn"
+                  >
+                    移除圖示
+                  </Button>
+                </Space>
+              )}
+              <Upload
+                accept="image/*"
+                showUploadList={false}
+                maxCount={1}
+                beforeUpload={(file) => {
+                  const isImage = file.type.startsWith('image/');
+                  if (!isImage) {
+                    message.error('僅支援圖片格式');
+                    return Upload.LIST_IGNORE;
+                  }
+                  const withinSize = file.size / 1024 <= 500;
+                  if (!withinSize) {
+                    message.error('圖片需小於 500KB');
+                    return Upload.LIST_IGNORE;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = () => setDraft((current) => (
+                    current ? { ...current, icon: reader.result as string } : current
+                  ));
+                  reader.readAsDataURL(file);
+                  return false;
+                }}
+              >
+                <Button
+                  icon={<UploadOutlined />}
+                  data-e2e-id="home-section-editor-icon-upload-btn"
+                >
+                  {draft.icon ? '更換圖示' : '上傳圖示'}
+                </Button>
+              </Upload>
+              <Text type="secondary" style={{ display: 'block', marginTop: 6, fontSize: 12 }}>
+                建議正方形圖片，≤500KB
+              </Text>
+            </div>
           </div>
         )}
         {!isSystem && (
@@ -271,7 +319,9 @@ export default function HomeSectionEditorDrawer({
           style={{ marginTop: 20 }}
           type="info"
           showIcon
-          message="此板塊由系統排行榜演算法產生（Popular / Highest RTP / Top Multipliers），不可選遊戲。"
+          message={draft.systemKind === 'recentPlayed'
+            ? '此板塊自動顯示該玩家最近遊玩的遊戲，依實際遊玩紀錄產生，不可手動選遊戲。'
+            : '此板塊由系統排行榜演算法產生（Popular / Highest RTP / Top Multipliers），不可選遊戲。'}
           data-e2e-id="home-section-editor-system-note"
         />
       ) : (

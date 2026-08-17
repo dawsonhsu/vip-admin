@@ -19,6 +19,7 @@ export interface HomeSection {
   displayCount: number;
   gameIds: string[];
   categoryGameType?: GameType;
+  systemKind?: 'ranking' | 'recentPlayed';
 }
 
 export interface HomeSectionPlatformConfig {
@@ -85,6 +86,19 @@ const rankingSection = (platform: Platform): HomeSection => ({
   layout: 'landscape',
   displayCount: 0,
   gameIds: [],
+  systemKind: 'ranking',
+});
+
+const recentPlayedSection = (platform: Platform): HomeSection => ({
+  id: `${platform}-recent-played`,
+  name: 'Recent Played',
+  type: 'system',
+  enabled: true,
+  locked: true,
+  layout: 'landscape',
+  displayCount: 0,
+  gameIds: [],
+  systemKind: 'recentPlayed',
 });
 
 const customSection = (
@@ -128,6 +142,7 @@ const categorySection = (
 
 const buildFilbetSections = (): HomeSection[] => [
   rankingSection('filbet'),
+  recentPlayedSection('filbet'),
   customSection(
     'filbet',
     'new-games',
@@ -155,6 +170,7 @@ const buildLighterSections = (platform: Exclude<Platform, 'filbet'>): HomeSectio
   const useHotGames = platform === 'filplay';
   return [
     rankingSection(platform),
+    recentPlayedSection(platform),
     customSection(
       platform,
       useHotGames ? 'hot-games' : 'new-games',

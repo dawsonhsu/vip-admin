@@ -298,7 +298,9 @@ export default function HomeSectionsPage() {
                       {sectionTypeLabels[section.type]}
                       {section.type !== 'system'
                         ? ` ｜ ${section.layout === 'landscape' ? '橫版' : '直版'} ｜ 展示 ${section.displayCount} ｜ 候選 ${section.gameIds.length}`
-                        : ' ｜ 排行榜演算法產生'}
+                        : section.systemKind === 'recentPlayed'
+                          ? ' ｜ 玩家近期遊玩自動產生'
+                          : ' ｜ 排行榜演算法產生'}
                     </Text>
                   </div>
                   <Switch
