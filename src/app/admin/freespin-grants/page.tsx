@@ -1,17 +1,28 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Button, Card, Cascader, Col, DatePicker, Descriptions, Drawer, Form, Image, Input, InputNumber, Modal, Progress, Radio, Row, Select, Space, Statistic, Steps, Table, Tag, Tooltip, Typography, Upload, message,
 } from 'antd';
 import {
-  CopyOutlined, DownloadOutlined, EyeOutlined, InfoCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, SyncOutlined, TeamOutlined, UploadOutlined, WarningOutlined,
+  CopyOutlined, DownloadOutlined, EyeOutlined, HistoryOutlined, InfoCircleOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, StopOutlined, SyncOutlined, TeamOutlined, UploadOutlined, WarningOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { FormInstance } from 'antd/es/form';
 import type { RcFile, UploadChangeParam, UploadFile } from 'antd/es/upload';
 import dayjs from 'dayjs';
-import { freeSpinRestrictionCatalog, generateFreeSpinGrants, type FreeSpinGrantItem } from '@/data/mockData';
+import {
+  freeSpinRestrictionCatalog,
+  generateFreeSpinGrants,
+  mockDispatchTasks,
+  vendorErrorCodes,
+  type BatchDispatchStatus,
+  type BatchDispatchTask,
+  type BatchIdentifierType,
+  type BatchResultRow,
+  type BatchSourceEntry,
+  type FreeSpinGrantItem,
+} from '@/data/mockData';
 import type { GameType } from '@/data/memberStatsData';
 import { GameRestrictionCascader } from '@/components/GameRestrictionCascader';
 
@@ -81,28 +92,9 @@ type GameRestrictionPath = [GameType] | [GameType, string];
 type RestrictionCatalogEntry = [GameType, (typeof freeSpinRestrictionCatalog)[GameType]];
 type DispatchAttempt = FreeSpinGrantItem['dispatchSummary']['attempts'][number];
 type GrantTypeValue = FreeSpinGrantItem['grantType'];
-type BatchIdentifierType = 'phone' | 'uid' | 'account';
-type BatchSourceEntry = {
-  identifier: string;
-  spinOverride: number | null;
-};
 type BatchParsedSource = {
   rawCount: number;
   entries: BatchSourceEntry[];
-};
-type BatchResultRow = {
-  key: string;
-  identifierRaw: string;
-  userId: string | null;
-  status: 'success' | 'failed';
-  failureReason: string | null;
-};
-type BatchResultData = {
-  totalCount: number;
-  successCount: number;
-  failedCount: number;
-  successList: BatchResultRow[];
-  failedList: BatchResultRow[];
 };
 
 const providerNameMap = [
@@ -170,6 +162,18 @@ const formatRelativeTime = (value: string | null) => {
 };
 
 const canVoidGrant = (record: FreeSpinGrantItem) => record.claimStatus === 'claimed';
+
+const batchDispatchStatusMap: Record<BatchDispatchStatus, { label: string; color: string }> = {
+  processing: { label: '處理中', color: 'processing' },
+  completed: { label: '已完成', color: 'success' },
+  partial_failed: { label: '部分失敗', color: 'warning' },
+  failed: { label: '全部失敗', color: 'error' },
+};
+
+const escapeCsvCell = (value: string | number | null) => {
+  const text = value == null ? '' : String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
 
 const renderDispatchAnomaly = (record: FreeSpinGrantItem, onClick?: () => void) => {
   const { dispatchSummary } = record;
@@ -272,9 +276,26 @@ export default function FreeSpinGrantsPage() {
   const [batchSelectedProviders, setBatchSelectedProviders] = useState<string[]>([]);
   const [batchCoverFileList, setBatchCoverFileList] = useState<UploadFile[]>([]);
   const [batchSubmitting, setBatchSubmitting] = useState(false);
-  const [batchResult, setBatchResult] = useState<BatchResultData | null>(null);
+  const [dispatchTasks, setDispatchTasks] = useState<BatchDispatchTask[]>(() =>
+    mockDispatchTasks.map((task) => ({
+      ...task,
+      failedList: [...task.failedList],
+      config: {
+        ...task.config,
+        entries: [...task.config.entries],
+        formValues: { ...task.config.formValues },
+      },
+    }))
+  );
+  const [dispatchLogOpen, setDispatchLogOpen] = useState(false);
+  const [failureDetailTaskId, setFailureDetailTaskId] = useState<string | null>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [tablePagination, setTablePagination] = useState({ current: 1, pageSize: 20 });
   const [drawerGrant, setDrawerGrant] = useState<FreeSpinGrantItem | null>(null);
   const [createCoverFileList, setCreateCoverFileList] = useState<UploadFile[]>([]);
+  const processingIntervalsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  const nextGrantIdRef = useRef(100000);
+  const taskSequenceRef = useRef(1000 + Math.floor(Math.random() * 8000));
 
   const playerPool = useMemo(() => Array.from(new Set(allGrants.map((grant) => grant.playerId))), [allGrants]);
   const playerPhoneMap = useMemo(
@@ -291,6 +312,12 @@ export default function FreeSpinGrantsPage() {
 
   useEffect(() => {
     document.title = 'Freespin 派發管理 - Filbet Admin';
+
+    const processingIntervals = processingIntervalsRef.current;
+    return () => {
+      processingIntervals.forEach((intervalId) => clearInterval(intervalId));
+      processingIntervals.clear();
+    };
   }, []);
 
 const filteredData = useMemo(() => {
@@ -389,6 +416,78 @@ const filteredData = useMemo(() => {
         setAllGrants((prev) => prev.map((grant) => (grant.id === record.id ? nextGrant : grant)));
         setDrawerGrant((prev) => (prev?.id === record.id ? nextGrant : prev));
         message.success('已作廢');
+      },
+    });
+  };
+
+  const handleBatchVoid = () => {
+    let voidReason = '';
+    const selectedIds = new Set(selectedRowKeys.map(String));
+    const selectedCount = selectedRowKeys.length;
+
+    Modal.confirm({
+      title: '確認批量作廢 Free Spin？',
+      icon: <StopOutlined />,
+      width: 520,
+      content: (
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Text>將作廢 {selectedCount} 筆 Free Spin，玩家將無法使用。</Text>
+          <div style={{ width: '100%' }}>
+            <Text strong>作廢理由（必填）</Text>
+            <Input.TextArea
+              data-e2e-id="freespin-grants-batch-void-reason-input"
+              rows={4}
+              placeholder="請輸入作廢理由"
+              style={{ marginTop: 8 }}
+              onChange={(event) => {
+                voidReason = event.target.value;
+              }}
+            />
+          </div>
+        </Space>
+      ),
+      okText: '確認作廢',
+      okButtonProps: { danger: true, 'data-e2e-id': 'freespin-grants-batch-void-confirm-btn' },
+      cancelText: '取消',
+      onOk: () => {
+        const trimmedReason = voidReason.trim();
+        if (!trimmedReason) {
+          message.error('請輸入作廢理由');
+          return Promise.reject(new Error('void_reason_required'));
+        }
+
+        const selectedGrants = allGrants.filter((grant) => selectedIds.has(grant.id));
+        const voidableIds = new Set(selectedGrants.filter(canVoidGrant).map((grant) => grant.id));
+        const skippedCount = selectedCount - voidableIds.size;
+        const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
+
+        setAllGrants((prev) => prev.map((grant) => (
+          voidableIds.has(grant.id)
+            ? {
+                ...grant,
+                claimStatus: 'voided',
+                voidedAt: now,
+                voidedBy: 'darren@filbetph.com',
+                voidReason: trimmedReason,
+              }
+            : grant
+        )));
+        setDrawerGrant((prev) => (
+          prev && voidableIds.has(prev.id)
+            ? {
+                ...prev,
+                claimStatus: 'voided',
+                voidedAt: now,
+                voidedBy: 'darren@filbetph.com',
+                voidReason: trimmedReason,
+              }
+            : prev
+        ));
+        setSelectedRowKeys([]);
+        message.success(`已批量作廢 ${voidableIds.size} 筆`);
+        if (skippedCount > 0) {
+          message.warning(`${skippedCount} 筆已使用、已結算或狀態已變更，未執行作廢`);
+        }
       },
     });
   };
@@ -512,7 +611,6 @@ const filteredData = useMemo(() => {
     setBatchSelectedProviders([]);
     setBatchCoverFileList([]);
     setBatchSubmitting(false);
-    setBatchResult(null);
     batchForm.resetFields();
   };
 
@@ -683,6 +781,113 @@ const filteredData = useMemo(() => {
     }
   };
 
+  const createBatchTaskId = () => {
+    taskSequenceRef.current += 1;
+    return `BAT-${dayjs().format('YYYYMMDD')}-${String(taskSequenceRef.current).slice(-4)}`;
+  };
+
+  const startDispatchTask = (task: BatchDispatchTask) => {
+    if (processingIntervalsRef.current.has(task.id)) return;
+
+    const totalTicks = 12;
+    let tick = 0;
+    let processed = 0;
+    let successCount = 0;
+    const failedList: BatchResultRow[] = [];
+    const values = task.config.formValues;
+    const rawRemark = typeof values.remark === 'string' ? values.remark : '';
+    const remarkPrefix = `[批量派發-${task.activityName}]`;
+    const remark = rawRemark ? `${remarkPrefix} ${rawRemark}` : remarkPrefix;
+
+    const intervalId = setInterval(() => {
+      tick += 1;
+      const targetProcessed = tick >= totalTicks
+        ? task.total
+        : Math.floor((task.total * tick) / totalTicks);
+      const entriesToProcess = task.config.entries.slice(processed, targetProcessed);
+      const newGrants: FreeSpinGrantItem[] = [];
+
+      entriesToProcess.forEach((entry, offset) => {
+        const index = processed + offset;
+        const playerId = resolveBatchPlayerId(entry.identifier, task.config.identifierType);
+
+        if (!playerId) {
+          failedList.push({
+            key: `${task.id}-failed-${index}`,
+            identifierRaw: entry.identifier,
+            userId: null,
+            status: 'failed',
+            failureReason: '會員不存在',
+          });
+          return;
+        }
+
+        if (Math.random() < 0.14) {
+          const vendorErrorCode = vendorErrorCodes[Math.floor(Math.random() * vendorErrorCodes.length)];
+          failedList.push({
+            key: `${task.id}-failed-${index}`,
+            identifierRaw: entry.identifier,
+            userId: playerId,
+            status: 'failed',
+            failureReason: `供應商回傳失敗（${vendorErrorCode}）`,
+          });
+          return;
+        }
+
+        const rowValues = entry.spinOverride !== null
+          ? { ...values, totalSpins: entry.spinOverride }
+          : values;
+        nextGrantIdRef.current += 1;
+        newGrants.push(
+          buildGrantPayload(
+            rowValues,
+            playerId,
+            nextGrantIdRef.current,
+            'admin (batch)',
+            remark
+          )
+        );
+        successCount += 1;
+      });
+
+      processed = targetProcessed;
+      if (newGrants.length > 0) {
+        setAllGrants((prev) => [...newGrants, ...prev]);
+      }
+
+      const isFinished = processed >= task.total;
+      const failedCount = failedList.length;
+      const status: BatchDispatchStatus = !isFinished
+        ? 'processing'
+        : successCount === task.total
+          ? 'completed'
+          : successCount === 0
+            ? 'failed'
+            : 'partial_failed';
+
+      setDispatchTasks((prev) => prev.map((currentTask) => (
+        currentTask.id === task.id
+          ? {
+              ...currentTask,
+              processed,
+              successCount,
+              failedCount,
+              failedList: [...failedList],
+              status,
+              finishedAt: isFinished ? dayjs().format('YYYY-MM-DD HH:mm:ss') : null,
+            }
+          : currentTask
+      )));
+
+      if (isFinished) {
+        clearInterval(intervalId);
+        processingIntervalsRef.current.delete(task.id);
+      }
+    }, 350);
+
+    processingIntervalsRef.current.set(task.id, intervalId);
+  };
+
   const handleBatchSubmit = async () => {
     if (batchSourceEntries.length === 0) {
       message.error('請先上傳名單');
@@ -693,65 +898,64 @@ const filteredData = useMemo(() => {
     setBatchSubmitting(true);
 
     try {
-      const nextSeed = getNextGrantIdSeed(allGrants);
-      const remarkPrefix = `[批量派發-${values.name}]`;
-      const remark = values.remark ? `${remarkPrefix} ${values.remark}` : remarkPrefix;
-      const successList: BatchResultRow[] = [];
-      const failedList: BatchResultRow[] = [];
-      const newGrants: FreeSpinGrantItem[] = [];
-
-      batchSourceEntries.forEach((entry, index) => {
-        const { identifier, spinOverride } = entry;
-        const playerId = resolveBatchPlayerId(identifier, batchIdentifierType);
-
-        if (!playerId) {
-          failedList.push({
-            key: `failed-${identifier}-${index}`,
-            identifierRaw: identifier,
-            userId: null,
-            status: 'failed',
-            failureReason: '查無會員',
-          });
-          return;
-        }
-
-        const rowValues = spinOverride !== null ? { ...values, totalSpins: spinOverride } : values;
-        newGrants.push(
-          buildGrantPayload(
-            rowValues,
-            playerId,
-            nextSeed + newGrants.length + 1,
-            'admin (batch)',
-            remark
-          )
-        );
-        successList.push({
-          key: `success-${identifier}-${index}`,
-          identifierRaw: identifier,
-          userId: playerId,
-          status: 'success',
-          failureReason: null,
-        });
-      });
-
-      if (newGrants.length > 0) {
-        setAllGrants((prev) => [...newGrants, ...prev]);
-      }
-
-      const nextResult: BatchResultData = {
-        totalCount: batchSourceEntries.length,
-        successCount: successList.length,
-        failedCount: failedList.length,
-        successList,
-        failedList,
+      const now = dayjs().format('YYYY-MM-DD HH:mm:ss');
+      const task: BatchDispatchTask = {
+        id: createBatchTaskId(),
+        activityName: String(values.name || values.activityName || '未命名活動'),
+        operator: 'darren@filbetph.com',
+        submittedAt: now,
+        finishedAt: null,
+        total: batchSourceEntries.length,
+        processed: 0,
+        successCount: 0,
+        failedCount: 0,
+        status: 'processing',
+        failedList: [],
+        config: {
+          identifierType: batchIdentifierType,
+          entries: batchSourceEntries.map((entry) => ({ ...entry })),
+          formValues: { ...values },
+        },
       };
 
-      setBatchResult(nextResult);
-      setBatchStep(2);
-      message.success(`派發完成：成功 ${successList.length} / 失敗 ${failedList.length}`);
+      setDispatchTasks((prev) => [task, ...prev]);
+      startDispatchTask(task);
+      message.success('已受理，可於「派發紀錄」查看進度');
+      resetBatchModal();
     } finally {
       setBatchSubmitting(false);
     }
+  };
+
+  const handleRetryFailed = (task: BatchDispatchTask) => {
+    const retryEntries = task.failedList.map((row) => {
+      const originalEntry = task.config.entries.find((entry) => entry.identifier === row.identifierRaw);
+      return originalEntry ? { ...originalEntry } : { identifier: row.identifierRaw, spinOverride: null };
+    });
+    if (retryEntries.length === 0) return;
+
+    const retryTask: BatchDispatchTask = {
+      id: createBatchTaskId(),
+      activityName: task.activityName,
+      operator: 'darren@filbetph.com',
+      submittedAt: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+      finishedAt: null,
+      total: retryEntries.length,
+      processed: 0,
+      successCount: 0,
+      failedCount: 0,
+      status: 'processing',
+      failedList: [],
+      config: {
+        identifierType: task.config.identifierType,
+        entries: retryEntries,
+        formValues: { ...task.config.formValues },
+      },
+    };
+
+    setDispatchTasks((prev) => [retryTask, ...prev]);
+    startDispatchTask(retryTask);
+    message.success(`已建立重派任務 ${retryTask.id}`);
   };
 
   const renderGrantConfigFields = ({
@@ -1117,75 +1321,118 @@ const filteredData = useMemo(() => {
     },
   ];
 
-  const batchResultRows = useMemo(() => {
-    if (!batchResult) return [];
-    return batchResult.failedList;
-  }, [batchResult]);
+  const failureDetailTask = useMemo(
+    () => dispatchTasks.find((task) => task.id === failureDetailTaskId) || null,
+    [dispatchTasks, failureDetailTaskId]
+  );
 
-  const batchResultColumns: ColumnsType<BatchResultRow> = [
-    { title: 'identifier_raw', dataIndex: 'identifierRaw', width: 200 },
+  const downloadTaskFailedCsv = (task: BatchDispatchTask) => {
+    const csv = [
+      '會員識別,UID,狀態,失敗原因',
+      ...task.failedList.map((row) => [
+        escapeCsvCell(row.identifierRaw),
+        escapeCsvCell(row.userId),
+        '失敗',
+        escapeCsvCell(row.failureReason),
+      ].join(',')),
+    ].join('\n');
+    downloadTextFile(`${task.id}-failed.csv`, `\uFEFF${csv}`);
+  };
+
+  const failureDetailColumns: ColumnsType<BatchResultRow> = [
+    { title: '會員識別', dataIndex: 'identifierRaw', width: 180 },
+    { title: 'UID', dataIndex: 'userId', width: 160, render: (value: string | null) => value || '—' },
+    { title: '狀態', dataIndex: 'status', width: 90, render: () => <Tag color="error">失敗</Tag> },
+    { title: '失敗原因', dataIndex: 'failureReason', render: (value: string | null) => value || '—' },
+  ];
+
+  const dispatchTaskColumns: ColumnsType<BatchDispatchTask> = [
+    { title: '批次號', dataIndex: 'id', width: 175, fixed: 'left' },
+    { title: '活動名稱', dataIndex: 'activityName', width: 150 },
+    { title: '派發人', dataIndex: 'operator', width: 190 },
+    { title: '提交時間', dataIndex: 'submittedAt', width: 165 },
+    { title: '完成時間', dataIndex: 'finishedAt', width: 165, render: (value: string | null) => value || '—' },
+    { title: '總筆數', dataIndex: 'total', width: 85 },
     {
-      title: 'UID',
-      dataIndex: 'userId',
-      width: 180,
-      render: (value: string | null, record) => {
-        const uid = resolveBatchPlayerId(record.identifierRaw, batchIdentifierType) ?? value;
-        if (!uid) return <Text type="secondary">—</Text>;
-        return (
-          <Space size={4}>
-            <Text style={{ fontSize: 12 }}>{uid}</Text>
-            <Button
-              data-e2e-id={`freespin-grants-batch-result-copy-uid-btn-${record.key}`}
-              type="text"
-              size="small"
-              icon={<CopyOutlined />}
-              onClick={(event) => {
-                event.stopPropagation();
-                copyToClipboard(uid);
-              }}
-            />
-          </Space>
-        );
+      title: '成功 / 失敗',
+      width: 120,
+      render: (_, task) => (
+        <Space size={4}>
+          <Text style={{ color: '#389e0d' }}>{task.successCount}</Text>
+          <Text type="secondary">/</Text>
+          <Text type={task.failedCount > 0 ? 'danger' : 'secondary'}>{task.failedCount}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: '進度',
+      width: 150,
+      render: (_, task) => {
+        const percent = task.total > 0 ? Math.round((task.processed / task.total) * 100) : 0;
+        return task.status === 'processing'
+          ? <Progress percent={percent} size="small" />
+          : <Progress percent={100} size="small" />;
       },
     },
     {
       title: '狀態',
       dataIndex: 'status',
-      width: 120,
-      render: (value: BatchResultRow['status']) => (
-        <Tag color={value === 'success' ? 'success' : 'error'}>
-          {value === 'success' ? '成功' : '失敗'}
-        </Tag>
-      ),
+      width: 105,
+      render: (value: BatchDispatchStatus) => {
+        const status = batchDispatchStatusMap[value];
+        return <Tag color={status.color}>{status.label}</Tag>;
+      },
     },
     {
-      title: '失敗原因',
-      dataIndex: 'failureReason',
-      render: (value: string | null) => value || <Text type="secondary">—</Text>,
+      title: '操作',
+      key: 'action',
+      width: 340,
+      fixed: 'right',
+      render: (_, task) => task.failedCount > 0 ? (
+        <Space size={2} wrap={false}>
+          <Button
+            type="link"
+            size="small"
+            data-e2e-id={`freespin-grants-dispatch-log-failure-detail-btn-${task.id}`}
+            onClick={() => setFailureDetailTaskId(task.id)}
+          >
+            查看失敗明細
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            data-e2e-id={`freespin-grants-dispatch-log-download-btn-${task.id}`}
+            onClick={() => downloadTaskFailedCsv(task)}
+          >
+            下載失敗清單
+          </Button>
+          {task.status !== 'processing' && (
+            <Button
+              type="link"
+              size="small"
+              data-e2e-id={`freespin-grants-dispatch-log-retry-btn-${task.id}`}
+              onClick={() => handleRetryFailed(task)}
+            >
+              重派失敗
+            </Button>
+          )}
+        </Space>
+      ) : '—',
     },
   ];
-
-  const downloadBatchResultCsv = () => {
-    if (!batchResult) return;
-    const rows = batchResult.failedList;
-    const csv = [
-      'identifier_raw,uid,status,failure_reason',
-      ...rows.map((row) => {
-        const uid = resolveBatchPlayerId(row.identifierRaw, batchIdentifierType) ?? row.userId ?? '';
-        return [row.identifierRaw, uid, row.status, row.failureReason || ''].join(',');
-      }),
-    ].join('\n');
-    downloadTextFile('freespin-batch-failed.csv', csv);
-  };
 
   const onSearch = () => {
     const values = form.getFieldsValue();
     setFilters(values);
+    setSelectedRowKeys([]);
+    setTablePagination((prev) => ({ ...prev, current: 1 }));
   };
 
   const onReset = () => {
     form.resetFields();
     setFilters({});
+    setSelectedRowKeys([]);
+    setTablePagination((prev) => ({ ...prev, current: 1 }));
   };
 
   const drawerProgress = drawerGrant
@@ -1296,6 +1543,16 @@ const filteredData = useMemo(() => {
           <Space>
             <Button data-e2e-id="freespin-grants-toolbar-create-btn" type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>手動派發</Button>
             <Button data-e2e-id="freespin-grants-batch-dispatch-btn" icon={<UploadOutlined />} onClick={() => setBatchOpen(true)}>批量派發</Button>
+            <Button data-e2e-id="freespin-grants-dispatch-log-btn" icon={<HistoryOutlined />} onClick={() => setDispatchLogOpen(true)}>派發紀錄</Button>
+            <Button
+              data-e2e-id="freespin-grants-batch-void-btn"
+              danger
+              icon={<StopOutlined />}
+              disabled={selectedRowKeys.length === 0}
+              onClick={handleBatchVoid}
+            >
+              批量作廢{selectedRowKeys.length > 0 ? `（${selectedRowKeys.length}）` : ''}
+            </Button>
             <Button data-e2e-id="freespin-grants-toolbar-export-btn" icon={<DownloadOutlined />}>導出 CSV</Button>
           </Space>
         </div>
@@ -1303,12 +1560,67 @@ const filteredData = useMemo(() => {
           columns={columns}
           dataSource={filteredData}
           rowKey="id"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+            getCheckboxProps: (record) => ({ disabled: !canVoidGrant(record) }),
+          }}
           onRow={(record) => ({ 'data-e2e-id': `freespin-grants-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
           scroll={{ x: 2480 }}
-          pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 筆` }}
+          pagination={{
+            ...tablePagination,
+            showSizeChanger: true,
+            showTotal: (total) => `共 ${total} 筆`,
+            onChange: (current, pageSize) => {
+              setTablePagination({ current, pageSize });
+              setSelectedRowKeys([]);
+            },
+          }}
           size="small"
         />
       </Card>
+
+      <Drawer
+        title="派發紀錄"
+        width={1000}
+        open={dispatchLogOpen}
+        onClose={() => {
+          setDispatchLogOpen(false);
+          setFailureDetailTaskId(null);
+        }}
+      >
+        <Table<BatchDispatchTask>
+          data-e2e-id="freespin-grants-dispatch-log-table"
+          rowKey="id"
+          columns={dispatchTaskColumns}
+          dataSource={dispatchTasks}
+          pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 筆` }}
+          scroll={{ x: 1650 }}
+          size="small"
+        />
+      </Drawer>
+
+      <Drawer
+        title={failureDetailTask ? `失敗明細 ${failureDetailTask.id}` : '失敗明細'}
+        width={760}
+        open={!!failureDetailTask}
+        onClose={() => setFailureDetailTaskId(null)}
+        extra={failureDetailTask ? (
+          <Button icon={<DownloadOutlined />} onClick={() => downloadTaskFailedCsv(failureDetailTask)}>
+            下載失敗清單
+          </Button>
+        ) : null}
+      >
+        <Table<BatchResultRow>
+          data-e2e-id="freespin-grants-dispatch-failure-detail-table"
+          rowKey="key"
+          columns={failureDetailColumns}
+          dataSource={failureDetailTask?.failedList || []}
+          pagination={{ pageSize: 10, showSizeChanger: true }}
+          scroll={{ x: 700 }}
+          size="small"
+        />
+      </Drawer>
 
       <Drawer
         title={drawerGrant ? `派發詳情 ${drawerGrant.id}` : ''}
@@ -1508,38 +1820,30 @@ const filteredData = useMemo(() => {
         onCancel={resetBatchModal}
         footer={(
           <Space>
-            {batchResult ? (
-              <Button data-e2e-id="freespin-grants-batch-close-btn" type="primary" onClick={resetBatchModal}>關閉</Button>
+            {batchStep === 0 && <Button data-e2e-id="freespin-grants-batch-cancel-btn" onClick={resetBatchModal}>取消</Button>}
+            {batchStep === 1 && <Button data-e2e-id="freespin-grants-batch-prev-btn" onClick={() => setBatchStep(0)}>上一步</Button>}
+            {batchStep === 1 ? (
+              <Button data-e2e-id="freespin-grants-batch-submit-btn" type="primary" loading={batchSubmitting} onClick={handleBatchSubmit}>
+                確認派發
+              </Button>
             ) : (
-              <>
-                {batchStep === 0 && <Button data-e2e-id="freespin-grants-batch-cancel-btn" onClick={resetBatchModal}>取消</Button>}
-                {batchStep === 1 && <Button data-e2e-id="freespin-grants-batch-prev-btn" onClick={() => setBatchStep(0)}>上一步</Button>}
-                {batchStep === 1 ? (
-                  <Button data-e2e-id="freespin-grants-batch-submit-btn" type="primary" loading={batchSubmitting} onClick={handleBatchSubmit}>
-                    確認派發
-                  </Button>
-                ) : (
-                  <Button data-e2e-id="freespin-grants-batch-next-btn-step-1" type="primary" onClick={handleBatchNextStep}>下一步</Button>
-                )}
-              </>
+              <Button data-e2e-id="freespin-grants-batch-next-btn-step-1" type="primary" onClick={handleBatchNextStep}>下一步</Button>
             )}
           </Space>
         )}
       >
         <div data-e2e-id="freespin-grants-batch-modal">
-          {!batchResult && (
-            <Steps
-              current={batchStep}
-              size="small"
-              style={{ marginBottom: 24 }}
-              items={[
-                { title: '派發設定' },
-                { title: '上傳名單' },
-              ]}
-            />
-          )}
+          <Steps
+            current={batchStep}
+            size="small"
+            style={{ marginBottom: 24 }}
+            items={[
+              { title: '派發設定' },
+              { title: '上傳名單' },
+            ]}
+          />
 
-          {batchStep === 0 && !batchResult && (
+          {batchStep === 0 && (
             <Form
               form={batchForm}
               layout="horizontal"
@@ -1565,7 +1869,7 @@ const filteredData = useMemo(() => {
             </Form>
           )}
 
-          {batchStep === 1 && !batchResult && (
+          {batchStep === 1 && (
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
               <Card size="small">
                 <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -1617,33 +1921,6 @@ const filteredData = useMemo(() => {
             </Space>
           )}
 
-          {batchResult && (
-            <Space direction="vertical" size={16} style={{ width: '100%' }}>
-              <Row gutter={16}>
-                <Col span={8}><Card size="small"><Statistic title="總筆數" value={batchResult.totalCount} /></Card></Col>
-                <Col span={8}><Card size="small"><Statistic title="成功" value={batchResult.successCount} valueStyle={{ color: '#52c41a' }} /></Card></Col>
-                <Col span={8}><Card size="small"><Statistic title="失敗" value={batchResult.failedCount} valueStyle={{ color: '#ff4d4f' }} /></Card></Col>
-              </Row>
-
-              <Card
-                size="small"
-                title="派發明細（僅顯示失敗）"
-                extra={(
-                  <Space wrap>
-                    <Button icon={<DownloadOutlined />} onClick={downloadBatchResultCsv}>下載失敗 CSV</Button>
-                  </Space>
-                )}
-              >
-                <Table<BatchResultRow>
-                  rowKey="key"
-                  columns={batchResultColumns}
-                  dataSource={batchResultRows}
-                  pagination={{ pageSize: 10, showSizeChanger: true }}
-                  scroll={{ x: 760 }}
-                />
-              </Card>
-            </Space>
-          )}
         </div>
       </Modal>
     </div>

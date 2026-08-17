@@ -179,6 +179,121 @@ export interface FreeSpinGrantItem {
   remark: string | null;
 }
 
+export type BatchIdentifierType = 'phone' | 'uid' | 'account';
+
+export interface BatchSourceEntry {
+  identifier: string;
+  spinOverride: number | null;
+}
+
+export interface BatchResultRow {
+  key: string;
+  identifierRaw: string;
+  userId: string | null;
+  status: 'success' | 'failed';
+  failureReason: string | null;
+}
+
+export type BatchDispatchStatus = 'processing' | 'completed' | 'partial_failed' | 'failed';
+
+export interface BatchDispatchTask {
+  id: string;
+  activityName: string;
+  operator: string;
+  submittedAt: string;
+  finishedAt: string | null;
+  total: number;
+  processed: number;
+  successCount: number;
+  failedCount: number;
+  status: BatchDispatchStatus;
+  failedList: BatchResultRow[];
+  config: {
+    identifierType: BatchIdentifierType;
+    entries: BatchSourceEntry[];
+    formValues: Record<string, unknown>;
+  };
+}
+
+const mockTaskFormValues: Record<string, unknown> = {
+  name: 'VIP 週末 Free Spin',
+  activityName: 'VIP月禮',
+  grantType: 'open',
+  totalSpins: 20,
+  expireDays: 7,
+};
+
+export const mockDispatchTasks: BatchDispatchTask[] = [
+  {
+    id: `BAT-${dayjs().subtract(1, 'day').format('YYYYMMDD')}-1842`,
+    activityName: 'VIP 週末 Free Spin',
+    operator: 'darren@filbetph.com',
+    submittedAt: dayjs().subtract(1, 'day').hour(15).minute(20).second(8).format('YYYY-MM-DD HH:mm:ss'),
+    finishedAt: dayjs().subtract(1, 'day').hour(15).minute(20).second(13).format('YYYY-MM-DD HH:mm:ss'),
+    total: 120,
+    processed: 120,
+    successCount: 120,
+    failedCount: 0,
+    status: 'completed',
+    failedList: [],
+    config: {
+      identifierType: 'uid',
+      entries: [],
+      formValues: mockTaskFormValues,
+    },
+  },
+  {
+    id: `BAT-${dayjs().subtract(2, 'day').format('YYYYMMDD')}-9265`,
+    activityName: '新遊戲推廣',
+    operator: 'darren@filbetph.com',
+    submittedAt: dayjs().subtract(2, 'day').hour(11).minute(5).second(20).format('YYYY-MM-DD HH:mm:ss'),
+    finishedAt: dayjs().subtract(2, 'day').hour(11).minute(5).second(25).format('YYYY-MM-DD HH:mm:ss'),
+    total: 50,
+    processed: 50,
+    successCount: 47,
+    failedCount: 3,
+    status: 'partial_failed',
+    failedList: [
+      { key: 'seed-partial-1', identifierRaw: 'missing_player_01', userId: null, status: 'failed', failureReason: '會員不存在' },
+      { key: 'seed-partial-2', identifierRaw: 'player_ace', userId: 'player_ace', status: 'failed', failureReason: '供應商回傳失敗（vendor_timeout）' },
+      { key: 'seed-partial-3', identifierRaw: 'lucky_star', userId: 'lucky_star', status: 'failed', failureReason: '供應商回傳失敗（vendor_maintenance）' },
+    ],
+    config: {
+      identifierType: 'account',
+      entries: [
+        { identifier: 'missing_player_01', spinOverride: null },
+        { identifier: 'player_ace', spinOverride: 30 },
+        { identifier: 'lucky_star', spinOverride: 30 },
+      ],
+      formValues: { ...mockTaskFormValues, name: '新遊戲推廣', activityName: '新遊戲推廣', totalSpins: 30 },
+    },
+  },
+  {
+    id: `BAT-${dayjs().subtract(3, 'day').format('YYYYMMDD')}-4307`,
+    activityName: '測試會員批次',
+    operator: 'darren@filbetph.com',
+    submittedAt: dayjs().subtract(3, 'day').hour(9).minute(42).second(10).format('YYYY-MM-DD HH:mm:ss'),
+    finishedAt: dayjs().subtract(3, 'day').hour(9).minute(42).second(14).format('YYYY-MM-DD HH:mm:ss'),
+    total: 2,
+    processed: 2,
+    successCount: 0,
+    failedCount: 2,
+    status: 'failed',
+    failedList: [
+      { key: 'seed-failed-1', identifierRaw: 'unknown_001', userId: null, status: 'failed', failureReason: '會員不存在' },
+      { key: 'seed-failed-2', identifierRaw: 'unknown_002', userId: null, status: 'failed', failureReason: '會員不存在' },
+    ],
+    config: {
+      identifierType: 'uid',
+      entries: [
+        { identifier: 'unknown_001', spinOverride: null },
+        { identifier: 'unknown_002', spinOverride: null },
+      ],
+      formValues: { ...mockTaskFormValues, name: '測試會員批次' },
+    },
+  },
+];
+
 const providers = [
   {
     code: 'FC', name: 'FC Game',
@@ -227,7 +342,7 @@ const betAmounts = [0.20, 0.50, 1.00, 2.00, 5.00];
 const claimStatuses: Exclude<FreeSpinGrantItem['claimStatus'], 'voided'>[] = ['claimed', 'in_use', 'completed', 'expired'];
 const grantNames = ['春節幸運轉', 'VIP尊享轉', '週年大禮轉', '新遊嘗鮮轉', '手動補發轉', '活動回饋轉'];
 const createdBys = ['system', 'jack@filbetph.com', 'darren@filbetph.com', 'admin@filbetph.com'];
-const vendorErrorCodes = [
+export const vendorErrorCodes = [
   'vendor_timeout',
   'vendor_5xx',
   'invalid_player',
