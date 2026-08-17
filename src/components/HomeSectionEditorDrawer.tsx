@@ -201,9 +201,8 @@ export default function HomeSectionEditorDrawer({
             data-e2e-id="home-section-editor-type-input"
           />
         </div>
-        {draft.type === 'custom' && (
-          <div>
-            <Text type="secondary">圖示</Text>
+        <div>
+            <Text type="secondary">圖示（選填）</Text>
             <div style={{ marginTop: 6 }}>
               {draft.icon && (
                 <Space size={8} style={{ marginBottom: 8 }}>
@@ -267,7 +266,6 @@ export default function HomeSectionEditorDrawer({
               </Text>
             </div>
           </div>
-        )}
         {!isSystem && (
           <div>
             <Text type="secondary">版型</Text>

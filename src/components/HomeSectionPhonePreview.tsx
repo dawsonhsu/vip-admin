@@ -185,7 +185,7 @@ export default function HomeSectionPhonePreview({
               strong
               style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8, fontSize: 13 }}
             >
-              {section.type === 'custom' && renderSectionIcon(section.icon)}
+              {renderSectionIcon(section.icon)}
               {section.name}
             </Text>
             {section.type === 'system' ? (
