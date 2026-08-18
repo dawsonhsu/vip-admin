@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useMemo, useState, useSyncExternalStore } from 'react';
-import { Button, Card, Drawer, Progress, Space, Table, Tag, Typography, message } from 'antd';
-import { DownloadOutlined } from '@ant-design/icons';
+import { Button, Card, DatePicker, Drawer, Form, Progress, Select, Space, Table, Tag, Typography } from 'antd';
+import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import {
   batchDispatchStatusMap,
@@ -15,6 +16,7 @@ import type {
 } from '@/data/mockData';
 
 const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
 
 const escapeCsvCell = (value: string | number | null) => {
   const text = value == null ? '' : String(value);
@@ -59,15 +61,53 @@ export default function FreeSpinBatchLogPage() {
     dispatchTaskStore.getSnapshot,
     dispatchTaskStore.getServerSnapshot
   );
+  const [form] = Form.useForm();
+  const defaultSubmittedRange: [dayjs.Dayjs, dayjs.Dayjs] = [
+    dayjs().startOf('day'),
+    dayjs().endOf('day'),
+  ];
+  const [filters, setFilters] = useState<{
+    submittedRange: [dayjs.Dayjs, dayjs.Dayjs] | null;
+    operator: string | undefined;
+  }>(() => ({
+    submittedRange: [dayjs().startOf('day'), dayjs().endOf('day')],
+    operator: undefined,
+  }));
   const [failureDetailTaskId, setFailureDetailTaskId] = useState<string | null>(null);
+  const operatorOptions = useMemo(
+    () => Array.from(new Set(tasks.map((task) => task.operator))),
+    [tasks]
+  );
+  const filteredTasks = useMemo(() => tasks.filter((task) => {
+    if (filters.submittedRange) {
+      const ts = dayjs(task.submittedAt);
+      const start = filters.submittedRange[0].startOf('day');
+      const end = filters.submittedRange[1].endOf('day');
+      if (ts.isBefore(start) || ts.isAfter(end)) return false;
+    }
+    if (filters.operator && task.operator !== filters.operator) return false;
+    return true;
+  }), [filters, tasks]);
   const failureDetailTask = useMemo(
     () => tasks.find((task) => task.id === failureDetailTaskId) || null,
     [failureDetailTaskId, tasks]
   );
 
-  const handleRetryFailed = (taskId: string) => {
-    const retryTask = dispatchTaskStore.retryFailed(taskId);
-    if (retryTask) message.success(`已建立重派任務 ${retryTask.id}`);
+  const onSearch = () => {
+    const values = form.getFieldsValue();
+    setFilters({
+      submittedRange: values.submittedRange ?? null,
+      operator: values.operator,
+    });
+  };
+
+  const onReset = () => {
+    const submittedRange: [dayjs.Dayjs, dayjs.Dayjs] = [
+      dayjs().startOf('day'),
+      dayjs().endOf('day'),
+    ];
+    form.setFieldsValue({ submittedRange, operator: undefined });
+    setFilters({ submittedRange, operator: undefined });
   };
 
   const dispatchTaskColumns: ColumnsType<BatchDispatchTask> = [
@@ -110,7 +150,7 @@ export default function FreeSpinBatchLogPage() {
     {
       title: '操作',
       key: 'action',
-      width: 340,
+      width: 200,
       fixed: 'right',
       render: (_, task) => task.failedCount > 0 ? (
         <Space size={2} wrap={false}>
@@ -130,16 +170,6 @@ export default function FreeSpinBatchLogPage() {
           >
             下載失敗清單
           </Button>
-          {task.status !== 'processing' && (
-            <Button
-              type="link"
-              size="small"
-              data-e2e-id={`freespin-batch-log-retry-btn-${task.id}`}
-              onClick={() => handleRetryFailed(task.id)}
-            >
-              重派失敗
-            </Button>
-          )}
         </Space>
       ) : '—',
     },
@@ -152,12 +182,59 @@ export default function FreeSpinBatchLogPage() {
         <Text type="secondary">查看批量派發任務進度、結果與失敗明細</Text>
       </div>
 
+      <Card data-e2e-id="freespin-batch-log-filter-card" style={{ marginBottom: 16 }}>
+        <Form
+          form={form}
+          layout="inline"
+          initialValues={{ submittedRange: defaultSubmittedRange }}
+          style={{ gap: 12, flexWrap: 'wrap', rowGap: 12 }}
+        >
+          <Form.Item name="submittedRange" label="提交時間">
+            <RangePicker
+              data-e2e-id="freespin-batch-log-filter-submitted-range"
+              style={{ width: 260 }}
+            />
+          </Form.Item>
+          <Form.Item name="operator" label="派發人">
+            <Select
+              data-e2e-id="freespin-batch-log-filter-operator-select"
+              allowClear
+              placeholder="全部"
+              style={{ width: 200 }}
+            >
+              {operatorOptions.map((operator) => (
+                <Select.Option key={operator} value={operator}>{operator}</Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+          <Form.Item>
+            <Space>
+              <Button
+                data-e2e-id="freespin-batch-log-filter-query-btn"
+                type="primary"
+                icon={<SearchOutlined />}
+                onClick={onSearch}
+              >
+                查詢
+              </Button>
+              <Button
+                data-e2e-id="freespin-batch-log-filter-reset-btn"
+                icon={<ReloadOutlined />}
+                onClick={onReset}
+              >
+                重置
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Card>
+
       <Card data-e2e-id="freespin-batch-log-list-card">
         <Table<BatchDispatchTask>
           data-e2e-id="freespin-batch-log-table"
           rowKey="id"
           columns={dispatchTaskColumns}
-          dataSource={tasks}
+          dataSource={filteredTasks}
           pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 筆` }}
           scroll={{ x: 1650 }}
           size="small"

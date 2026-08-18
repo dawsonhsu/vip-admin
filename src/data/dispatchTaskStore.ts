@@ -158,40 +158,9 @@ export const createTask = (input: CreateDispatchTaskInput) => {
   return task;
 };
 
-export const retryFailed = (taskId: string) => {
-  const parentTask = tasks.find((task) => task.id === taskId);
-  if (!parentTask || parentTask.failedList.length === 0) return null;
-
-  const entries = parentTask.failedList.map((row) => {
-    const originalEntry = parentTask.config.entries.find(
-      (entry) => entry.identifier === row.identifierRaw
-    );
-    return originalEntry
-      ? {
-          identifier: originalEntry.identifier,
-          spinOverride: originalEntry.spinOverride,
-          playerId: originalEntry.playerId,
-        }
-      : {
-          identifier: row.identifierRaw,
-          spinOverride: null,
-          playerId: row.userId ?? null,
-        };
-  });
-
-  return createTask({
-    activityName: parentTask.activityName,
-    total: entries.length,
-    entries,
-    formValues: parentTask.config.formValues,
-    identifierType: parentTask.config.identifierType,
-  });
-};
-
 export const dispatchTaskStore = {
   subscribe,
   getSnapshot,
   getServerSnapshot,
   createTask,
-  retryFailed,
 };
