@@ -5,6 +5,7 @@ export interface DepositRecord {
   thirdPartyOrderId: string;
   memberAccount: string;
   memberPhone: string;
+  vipLevel: number;
   orderStatus: '已发起' | '存款成功' | '存款失败';
   depositTime: string;
   depositAccountType: string;
@@ -90,6 +91,7 @@ function generateRecords(): DepositRecord[] {
       thirdPartyOrderId: generateThirdPartyId(),
       memberAccount: `${randomFrom(names).toLowerCase()}${Math.floor(100 + Math.random() * 900)}`,
       memberPhone: generatePhone(),
+      vipLevel: Math.floor(Math.random() * 31),
       orderStatus: status,
       depositTime,
       depositAccountType: randomFrom(accountTypes),

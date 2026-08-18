@@ -7,6 +7,7 @@ import {
   Alert,
   Button,
   Card,
+  Col,
   DatePicker,
   Descriptions,
   Drawer,
@@ -14,9 +15,12 @@ import {
   Input,
   InputNumber,
   Modal,
+  Row,
   Select,
   Space,
+  Statistic,
   Table,
+  Tabs,
   Tag,
   Typography,
   message,
@@ -29,15 +33,16 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import {
+  consolidatedPrizeStatusLabels,
+  consolidatedPrizeStatusOptions,
+  consolidatedPrizeStatusOrder,
   openStatusLabels,
-  openStatusOptions,
-  prizeStatusLabels,
-  prizeStatusOptions,
   prizeTypeLabels,
   prizeTypeOptions,
   recallBoxOpenRecords,
+  toConsolidatedPrizeStatus,
   type BoxOpenStatus,
-  type PrizeStatus,
+  type ConsolidatedPrizeStatus,
   type PrizeType,
   type RecallBoxOpenRecord,
 } from '@/data/reactivationMysteryBoxData';
@@ -69,21 +74,37 @@ interface Props {
   onClose: () => void;
 }
 
-interface ReportStats {
-  pending: number;
-  bonus: { count: number; amount: number };
-  deposit: { count: number; unused: number; used: number; expired: number; paid: number };
-  rebate: { count: number; calculating: number; settled: number; voided: number; paid: number };
-  freeSpins: { count: number; total: number };
-  filCoins: { count: number; total: number };
+interface ReportFilters {
+  grantedRange?: [Dayjs, Dayjs];
+  prizeType?: PrizeType | 'all';
+  prizeStatus?: ConsolidatedPrizeStatus | 'all';
+  payoutMin?: number | null;
+  payoutMax?: number | null;
+  searchField?: SearchField;
+  searchText?: string;
 }
 
-const getDefaultFilters = (): Record<string, any> => ({
+interface TypeStat {
+  type: PrizeType;
+  count: number;
+  statusCounts: Partial<Record<ConsolidatedPrizeStatus, number>>;
+  moneyTotal: number;
+  unitTotal: number;
+}
+
+interface ReportStats {
+  claimedCount: number;
+  fulfilledCount: number;
+  processingCount: number;
+  totalPaid: number;
+  byType: TypeStat[];
+}
+
+const getDefaultFilters = (): ReportFilters => ({
   grantedRange: [
     dayjs('2026-06-18 00:00:00'),
     dayjs('2026-06-18 23:59:59'),
   ],
-  openStatus: 'all',
   prizeType: 'all',
   prizeStatus: 'all',
 });
@@ -150,35 +171,60 @@ const renderCurrencyCell = (value?: number | null) => {
   return text === '—' ? dash : <Text strong>{text}</Text>;
 };
 
-const renderStatItem = (id: string, content: React.ReactNode) => (
-  <div
-    key={id}
-    data-e2e-id={`${E2E}-stats-${id}`}
-    style={{
-      flex: '1 1 210px',
-      minWidth: 180,
-      lineHeight: 1.7,
-      whiteSpace: 'normal',
-    }}
-  >
-    {content}
-  </div>
-);
+const passesCommonFilters = (record: RecallBoxOpenRecord, filters: ReportFilters) => {
+  const terms = splitSearchTerms(filters.searchText);
 
-const createEmptyStats = (): ReportStats => ({
-  pending: 0,
-  bonus: { count: 0, amount: 0 },
-  deposit: { count: 0, unused: 0, used: 0, expired: 0, paid: 0 },
-  rebate: { count: 0, calculating: 0, settled: 0, voided: 0, paid: 0 },
-  freeSpins: { count: 0, total: 0 },
-  filCoins: { count: 0, total: 0 },
-});
+  if (terms.length > 0) {
+    const field = filters.searchField ?? 'phone';
+    const value = String(record[field] ?? '').toLowerCase();
+    if (!terms.some((term) => value.includes(term))) return false;
+  }
+
+  if (filters.grantedRange) {
+    const [start, end] = filters.grantedRange;
+    if (start && end) {
+      const grantedAt = dayjs(record.grantedAt);
+      if (grantedAt.isBefore(start) || grantedAt.isAfter(end)) return false;
+    }
+  }
+
+  return true;
+};
+
+const passesPrizeFilters = (record: RecallBoxOpenRecord, filters: ReportFilters) => {
+  if (filters.prizeType && filters.prizeType !== 'all' && record.prizeType !== filters.prizeType) {
+    return false;
+  }
+
+  if (
+    filters.prizeStatus &&
+    filters.prizeStatus !== 'all' &&
+    toConsolidatedPrizeStatus(record.prizeStatus) !== filters.prizeStatus
+  ) {
+    return false;
+  }
+
+  if (filters.payoutMin !== undefined && filters.payoutMin !== null) {
+    if (typeof record.payoutAmount !== 'number' || record.payoutAmount < filters.payoutMin) {
+      return false;
+    }
+  }
+
+  if (filters.payoutMax !== undefined && filters.payoutMax !== null) {
+    if (typeof record.payoutAmount !== 'number' || record.payoutAmount > filters.payoutMax) {
+      return false;
+    }
+  }
+
+  return true;
+};
 
 export default function ReactivationMysteryBoxReportModal({ open, onClose }: Props) {
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<ReportFilters>();
+  const [activeTab, setActiveTab] = useState<BoxOpenStatus>('claimed');
   const [searchField, setSearchField] = useState<SearchField>('phone');
   const [searchText, setSearchText] = useState('');
-  const [filters, setFilters] = useState<Record<string, any>>(() => getDefaultFilters());
+  const [filters, setFilters] = useState<ReportFilters>(() => getDefaultFilters());
   const [selectedRecord, setSelectedRecord] = useState<RecallBoxOpenRecord | null>(null);
 
   useEffect(() => {
@@ -188,127 +234,97 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
       setSearchField('phone');
       setSearchText('');
       setFilters(defaultFilters);
+      setActiveTab('claimed');
     }
     setSelectedRecord(null);
   }, [open, form]);
 
   const searchCount = useMemo(() => splitSearchTerms(searchText).length, [searchText]);
 
-  const filteredRecords = useMemo(() => {
-    return recallBoxOpenRecords.filter((record) => {
-      const terms = splitSearchTerms(filters.searchText);
-
-      if (terms.length > 0) {
-        const field = (filters.searchField ?? 'phone') as SearchField;
-        const value = String(record[field] ?? '').toLowerCase();
-        if (!terms.some((term) => value.includes(term))) return false;
-      }
-
-      if (filters.grantedRange && Array.isArray(filters.grantedRange)) {
-        const [start, end] = filters.grantedRange as [Dayjs, Dayjs];
-        if (start && end) {
-          const grantedAt = dayjs(record.grantedAt);
-          if (grantedAt.isBefore(start) || grantedAt.isAfter(end)) return false;
-        }
-      }
-
-      if (
-        filters.openStatus &&
-        filters.openStatus !== 'all' &&
-        record.openStatus !== filters.openStatus
-      ) {
-        return false;
-      }
-
-      if (
-        filters.prizeType &&
-        filters.prizeType !== 'all' &&
-        record.prizeType !== filters.prizeType
-      ) {
-        return false;
-      }
-
-      if (
-        filters.prizeStatus &&
-        filters.prizeStatus !== 'all' &&
-        record.prizeStatus !== filters.prizeStatus
-      ) {
-        return false;
-      }
-
-      const payoutMin = filters.payoutMin;
-      if (payoutMin !== undefined && payoutMin !== null) {
-        if (typeof record.payoutAmount !== 'number' || record.payoutAmount < payoutMin) {
-          return false;
-        }
-      }
-
-      const payoutMax = filters.payoutMax;
-      if (payoutMax !== undefined && payoutMax !== null) {
-        if (typeof record.payoutAmount !== 'number' || record.payoutAmount > payoutMax) {
-          return false;
-        }
-      }
-
-      return true;
-    });
+  const pendingRecords = useMemo(() => {
+    return recallBoxOpenRecords.filter(
+      (record) => record.openStatus === 'pending' && passesCommonFilters(record, filters),
+    );
   }, [filters]);
 
-  const stats = useMemo(() => {
-    const nextStats = createEmptyStats();
+  const claimedRecords = useMemo(() => {
+    return recallBoxOpenRecords.filter(
+      (record) =>
+        record.openStatus === 'claimed' &&
+        passesCommonFilters(record, filters) &&
+        passesPrizeFilters(record, filters),
+    );
+  }, [filters]);
 
-    filteredRecords.forEach((record) => {
-      if (record.openStatus === 'pending') {
-        nextStats.pending += 1;
-        return;
-      }
+  const pendingCount = pendingRecords.length;
+  const claimedCount = claimedRecords.length;
+  const tableRecords = activeTab === 'pending' ? pendingRecords : claimedRecords;
 
-      if (record.prizeType === 'bonus') {
-        nextStats.bonus.count += 1;
-        nextStats.bonus.amount += typeof record.payoutAmount === 'number' ? record.payoutAmount : 0;
-        return;
-      }
+  const stats = useMemo<ReportStats>(() => {
+    const byType = new Map<PrizeType, TypeStat>();
+    let fulfilledCount = 0;
+    let processingCount = 0;
+    let totalPaid = 0;
 
-      if (record.prizeType === 'depositCoupon') {
-        nextStats.deposit.count += 1;
-        if (record.prizeStatus === 'unused') nextStats.deposit.unused += 1;
-        if (record.prizeStatus === 'used') nextStats.deposit.used += 1;
-        if (record.prizeStatus === 'expired') nextStats.deposit.expired += 1;
-        nextStats.deposit.paid += typeof record.payoutAmount === 'number' ? record.payoutAmount : 0;
-        return;
+    claimedRecords.forEach((record) => {
+      const consolidatedStatus = toConsolidatedPrizeStatus(record.prizeStatus);
+      if (consolidatedStatus === 'fulfilled') fulfilledCount += 1;
+      if (consolidatedStatus === 'calculating' || consolidatedStatus === 'pendingUse') {
+        processingCount += 1;
       }
+      if (typeof record.payoutAmount === 'number') totalPaid += record.payoutAmount;
 
-      if (record.prizeType === 'rebateCoupon') {
-        nextStats.rebate.count += 1;
-        if (record.prizeStatus === 'calculating') nextStats.rebate.calculating += 1;
-        if (record.prizeStatus === 'settled') nextStats.rebate.settled += 1;
-        if (record.prizeStatus === 'voided') nextStats.rebate.voided += 1;
-        nextStats.rebate.paid += typeof record.payoutAmount === 'number' ? record.payoutAmount : 0;
-        return;
+      if (!record.prizeType) return;
+      const typeStat = byType.get(record.prizeType) ?? {
+        type: record.prizeType,
+        count: 0,
+        statusCounts: {},
+        moneyTotal: 0,
+        unitTotal: 0,
+      };
+      typeStat.count += 1;
+      if (consolidatedStatus) {
+        typeStat.statusCounts[consolidatedStatus] =
+          (typeStat.statusCounts[consolidatedStatus] ?? 0) + 1;
       }
-
-      if (record.prizeType === 'freeSpins') {
-        nextStats.freeSpins.count += 1;
-        nextStats.freeSpins.total +=
-          record.prizeValueKind === 'count' && typeof record.prizeValue === 'number'
-            ? record.prizeValue
-            : 0;
-        return;
+      if (typeof record.payoutAmount === 'number') {
+        typeStat.moneyTotal += record.payoutAmount;
       }
-
-      if (record.prizeType === 'filCoins') {
-        nextStats.filCoins.count += 1;
-        nextStats.filCoins.total +=
-          record.prizeValueKind === 'count' && typeof record.prizeValue === 'number'
-            ? record.prizeValue
-            : 0;
+      if (record.prizeValueKind === 'count' && typeof record.prizeValue === 'number') {
+        typeStat.unitTotal += record.prizeValue;
       }
+      byType.set(record.prizeType, typeStat);
     });
 
-    return nextStats;
-  }, [filteredRecords]);
+    return {
+      claimedCount: claimedRecords.length,
+      fulfilledCount,
+      processingCount,
+      totalPaid,
+      byType: prizeTypeOptions
+        .map((option) => byType.get(option.value as PrizeType))
+        .filter((item): item is TypeStat => Boolean(item)),
+    };
+  }, [claimedRecords]);
 
-  const columns: ColumnsType<RecallBoxOpenRecord> = [
+  const operationColumn: ColumnsType<RecallBoxOpenRecord>[number] = {
+    title: '操作',
+    key: 'action',
+    width: 90,
+    fixed: 'right',
+    render: (_value, record) => (
+      <Button
+        data-e2e-id={`${E2E}-detail-btn-${record.orderId}`}
+        type="link"
+        size="small"
+        onClick={() => setSelectedRecord(record)}
+      >
+        详情
+      </Button>
+    ),
+  };
+
+  const pendingColumns: ColumnsType<RecallBoxOpenRecord> = [
     {
       title: '盲盒单号',
       dataIndex: 'orderId',
@@ -316,11 +332,30 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
       fixed: 'left',
       render: (value: string) => <Text code>{value}</Text>,
     },
+    { title: '派发时间', dataIndex: 'grantedAt', width: 170 },
     {
-      title: '开盒状态',
-      dataIndex: 'openStatus',
-      width: 90,
-      render: (value: BoxOpenStatus) => openStatusLabels[value],
+      title: '手机号 / 会员账号 / UID',
+      dataIndex: 'phone',
+      width: 220,
+      render: (_value: string, record) => (
+        <Space direction="vertical" size={0}>
+          <Text>{record.phone}</Text>
+          <Text type="secondary">{record.account}</Text>
+          <Text type="secondary">{record.uid}</Text>
+        </Space>
+      ),
+    },
+    { title: '名单批次', dataIndex: 'batchId', width: 140 },
+    operationColumn,
+  ];
+
+  const claimedColumns: ColumnsType<RecallBoxOpenRecord> = [
+    {
+      title: '盲盒单号',
+      dataIndex: 'orderId',
+      width: 180,
+      fixed: 'left',
+      render: (value: string) => <Text code>{value}</Text>,
     },
     { title: '派发时间', dataIndex: 'grantedAt', width: 170 },
     {
@@ -376,19 +411,20 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
       title: '奖品状态',
       dataIndex: 'prizeStatus',
       width: 140,
-      render: (value: PrizeStatus | undefined, record) => {
-        if (!value) return dash;
-        if (value === 'calculating') {
+      render: (_value, record) => {
+        const consolidatedStatus = toConsolidatedPrizeStatus(record.prizeStatus);
+        if (!consolidatedStatus) return dash;
+        if (consolidatedStatus === 'calculating') {
           return (
             <Space direction="vertical" size={0}>
-              <span>{prizeStatusLabels[value]}</span>
+              <span>{consolidatedPrizeStatusLabels[consolidatedStatus]}</span>
               <Text type="secondary" style={{ fontSize: 12 }}>
                 至 {formatShortDateTime(record.rebateWindowEnd)}
               </Text>
             </Space>
           );
         }
-        return prizeStatusLabels[value];
+        return consolidatedPrizeStatusLabels[consolidatedStatus];
       },
     },
     {
@@ -403,27 +439,41 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
       },
     },
     { title: '名单批次', dataIndex: 'batchId', width: 140 },
+    operationColumn,
+  ];
+
+  const statColumns: ColumnsType<TypeStat> = [
     {
-      title: '操作',
-      key: 'action',
-      width: 90,
-      fixed: 'right',
-      render: (_value, record) => (
-        <Button
-          data-e2e-id={`${E2E}-detail-btn-${record.orderId}`}
-          type="link"
-          size="small"
-          onClick={() => setSelectedRecord(record)}
-        >
-          详情
-        </Button>
-      ),
+      title: '奖品种类',
+      dataIndex: 'type',
+      width: 150,
+      render: (type: PrizeType) => prizeTypeLabels[type],
+    },
+    { title: '笔数', dataIndex: 'count', width: 100 },
+    {
+      title: '状态分布',
+      dataIndex: 'statusCounts',
+      render: (statusCounts: TypeStat['statusCounts']) =>
+        consolidatedPrizeStatusOrder
+          .filter((status) => (statusCounts[status] ?? 0) > 0)
+          .map((status) => `${consolidatedPrizeStatusLabels[status]} ${statusCounts[status]}`)
+          .join(' / '),
+    },
+    {
+      title: '合计产值',
+      key: 'totalValue',
+      width: 180,
+      render: (_value, record) => {
+        if (record.type === 'freeSpins') return `${formatNumber(record.unitTotal)} 次`;
+        if (record.type === 'filCoins') return `${formatNumber(record.unitTotal)} 枚`;
+        return formatCurrency(record.moneyTotal);
+      },
     },
   ];
 
   const handleQuery = () => {
     setFilters({
-      ...form.getFieldsValue(),
+      ...form.getFieldsValue(true),
       searchField,
       searchText,
     });
@@ -436,6 +486,7 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
     setSearchField('phone');
     setSearchText('');
     setFilters(defaultFilters);
+    setActiveTab('claimed');
   };
 
   const renderPrizeType = (record: RecallBoxOpenRecord) => {
@@ -534,6 +585,21 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
       styles={{ body: { maxHeight: '78vh', overflowY: 'auto', padding: 16 } }}
     >
       <div data-e2e-id={`${E2E}-modal`}>
+        <Tabs
+          data-e2e-id={`${E2E}-filter-open-status-select`}
+          activeKey={activeTab}
+          items={[
+            {
+              key: 'pending',
+              label: (
+                <span data-e2e-id={`${E2E}-stats-pending`}>未开盒 ({pendingCount})</span>
+              ),
+            },
+            { key: 'claimed', label: `已开盒 (${claimedCount})` },
+          ]}
+          onChange={(key) => setActiveTab(key as BoxOpenStatus)}
+        />
+
         <Card size="small" style={{ marginBottom: 12 }}>
           <Form
             form={form}
@@ -579,59 +645,52 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
               />
             </Form.Item>
 
-            <Form.Item name="openStatus" label="开盒状态">
-              <Select
-                data-e2e-id={`${E2E}-filter-open-status-select`}
-                style={{ width: 110 }}
-                options={[
-                  { value: 'all', label: '全部' },
-                  ...openStatusOptions,
-                ]}
-              />
-            </Form.Item>
-
-            <Form.Item name="prizeType" label="中奖奖品">
-              <Select
-                data-e2e-id={`${E2E}-filter-prize-type-select`}
-                style={{ width: 130 }}
-                options={[
-                  { value: 'all', label: '全部' },
-                  ...prizeTypeOptions,
-                ]}
-              />
-            </Form.Item>
-
-            <Form.Item name="prizeStatus" label="奖品状态">
-              <Select
-                data-e2e-id={`${E2E}-filter-prize-status-select`}
-                style={{ width: 120 }}
-                options={[
-                  { value: 'all', label: '全部' },
-                  ...prizeStatusOptions,
-                ]}
-              />
-            </Form.Item>
-
-            <Form.Item label="实际派发金额">
-              <Space.Compact>
-                <Form.Item name="payoutMin" noStyle>
-                  <InputNumber
-                    data-e2e-id={`${E2E}-filter-payout-min-input`}
-                    min={0}
-                    placeholder="最小"
-                    style={{ width: 115 }}
+            {activeTab === 'claimed' && (
+              <>
+                <Form.Item name="prizeType" label="中奖奖品">
+                  <Select
+                    data-e2e-id={`${E2E}-filter-prize-type-select`}
+                    style={{ width: 130 }}
+                    options={[
+                      { value: 'all', label: '全部' },
+                      ...prizeTypeOptions,
+                    ]}
                   />
                 </Form.Item>
-                <Form.Item name="payoutMax" noStyle>
-                  <InputNumber
-                    data-e2e-id={`${E2E}-filter-payout-max-input`}
-                    min={0}
-                    placeholder="最大"
-                    style={{ width: 115 }}
+
+                <Form.Item name="prizeStatus" label="奖品状态">
+                  <Select
+                    data-e2e-id={`${E2E}-filter-prize-status-select`}
+                    style={{ width: 120 }}
+                    options={[
+                      { value: 'all', label: '全部' },
+                      ...consolidatedPrizeStatusOptions,
+                    ]}
                   />
                 </Form.Item>
-              </Space.Compact>
-            </Form.Item>
+
+                <Form.Item label="实际派发金额">
+                  <Space.Compact>
+                    <Form.Item name="payoutMin" noStyle>
+                      <InputNumber
+                        data-e2e-id={`${E2E}-filter-payout-min-input`}
+                        min={0}
+                        placeholder="最小"
+                        style={{ width: 115 }}
+                      />
+                    </Form.Item>
+                    <Form.Item name="payoutMax" noStyle>
+                      <InputNumber
+                        data-e2e-id={`${E2E}-filter-payout-max-input`}
+                        min={0}
+                        placeholder="最大"
+                        style={{ width: 115 }}
+                      />
+                    </Form.Item>
+                  </Space.Compact>
+                </Form.Item>
+              </>
+            )}
 
             <Form.Item>
               <Space>
@@ -655,31 +714,60 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
           </Form>
         </Card>
 
-        <Card size="small" style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px' }}>
-            {renderStatItem('pending', `未开盒 ${stats.pending} 笔`)}
-            {renderStatItem(
-              'bonus',
-              `彩金: ${stats.bonus.count} 笔 · 合计 ${formatCurrency(stats.bonus.amount)}`,
-            )}
-            {renderStatItem(
-              'deposit',
-              `存款券: ${stats.deposit.count} 笔（待使用 ${stats.deposit.unused} / 已使用 ${stats.deposit.used} / 已过期 ${stats.deposit.expired}）· 已派发加赠 ${formatCurrency(stats.deposit.paid)}`,
-            )}
-            {renderStatItem(
-              'rebate',
-              `返水券: ${stats.rebate.count} 笔（计算中 ${stats.rebate.calculating} / 已派发 ${stats.rebate.settled} / 已作废 ${stats.rebate.voided}）· 已派发 ${formatCurrency(stats.rebate.paid)}`,
-            )}
-            {renderStatItem(
-              'free-spins',
-              `Free Spins: ${stats.freeSpins.count} 笔 · 合计 ${formatNumber(stats.freeSpins.total)} 次`,
-            )}
-            {renderStatItem(
-              'fil-coins',
-              `FilCoins: ${stats.filCoins.count} 笔 · 合计 ${formatNumber(stats.filCoins.total)} 枚`,
-            )}
-          </div>
-        </Card>
+        {activeTab === 'claimed' && (
+          <Card size="small" style={{ marginBottom: 12 }}>
+            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+              <Col xs={24} sm={12} lg={6}>
+                <Statistic
+                  data-e2e-id={`${E2E}-stats-claimed-count`}
+                  title="已开盒笔数"
+                  value={stats.claimedCount}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={6}>
+                <Statistic
+                  data-e2e-id={`${E2E}-stats-fulfilled-count`}
+                  title="已派发笔数"
+                  value={stats.fulfilledCount}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={6}>
+                <Statistic
+                  data-e2e-id={`${E2E}-stats-processing-count`}
+                  title="进行中笔数"
+                  value={stats.processingCount}
+                />
+              </Col>
+              <Col xs={24} sm={12} lg={6}>
+                <Statistic
+                  data-e2e-id={`${E2E}-stats-total-paid`}
+                  title="累计实际派发"
+                  value={formatCurrency(stats.totalPaid)}
+                />
+              </Col>
+            </Row>
+
+            <Table<TypeStat>
+              columns={statColumns}
+              dataSource={stats.byType}
+              rowKey="type"
+              onRow={(record) => {
+                const legacyIdByType: Record<PrizeType, string> = {
+                  bonus: 'bonus',
+                  depositCoupon: 'deposit',
+                  rebateCoupon: 'rebate',
+                  freeSpins: 'free-spins',
+                  filCoins: 'fil-coins',
+                };
+                return {
+                  'data-e2e-id': `${E2E}-stats-${legacyIdByType[record.type]}`,
+                } as React.HTMLAttributes<HTMLTableRowElement>;
+              }}
+              size="small"
+              pagination={false}
+            />
+          </Card>
+        )}
 
         <div
           style={{
@@ -708,8 +796,8 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
         </div>
 
         <Table
-          columns={columns}
-          dataSource={filteredRecords}
+          columns={activeTab === 'pending' ? pendingColumns : claimedColumns}
+          dataSource={tableRecords}
           rowKey="id"
           onRow={(record) =>
             ({
@@ -717,7 +805,7 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
             } as React.HTMLAttributes<HTMLTableRowElement>)
           }
           size="small"
-          scroll={{ x: 1820 }}
+          scroll={{ x: activeTab === 'pending' ? 900 : 1720 }}
           pagination={{
             pageSize: 20,
             showTotal: (total) => `共 ${total} 笔`,
@@ -765,28 +853,36 @@ export default function ReactivationMysteryBoxReportModal({ open, onClose }: Pro
                 </Descriptions>
               </Card>
 
-              <Card size="small" title="奖品信息" style={{ marginTop: 12 }}>
-                <Descriptions size="small" column={1}>
-                  <Descriptions.Item label="奖品种类">
-                    {renderDrawerValue('prize-type', renderPrizeType(selectedRecord))}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="奖品数值">
-                    {renderDrawerValue('prize-value', formatPrizeValue(selectedRecord))}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="奖品状态">
-                    {renderDrawerValue(
-                      'prize-status',
-                      selectedRecord.prizeStatus ? prizeStatusLabels[selectedRecord.prizeStatus] : '—',
-                    )}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="实际派发金额">
-                    {renderDrawerValue('payout', formatPayoutValue(selectedRecord))}
-                  </Descriptions.Item>
-                </Descriptions>
-              </Card>
+              {selectedRecord.openStatus === 'claimed' && (
+                <>
+                  <Card size="small" title="奖品信息" style={{ marginTop: 12 }}>
+                    <Descriptions size="small" column={1}>
+                      <Descriptions.Item label="奖品种类">
+                        {renderDrawerValue('prize-type', renderPrizeType(selectedRecord))}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="奖品数值">
+                        {renderDrawerValue('prize-value', formatPrizeValue(selectedRecord))}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="奖品状态">
+                        {renderDrawerValue(
+                          'prize-status',
+                          selectedRecord.prizeStatus
+                            ? consolidatedPrizeStatusLabels[
+                                toConsolidatedPrizeStatus(selectedRecord.prizeStatus)!
+                              ]
+                            : '—',
+                        )}
+                      </Descriptions.Item>
+                      <Descriptions.Item label="实际派发金额">
+                        {renderDrawerValue('payout', formatPayoutValue(selectedRecord))}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </Card>
 
-              {renderRebateDetail(selectedRecord)}
-              {renderDepositDetail(selectedRecord)}
+                  {renderRebateDetail(selectedRecord)}
+                  {renderDepositDetail(selectedRecord)}
+                </>
+              )}
             </div>
           )}
         </Drawer>

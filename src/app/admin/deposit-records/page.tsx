@@ -41,6 +41,14 @@ const statusTagMap: Record<string, { color: string }> = {
   '存款失败': { color: 'error' },
 };
 
+function getVipTier(level: number): { name: string; color: string } {
+  if (level <= 6) return { name: 'Bronze', color: '#cd7f32' };
+  if (level <= 12) return { name: 'Silver', color: '#a8a8a8' };
+  if (level <= 18) return { name: 'Gold', color: '#d4a017' };
+  if (level <= 24) return { name: 'Platinum', color: '#5b9bd5' };
+  return { name: 'Diamond', color: '#9b59b6' };
+}
+
 export default function DepositRecordsPage() {
   const [form] = Form.useForm();
   const [filters, setFilters] = useState<Record<string, any>>({});
@@ -55,6 +63,7 @@ export default function DepositRecordsPage() {
       if (filters.remark && filters.remark !== '-' && !item.remark.includes(filters.remark)) return false;
       if (filters.minAmount && item.depositAmount < filters.minAmount) return false;
       if (filters.maxAmount && item.depositAmount > filters.maxAmount) return false;
+      if (Array.isArray(filters.vipLevels) && filters.vipLevels.length > 0 && !filters.vipLevels.includes(item.vipLevel)) return false;
       return true;
     });
   }, [filters]);
@@ -89,6 +98,20 @@ export default function DepositRecordsPage() {
       title: '会员手机',
       dataIndex: 'memberPhone',
       width: 140,
+    },
+    {
+      title: 'VIP 等级',
+      dataIndex: 'vipLevel',
+      width: 120,
+      sorter: (a, b) => a.vipLevel - b.vipLevel,
+      render: (level: number) => {
+        const tier = getVipTier(level);
+        return (
+          <Tag color={tier.color} style={{ color: '#fff', border: 'none' }}>
+            V{level} · {tier.name}
+          </Tag>
+        );
+      },
     },
     {
       title: '订单状态',
@@ -230,6 +253,20 @@ export default function DepositRecordsPage() {
               <Form.Item name="remark" label="备注">
                 <Input data-e2e-id="deposit-records-filter-remark-input" placeholder={'支持批量查询，以","分隔'} allowClear style={{ width: 220 }} />
               </Form.Item>
+              <Form.Item name="vipLevels" label="VIP 等级">
+                <Select
+                  data-e2e-id="deposit-records-filter-vip-level-select"
+                  mode="multiple"
+                  placeholder="请选择 VIP 等级"
+                  allowClear
+                  maxTagCount="responsive"
+                  style={{ width: 260 }}
+                  options={Array.from({ length: 31 }, (_, level) => {
+                    const tier = getVipTier(level);
+                    return { value: level, label: `V${level} · ${tier.name}` };
+                  })}
+                />
+              </Form.Item>
             </>
           )}
           <Form.Item>
@@ -270,7 +307,7 @@ export default function DepositRecordsPage() {
         rowKey="key"
         onRow={(record) => ({ 'data-e2e-id': `deposit-records-table-row-${record.depositOrderId}` } as React.HTMLAttributes<HTMLTableRowElement>)}
         size="small"
-        scroll={{ x: 2600 }}
+        scroll={{ x: 2720 }}
         pagination={{
           pageSize: 20,
           showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条/总共 ${total} 条`,
@@ -295,7 +332,7 @@ export default function DepositRecordsPage() {
               <Table.Summary.Cell index={4} colSpan={1}>
                 <Text strong>₱{summary.totalFee.toLocaleString()}</Text>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={5} colSpan={14}>
+              <Table.Summary.Cell index={5} colSpan={15}>
                 <Text strong>{summary.successRate}</Text>
               </Table.Summary.Cell>
             </Table.Summary.Row>
@@ -315,7 +352,7 @@ export default function DepositRecordsPage() {
               <Table.Summary.Cell index={4} colSpan={1}>
                 <Text strong>₱{summary.totalFee.toLocaleString()}</Text>
               </Table.Summary.Cell>
-              <Table.Summary.Cell index={5} colSpan={14}>
+              <Table.Summary.Cell index={5} colSpan={15}>
                 <Text strong>{summary.successRate}</Text>
               </Table.Summary.Cell>
             </Table.Summary.Row>

@@ -113,8 +113,50 @@ export const prizeStatusOptions: { value: PrizeStatus; label: string }[] = Objec
   label,
 }));
 
+// 收拢后的 4 种对外展示状态
+export type ConsolidatedPrizeStatus = 'calculating' | 'pendingUse' | 'fulfilled' | 'invalidated';
+
+export const consolidatedPrizeStatusLabels: Record<ConsolidatedPrizeStatus, string> = {
+  calculating: '计算中',
+  pendingUse: '待使用',
+  fulfilled: '已派发',
+  invalidated: '已失效',
+};
+
+// 展示/筛选顺序固定
+export const consolidatedPrizeStatusOrder: ConsolidatedPrizeStatus[] = [
+  'calculating',
+  'pendingUse',
+  'fulfilled',
+  'invalidated',
+];
+
+export const consolidatedPrizeStatusOptions: {
+  value: ConsolidatedPrizeStatus;
+  label: string;
+}[] = consolidatedPrizeStatusOrder.map((value) => ({
+  value,
+  label: consolidatedPrizeStatusLabels[value],
+}));
+
+// 原始 7 状态 → 收拢 4 状态 的映射
+const rawToConsolidatedPrizeStatus: Record<PrizeStatus, ConsolidatedPrizeStatus> = {
+  credited: 'fulfilled',
+  settled: 'fulfilled',
+  used: 'fulfilled',
+  calculating: 'calculating',
+  unused: 'pendingUse',
+  voided: 'invalidated',
+  expired: 'invalidated',
+};
+
+export const toConsolidatedPrizeStatus = (
+  status?: PrizeStatus,
+): ConsolidatedPrizeStatus | undefined =>
+  status ? rawToConsolidatedPrizeStatus[status] : undefined;
+
 export const openStatusLabels: Record<BoxOpenStatus, string> = {
-  pending: '待开盒',
+  pending: '未开盒',
   claimed: '已开盒',
 };
 

@@ -71,6 +71,10 @@ export default function HomeSectionEditorDrawer({
   const [gameTypeFilter, setGameTypeFilter] = useState<GameType | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<GameStatus | 'all'>('all');
   const [keyword, setKeyword] = useState('');
+  const [poolProviderFilter, setPoolProviderFilter] = useState<ProviderName | 'all'>('all');
+  const [poolGameTypeFilter, setPoolGameTypeFilter] = useState<GameType | 'all'>('all');
+  const [poolStatusFilter, setPoolStatusFilter] = useState<GameStatus | 'all'>('all');
+  const [poolKeyword, setPoolKeyword] = useState('');
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
   const [draggedPoolIndex, setDraggedPoolIndex] = useState<number | null>(null);
 
@@ -83,6 +87,12 @@ export default function HomeSectionEditorDrawer({
       : 'all');
     setStatusFilter('all');
     setKeyword('');
+    setPoolProviderFilter('all');
+    setPoolGameTypeFilter(section.type === 'category' && section.categoryGameType
+      ? section.categoryGameType
+      : 'all');
+    setPoolStatusFilter('all');
+    setPoolKeyword('');
     setCheckedIds([]);
     setDraggedPoolIndex(null);
   }, [open, section]);
@@ -149,6 +159,31 @@ export default function HomeSectionEditorDrawer({
   const shownCount = Math.min(draft.displayCount, candidateCount);
   const backfillCount = Math.max(0, candidateCount - draft.displayCount);
   const isSystem = draft.type === 'system';
+  const poolEntries = draft.gameIds.map((gameId, index) => ({
+    gameId,
+    index,
+    game: platformGamesById.get(gameId),
+  })).filter((entry): entry is typeof entry & { game: NonNullable<typeof entry.game> } => Boolean(entry.game));
+  const visiblePoolEntries = poolEntries.filter(({ game }) => {
+    if (draft.type === 'category' && draft.categoryGameType !== game.gameType) return false;
+    if (poolProviderFilter !== 'all' && game.provider !== poolProviderFilter) return false;
+    if (poolGameTypeFilter !== 'all' && game.gameType !== poolGameTypeFilter) return false;
+    if (poolStatusFilter !== 'all' && game.status !== poolStatusFilter) return false;
+    if (poolKeyword.trim()) {
+      const query = poolKeyword.trim().toLowerCase();
+      if (!game.gameNameEn.toLowerCase().includes(query)
+        && !game.gameNameTg.toLowerCase().includes(query)
+        && !game.gameId.includes(query)) return false;
+    }
+    return true;
+  });
+  const defaultPoolGameType = draft.type === 'category' && draft.categoryGameType
+    ? draft.categoryGameType
+    : 'all';
+  const poolFilterActive = poolProviderFilter !== 'all'
+    || poolGameTypeFilter !== defaultPoolGameType
+    || poolStatusFilter !== 'all'
+    || poolKeyword.trim() !== '';
   const filteredGameIds = filteredGames.map((game) => game.gameId);
   const checkedFilteredCount = filteredGameIds.filter((gameId) => checkedIds.includes(gameId)).length;
   const allFilteredChecked = filteredGameIds.length > 0
@@ -428,22 +463,83 @@ export default function HomeSectionEditorDrawer({
               style={{ border: `1px solid ${token.colorBorder}`, borderRadius: token.borderRadius, padding: 12 }}
               data-e2e-id="home-section-editor-candidate-pool"
             >
-              <Title level={5} style={{ marginTop: 0, marginBottom: 4 }}>候選池排序</Title>
-              <Text type="secondary" style={{ display: 'block', marginBottom: 10 }}>
-                已選 {candidateCount} ｜ 展示 {shownCount} ｜ 候補 {backfillCount}
-              </Text>
-              <div style={{ height: 444, overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Title level={5} style={{ margin: 0 }}>候選池排序</Title>
+                <Button
+                  type="link"
+                  size="small"
+                  disabled={!poolFilterActive}
+                  onClick={() => {
+                    setPoolProviderFilter('all');
+                    setPoolGameTypeFilter(defaultPoolGameType);
+                    setPoolStatusFilter('all');
+                    setPoolKeyword('');
+                  }}
+                  data-e2e-id="home-section-pool-clear-filter-btn"
+                >
+                  清除篩選
+                </Button>
+              </div>
+              <div style={{ marginTop: 4, marginBottom: 8 }}>
+                <Text type="secondary" style={{ display: 'block' }}>
+                  已選 {candidateCount} ｜ 展示 {shownCount} ｜ 候補 {backfillCount}
+                </Text>
+                {poolFilterActive && (
+                  <Text type="secondary" style={{ display: 'block', fontSize: 12 }}>
+                    符合篩選 {visiblePoolEntries.length} 筆
+                  </Text>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <Select
+                  value={poolProviderFilter}
+                  onChange={setPoolProviderFilter}
+                  options={[
+                    { label: '全部供應商', value: 'all' },
+                    ...providerOptions.map((provider) => ({ label: provider, value: provider })),
+                  ]}
+                  data-e2e-id="home-section-pool-provider-filter"
+                />
+                <Select
+                  value={poolGameTypeFilter}
+                  disabled={draft.type === 'category'}
+                  onChange={setPoolGameTypeFilter}
+                  options={[
+                    { label: '全部類型', value: 'all' },
+                    ...gameTypeOptions.map((gameType) => ({ label: gameType, value: gameType })),
+                  ]}
+                  data-e2e-id="home-section-pool-game-type-filter"
+                />
+                <Select
+                  value={poolStatusFilter}
+                  onChange={setPoolStatusFilter}
+                  options={[
+                    { label: '全部狀態', value: 'all' },
+                    ...gameStatusOptions.map((status) => ({ label: status, value: status })),
+                  ]}
+                  data-e2e-id="home-section-pool-status-filter"
+                />
+                <Input.Search
+                  allowClear
+                  placeholder="名稱或遊戲 ID"
+                  value={poolKeyword}
+                  onChange={(event) => setPoolKeyword(event.target.value)}
+                  data-e2e-id="home-section-pool-keyword-search"
+                />
+              </div>
+              <div style={{ height: 398, overflowY: 'auto' }}>
                 {draft.gameIds.length === 0 ? (
                   <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未加入遊戲" />
-                ) : draft.gameIds.map((gameId, index) => {
-                  const game = platformGamesById.get(gameId);
-                  if (!game) return null;
+                ) : visiblePoolEntries.length === 0 ? (
+                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="無符合篩選的遊戲" />
+                ) : visiblePoolEntries.map((entry) => {
+                  const { gameId, game } = entry;
                   const warning = game.status !== '上架';
                   return (
                     <React.Fragment key={gameId}>
                       <div
                         onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => dropPoolItem(index)}
+                        onDrop={() => dropPoolItem(entry.index)}
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '24px 24px 38px minmax(0, 1fr) 26px',
@@ -454,12 +550,12 @@ export default function HomeSectionEditorDrawer({
                         }}
                         data-e2e-id={`home-section-pool-row-${gameId}`}
                       >
-                        <Text type="secondary" style={{ fontSize: 11 }}>{index + 1}</Text>
+                        <Text type="secondary" style={{ fontSize: 11 }}>{entry.index + 1}</Text>
                         <span
                           draggable
                           onDragStart={(event) => {
                             event.dataTransfer.effectAllowed = 'move';
-                            setDraggedPoolIndex(index);
+                            setDraggedPoolIndex(entry.index);
                           }}
                           onDragEnd={() => setDraggedPoolIndex(null)}
                           style={{ cursor: 'grab', color: token.colorTextSecondary }}
@@ -478,6 +574,11 @@ export default function HomeSectionEditorDrawer({
                             <span style={{ color: game.compliant ? token.colorTextSecondary : token.colorError }}>
                               {game.compliant ? '合規' : '非合規'}
                             </span>
+                            {poolFilterActive && (
+                              <span style={{ color: token.colorTextSecondary }}>
+                                {' ｜ '}{entry.index < draft.displayCount ? '展示中' : '候補'}
+                              </span>
+                            )}
                           </Text>
                         </div>
                         <Button
@@ -488,7 +589,7 @@ export default function HomeSectionEditorDrawer({
                           data-e2e-id={`home-section-pool-remove-btn-${gameId}`}
                         />
                       </div>
-                      {index + 1 === draft.displayCount && (
+                      {entry.index + 1 === draft.displayCount && (
                         <Divider
                           plain
                           style={{ margin: '6px 0', color: token.colorPrimary, borderColor: token.colorPrimary }}

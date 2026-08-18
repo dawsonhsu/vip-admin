@@ -28,7 +28,7 @@ const OPERATIONS: { key: string; label: string; icon: React.ReactNode; color: st
   { key: 'transfer', label: 'Transfer', icon: <SwapOutlined />, color: '#6366F1' },
   { key: 'records', label: 'Records', icon: <HistoryOutlined />, color: '#14B8A6' },
   { key: 'bonus', label: 'Bonus', icon: <GiftOutlined />, color: '#EC4899' },
-  { key: 'invite', label: 'Invite', icon: <TeamOutlined />, color: '#A855F7' },
+  { key: 'invite', label: 'Invite', icon: <TeamOutlined />, color: '#A855F7', href: '/client-demo/invite' },
   { key: 'kyc', label: 'KYC', icon: <SafetyCertificateOutlined />, color: '#10B981' },
   { key: 'settings', label: 'Settings', icon: <SettingOutlined />, color: '#8a8a99' },
 ];
@@ -197,6 +197,7 @@ export default function MinePage() {
       {/* Invite banner */}
       <div style={{ padding: '12px 14px 0' }}>
         <div
+          onClick={() => router.push('/client-demo/invite')}
           style={{
             background: 'linear-gradient(135deg, #6366F1 0%, #A855F7 100%)',
             borderRadius: 10,
@@ -204,6 +205,7 @@ export default function MinePage() {
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
+            cursor: 'pointer',
           }}
         >
           <div>

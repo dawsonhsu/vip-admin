@@ -30,7 +30,7 @@ const TABS: Tab[] = [
   { key: 'mine', href: '/client-demo/mine', label: 'My', icon: <UserOutlined /> },
 ];
 
-const FULLSCREEN_ROUTES = ['/client-demo/deposit', '/client-demo/newbie-rewards'];
+const FULLSCREEN_ROUTES = ['/client-demo/deposit', '/client-demo/newbie-rewards', '/client-demo/invite'];
 const LIGHT_NAV_ROUTES = ['/client-demo/rewards', '/client-demo/newbie-rewards'];
 
 export default function ClientDemoLayout({ children }: { children: React.ReactNode }) {
