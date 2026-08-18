@@ -186,6 +186,10 @@ export interface BatchSourceEntry {
   spinOverride: number | null;
 }
 
+export interface BatchResolvedSourceEntry extends BatchSourceEntry {
+  playerId: string | null;
+}
+
 export interface BatchResultRow {
   key: string;
   identifierRaw: string;
@@ -210,7 +214,7 @@ export interface BatchDispatchTask {
   failedList: BatchResultRow[];
   config: {
     identifierType: BatchIdentifierType;
-    entries: BatchSourceEntry[];
+    entries: BatchResolvedSourceEntry[];
     formValues: Record<string, unknown>;
   };
 }
@@ -261,9 +265,9 @@ export const mockDispatchTasks: BatchDispatchTask[] = [
     config: {
       identifierType: 'account',
       entries: [
-        { identifier: 'missing_player_01', spinOverride: null },
-        { identifier: 'player_ace', spinOverride: 30 },
-        { identifier: 'lucky_star', spinOverride: 30 },
+        { identifier: 'missing_player_01', spinOverride: null, playerId: null },
+        { identifier: 'player_ace', spinOverride: 30, playerId: 'player_ace' },
+        { identifier: 'lucky_star', spinOverride: 30, playerId: 'lucky_star' },
       ],
       formValues: { ...mockTaskFormValues, name: '新遊戲推廣', activityName: '新遊戲推廣', totalSpins: 30 },
     },
@@ -286,8 +290,8 @@ export const mockDispatchTasks: BatchDispatchTask[] = [
     config: {
       identifierType: 'uid',
       entries: [
-        { identifier: 'unknown_001', spinOverride: null },
-        { identifier: 'unknown_002', spinOverride: null },
+        { identifier: 'unknown_001', spinOverride: null, playerId: null },
+        { identifier: 'unknown_002', spinOverride: null, playerId: null },
       ],
       formValues: { ...mockTaskFormValues, name: '測試會員批次' },
     },
