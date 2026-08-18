@@ -76,6 +76,7 @@ export default function HomeSectionEditorDrawer({
   const [poolStatusFilter, setPoolStatusFilter] = useState<GameStatus | 'all'>('all');
   const [poolKeyword, setPoolKeyword] = useState('');
   const [checkedIds, setCheckedIds] = useState<string[]>([]);
+  const [poolCheckedIds, setPoolCheckedIds] = useState<string[]>([]);
   const [draggedPoolIndex, setDraggedPoolIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -94,6 +95,7 @@ export default function HomeSectionEditorDrawer({
     setPoolStatusFilter('all');
     setPoolKeyword('');
     setCheckedIds([]);
+    setPoolCheckedIds([]);
     setDraggedPoolIndex(null);
   }, [open, section]);
 
@@ -136,6 +138,20 @@ export default function HomeSectionEditorDrawer({
 
   const removePoolGame = (gameId: string) => {
     setDraft({ ...draft, gameIds: draft.gameIds.filter((id) => id !== gameId) });
+    setPoolCheckedIds((current) => current.filter((id) => id !== gameId));
+  };
+
+  const removeSelectedPoolGames = () => {
+    if (poolCheckedIds.length === 0) {
+      message.info('請先勾選遊戲');
+      return;
+    }
+    const checkedIdSet = new Set(poolCheckedIds);
+    const nextGameIds = draft.gameIds.filter((gameId) => !checkedIdSet.has(gameId));
+    const removedCount = draft.gameIds.length - nextGameIds.length;
+    setDraft({ ...draft, gameIds: nextGameIds });
+    setPoolCheckedIds([]);
+    message.success(`已移除 ${removedCount} 個遊戲`);
   };
 
   const dropPoolItem = (targetIndex: number) => {
@@ -189,12 +205,25 @@ export default function HomeSectionEditorDrawer({
   const allFilteredChecked = filteredGameIds.length > 0
     && checkedFilteredCount === filteredGameIds.length;
   const someFilteredChecked = checkedFilteredCount > 0 && !allFilteredChecked;
+  const visiblePoolGameIds = visiblePoolEntries.map((entry) => entry.gameId);
+  const checkedVisiblePoolCount = visiblePoolGameIds.filter((gameId) => poolCheckedIds.includes(gameId)).length;
+  const allVisiblePoolChecked = visiblePoolGameIds.length > 0
+    && checkedVisiblePoolCount === visiblePoolGameIds.length;
+  const someVisiblePoolChecked = checkedVisiblePoolCount > 0 && !allVisiblePoolChecked;
 
   const toggleAllFilteredGames = (checked: boolean) => {
     setCheckedIds((current) => {
       if (checked) return Array.from(new Set([...current, ...filteredGameIds]));
       const filteredIdSet = new Set(filteredGameIds);
       return current.filter((gameId) => !filteredIdSet.has(gameId));
+    });
+  };
+
+  const toggleAllVisiblePoolGames = (checked: boolean) => {
+    setPoolCheckedIds((current) => {
+      if (checked) return Array.from(new Set([...current, ...visiblePoolGameIds]));
+      const visiblePoolIdSet = new Set(visiblePoolGameIds);
+      return current.filter((gameId) => !visiblePoolIdSet.has(gameId));
     });
   };
 
@@ -527,7 +556,18 @@ export default function HomeSectionEditorDrawer({
                   data-e2e-id="home-section-pool-keyword-search"
                 />
               </div>
-              <div style={{ height: 398, overflowY: 'auto' }}>
+              <div style={{ padding: '4px 2px 8px' }}>
+                <Checkbox
+                  checked={allVisiblePoolChecked}
+                  indeterminate={someVisiblePoolChecked}
+                  disabled={visiblePoolEntries.length === 0}
+                  onChange={(event) => toggleAllVisiblePoolGames(event.target.checked)}
+                  data-e2e-id="home-section-pool-select-all"
+                >
+                  全選（{visiblePoolEntries.length}）
+                </Checkbox>
+              </div>
+              <div style={{ height: 340, overflowY: 'auto' }}>
                 {draft.gameIds.length === 0 ? (
                   <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未加入遊戲" />
                 ) : visiblePoolEntries.length === 0 ? (
@@ -542,7 +582,7 @@ export default function HomeSectionEditorDrawer({
                         onDrop={() => dropPoolItem(entry.index)}
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: '24px 24px 38px minmax(0, 1fr) 26px',
+                          gridTemplateColumns: '24px 24px 24px 38px minmax(0, 1fr) 26px',
                           alignItems: 'center',
                           gap: 7,
                           padding: '7px 0',
@@ -550,6 +590,13 @@ export default function HomeSectionEditorDrawer({
                         }}
                         data-e2e-id={`home-section-pool-row-${gameId}`}
                       >
+                        <Checkbox
+                          checked={poolCheckedIds.includes(gameId)}
+                          onChange={(event) => setPoolCheckedIds((current) => event.target.checked
+                            ? [...current, gameId]
+                            : current.filter((id) => id !== gameId))}
+                          data-e2e-id={`home-section-pool-checkbox-${gameId}`}
+                        />
                         <Text type="secondary" style={{ fontSize: 11 }}>{entry.index + 1}</Text>
                         <span
                           draggable
@@ -601,6 +648,16 @@ export default function HomeSectionEditorDrawer({
                   );
                 })}
               </div>
+              <Button
+                block
+                danger
+                icon={<DeleteOutlined />}
+                onClick={removeSelectedPoolGames}
+                style={{ marginTop: 10 }}
+                data-e2e-id="home-section-editor-remove-games-btn"
+              >
+                移除所選
+              </Button>
             </div>
           </div>
         </>
