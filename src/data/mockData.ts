@@ -175,6 +175,7 @@ export interface FreeSpinGrantItem {
   voidedBy: string | null;
   voidReason: string | null;
   createdBy: string;
+  batchNo: string | null;
   createdAt: string;
   remark: string | null;
 }
@@ -765,14 +766,18 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
       : null;
     const voidedBy = claimStatus === 'voided' ? 'darren@filbetph.com' : null;
     const voidReason = claimStatus === 'voided' ? '派發失敗，作廢處理' : null;
+    const isBatch = i < 16;
+    const batchNo = i < 10 ? mockDispatchTasks[0].id
+      : i < 16 ? mockDispatchTasks[1].id
+      : null;
 
     grants.push({
       id: `FSG${String(i + 1).padStart(5, '0')}`,
       name: pick(grantNames),
       coverImage,
       playerId: pick(accounts),
-      sourceType,
-      sourceActivityName: activityName,
+      sourceType: isBatch ? 'manual' : sourceType,
+      sourceActivityName: isBatch ? null : activityName,
       grantType,
       providerCode,
       providerName,
@@ -798,7 +803,8 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
       voidedAt,
       voidedBy,
       voidReason,
-      createdBy: pick(createdBys),
+      createdBy: isBatch ? 'admin (batch)' : pick(createdBys),
+      batchNo,
       createdAt,
       remark: Math.random() > 0.7 ? '客服手動補發' : null,
     });

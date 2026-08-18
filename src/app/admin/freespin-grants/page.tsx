@@ -281,10 +281,19 @@ export default function FreeSpinGrantsPage() {
     document.title = 'FS 派發管理 - Filbet Admin';
   }, []);
 
+  useEffect(() => {
+    const batchNo = new URLSearchParams(window.location.search).get('batchNo');
+    if (batchNo) {
+      form.setFieldsValue({ batchNo });
+      setFilters((prev) => ({ ...prev, batchNo }));
+    }
+  }, []);
+
 const filteredData = useMemo(() => {
     const filtered = allGrants.filter((item) => {
       if (filters.playerId && !item.playerId.toLowerCase().includes(filters.playerId.toLowerCase())) return false;
       if (filters.vendorEventId && !(item.vendorEventId || '').toLowerCase().includes(filters.vendorEventId.toLowerCase())) return false;
+      if (filters.batchNo && !(item.batchNo || '').toLowerCase().includes(String(filters.batchNo).trim().toLowerCase())) return false;
       if (filters.sourceType && item.sourceType !== filters.sourceType) return false;
       if (filters.activityName && item.sourceActivityName !== filters.activityName) return false;
       if (filters.grantType && item.grantType !== filters.grantType) return false;
@@ -548,6 +557,7 @@ const filteredData = useMemo(() => {
       voidedBy: null,
       voidReason: null,
       createdBy,
+      batchNo: null,
       createdAt,
       remark,
     };
@@ -975,6 +985,7 @@ const filteredData = useMemo(() => {
 
   const columns: ColumnsType<FreeSpinGrantItem> = [
     { title: '派發 ID', dataIndex: 'id', width: 110, fixed: 'left', render: (val, record) => <a onClick={() => setDrawerGrant(record)}>{val}</a> },
+    { title: '批次號', dataIndex: 'batchNo', width: 165, render: (val: string | null) => val || '—' },
     { title: '名稱', dataIndex: 'name', width: 130 },
     { title: '玩家', dataIndex: 'playerId', width: 120, fixed: 'left', render: (val) => <a style={{ color: '#1668dc' }}>{val}</a> },
     {
@@ -1236,6 +1247,9 @@ const filteredData = useMemo(() => {
               style={{ width: 380 }}
             />
           </Form.Item>
+          <Form.Item name="batchNo" label="批次號">
+            <Input data-e2e-id="freespin-grants-filter-batch-no" placeholder="輸入批次號" allowClear style={{ width: 200 }} />
+          </Form.Item>
           <Form.Item>
             <Space>
               <Button data-e2e-id="freespin-grants-filter-query-btn" type="primary" icon={<SearchOutlined />} onClick={onSearch}>查詢</Button>
@@ -1279,7 +1293,7 @@ const filteredData = useMemo(() => {
             getCheckboxProps: (record) => ({ disabled: !canVoidGrant(record) }),
           }}
           onRow={(record) => ({ 'data-e2e-id': `freespin-grants-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
-          scroll={{ x: 2480 }}
+          scroll={{ x: 2645 }}
           pagination={{
             ...tablePagination,
             showSizeChanger: true,
@@ -1311,6 +1325,7 @@ const filteredData = useMemo(() => {
               <Descriptions.Item label="玩家">{drawerGrant.playerId}</Descriptions.Item>
               <Descriptions.Item label="幣別">{drawerGrant.currency}</Descriptions.Item>
               <Descriptions.Item label="來源">{drawerGrant.sourceType === 'activity' ? '活動' : drawerGrant.createdBy === 'admin (batch)' ? '手動（批量）' : '手動'}</Descriptions.Item>
+              <Descriptions.Item label="批次號">{drawerGrant.batchNo || '—'}</Descriptions.Item>
               <Descriptions.Item label="關聯活動">{drawerGrant.sourceActivityName || '—'}</Descriptions.Item>
               <Descriptions.Item label="廠商事件 ID" span={2}>
                 {drawerGrant.vendorEventId ? (

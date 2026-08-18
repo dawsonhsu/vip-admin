@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useSyncExternalStore } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button, Card, DatePicker, Drawer, Form, Progress, Select, Space, Table, Tag, Typography } from 'antd';
 import { DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -56,6 +57,7 @@ const failureDetailColumns: ColumnsType<BatchResultRow> = [
 ];
 
 export default function FreeSpinBatchLogPage() {
+  const router = useRouter();
   const tasks = useSyncExternalStore(
     dispatchTaskStore.subscribe,
     dispatchTaskStore.getSnapshot,
@@ -150,28 +152,43 @@ export default function FreeSpinBatchLogPage() {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 120,
       fixed: 'right',
-      render: (_, task) => task.failedCount > 0 ? (
-        <Space size={2} wrap={false}>
+      render: (_, task) => (
+        <Space direction="vertical" size={0} align="start">
           <Button
             type="link"
             size="small"
-            data-e2e-id={`freespin-batch-log-failure-detail-btn-${task.id}`}
-            onClick={() => setFailureDetailTaskId(task.id)}
+            style={{ paddingInline: 0 }}
+            data-e2e-id={`freespin-batch-log-view-all-btn-${task.id}`}
+            onClick={() => router.push(`/admin/freespin-grants?batchNo=${encodeURIComponent(task.id)}`)}
           >
-            查看失敗明細
+            查看所有
           </Button>
-          <Button
-            type="link"
-            size="small"
-            data-e2e-id={`freespin-batch-log-download-btn-${task.id}`}
-            onClick={() => downloadTaskFailedCsv(task)}
-          >
-            下載失敗清單
-          </Button>
+          {task.failedCount > 0 && (
+            <Button
+              type="link"
+              size="small"
+              style={{ paddingInline: 0 }}
+              data-e2e-id={`freespin-batch-log-failure-detail-btn-${task.id}`}
+              onClick={() => setFailureDetailTaskId(task.id)}
+            >
+              查看失敗明細
+            </Button>
+          )}
+          {task.failedCount > 0 && (
+            <Button
+              type="link"
+              size="small"
+              style={{ paddingInline: 0 }}
+              data-e2e-id={`freespin-batch-log-download-btn-${task.id}`}
+              onClick={() => downloadTaskFailedCsv(task)}
+            >
+              下載失敗清單
+            </Button>
+          )}
         </Space>
-      ) : '—',
+      ),
     },
   ];
 
@@ -236,7 +253,7 @@ export default function FreeSpinBatchLogPage() {
           columns={dispatchTaskColumns}
           dataSource={filteredTasks}
           pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total) => `共 ${total} 筆` }}
-          scroll={{ x: 1650 }}
+          scroll={{ x: 1520 }}
           size="small"
         />
       </Card>
