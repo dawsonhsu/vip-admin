@@ -129,6 +129,7 @@ export default function KycEditModal({
           operator: currentOperator,
           action: '提交編輯複核',
           detail: `已提交 ${changes.length} 個欄位變更：${changes.map((change) => change.label).join('、')}`,
+          changes,
         },
         ...record.changeLog,
       ],

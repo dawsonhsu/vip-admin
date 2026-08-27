@@ -36,6 +36,7 @@ import {
   MonitorOutlined,
   PictureOutlined,
   HistoryOutlined,
+  AuditOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -47,7 +48,15 @@ type MenuItem = Required<MenuProps>['items'][number];
 const menuItems: MenuItem[] = [
   { key: '/admin', icon: <HomeOutlined />, label: <span data-e2e-id="layout-menu-home">首頁</span> },
   { key: '/client-demo', icon: <MobileOutlined />, label: <span data-e2e-id="layout-menu-client-demo">客戶端 Demo</span> },
-  { key: '/admin/kyc', icon: <SafetyCertificateOutlined />, label: <span data-e2e-id="layout-menu-kyc">KYC</span> },
+  {
+    key: 'kyc',
+    icon: <SafetyCertificateOutlined />,
+    label: <span data-e2e-id="layout-menu-kyc">KYC</span>,
+    children: [
+      { key: '/admin/kyc', icon: <FileTextOutlined />, label: <span data-e2e-id="layout-menu-kyc-list">KYC 列表</span> },
+      { key: '/admin/kyc-review', icon: <AuditOutlined />, label: <span data-e2e-id="layout-menu-kyc-review">KYC 複核</span> },
+    ],
+  },
   {
     key: 'member-mgmt',
     icon: <TeamOutlined />,
@@ -131,7 +140,8 @@ const menuItems: MenuItem[] = [
 
 const breadcrumbMap: Record<string, string> = {
   '/admin': '首頁',
-  '/admin/kyc': 'KYC',
+  '/admin/kyc': 'KYC 列表',
+  '/admin/kyc-review': 'KYC 複核',
   '/admin/members': '會員列表',
   '/admin/inviter-transfer-log': '邀請人轉移紀錄',
   '/admin/vip-rewards': 'VIP 獎勵表',
@@ -158,6 +168,8 @@ const breadcrumbMap: Record<string, string> = {
 };
 
 const parentBreadcrumbMap: Record<string, string> = {
+  '/admin/kyc': 'KYC',
+  '/admin/kyc-review': 'KYC',
   '/admin/members': '會員管理',
   '/admin/inviter-transfer-log': '會員管理',
   '/admin/vip-rewards': '會員管理',
@@ -267,7 +279,7 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
           theme={isDark ? 'dark' : 'light'}
           mode="inline"
           selectedKeys={[pathname]}
-          defaultOpenKeys={['member-mgmt']}
+          defaultOpenKeys={['member-mgmt', 'kyc']}
           items={menuItems}
           onClick={onClick}
           style={{ background: 'transparent', borderRight: 0 }}

@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Empty, Modal, Table } from 'antd';
+import { Empty, Modal, Table, theme } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { KycChangeLogEntry, KycRecord } from '@/data/kycData';
+import type { KycChangeLogEntry, KycEditFieldChange, KycRecord } from '@/data/kycData';
 
 interface KycChangeLogModalProps {
   open: boolean;
@@ -19,6 +19,30 @@ const columns: ColumnsType<KycChangeLogEntry> = [
 ];
 
 export default function KycChangeLogModal({ open, record, onClose }: KycChangeLogModalProps) {
+  const { token } = theme.useToken();
+  const diffColumns: ColumnsType<KycEditFieldChange> = [
+    {
+      title: '欄位',
+      dataIndex: 'label',
+      width: 150,
+      render: (value: string) => <strong>{value}</strong>,
+    },
+    {
+      title: '原值',
+      dataIndex: 'oldValue',
+      render: (value: string) => (
+        <span style={{ color: token.colorTextSecondary, textDecoration: 'line-through' }}>{value || '-'}</span>
+      ),
+    },
+    {
+      title: '新值',
+      dataIndex: 'newValue',
+      render: (value: string) => (
+        <span style={{ color: token.colorSuccess, fontWeight: 600 }}>{value || '-'}</span>
+      ),
+    },
+  ];
+
   return (
     <Modal
       data-e2e-id="kyc-change-log-modal"
@@ -36,6 +60,19 @@ export default function KycChangeLogModal({ open, record, onClose }: KycChangeLo
           dataSource={record.changeLog}
           size="small"
           pagination={false}
+          expandable={{
+            rowExpandable: (entry) => Boolean(entry.changes?.length),
+            expandedRowRender: (entry) => (
+              <Table
+                data-e2e-id="kyc-change-log-diff-table"
+                rowKey="field"
+                columns={diffColumns}
+                dataSource={entry.changes}
+                size="small"
+                pagination={false}
+              />
+            ),
+          }}
         />
       ) : (
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暫無該筆審核異動記錄" />

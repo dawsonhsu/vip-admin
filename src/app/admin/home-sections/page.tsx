@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import {
   Button,
@@ -17,6 +17,7 @@ import {
 import {
   CopyOutlined,
   EditOutlined,
+  ExclamationCircleOutlined,
   EyeOutlined,
   HolderOutlined,
   LockOutlined,
@@ -38,6 +39,7 @@ import {
   type HomeSectionConfigs,
   type Platform,
 } from '@/data/homeSectionsData';
+import { clearDraft, readDraft, writeDraft } from '@/data/homeSectionsDraft';
 
 const { Title, Text } = Typography;
 
@@ -70,15 +72,70 @@ export default function HomeSectionsPage() {
   const [editingSection, setEditingSection] = useState<HomeSection | null>(null);
   const [creating, setCreating] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const promptedRef = useRef<Set<Platform>>(new Set());
 
   const draftSections = configs[platform].draft;
   const publishedSections = configs[platform].published;
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || promptedRef.current.has(platform)) return;
+
+    const stored = readDraft(platform);
+    if (!stored) {
+      promptedRef.current.add(platform);
+      return;
+    }
+
+    promptedRef.current.add(platform);
+    Modal.confirm({
+      title: '未發佈草稿',
+      icon: <ExclamationCircleOutlined />,
+      maskClosable: false,
+      keyboard: false,
+      content: (
+        <Space direction="vertical" size={4}>
+          <Text>『{dayjs(stored.savedAt).format('YYYY-MM-DD HH:mm:ss')}』有未發佈草稿，是否帶入？</Text>
+          <Text type="warning">選擇「不帶入」會清空此草稿，並載入後端最新的首頁配置。</Text>
+        </Space>
+      ),
+      okText: '帶入草稿',
+      cancelText: '不帶入並清空草稿',
+      cancelButtonProps: { danger: true },
+      onOk() {
+        setConfigs((current) => ({
+          ...current,
+          [platform]: {
+            ...current[platform],
+            draft: cloneSections(stored.sections),
+          },
+        }));
+        setConfigStatus((current) => ({ ...current, [platform]: 'draft' }));
+        setLastUpdated((current) => ({
+          ...current,
+          [platform]: dayjs(stored.savedAt).format('YYYY-MM-DD HH:mm:ss'),
+        }));
+        message.info('已帶入草稿');
+      },
+      onCancel() {
+        clearDraft(platform);
+        setConfigs((current) => ({
+          ...current,
+          [platform]: {
+            ...current[platform],
+            draft: cloneSections(current[platform].published),
+          },
+        }));
+        setConfigStatus((current) => ({ ...current, [platform]: 'published' }));
+        message.success('已清空草稿並載入後端配置');
+      },
+    });
+  }, [platform]);
 
   const markDraftEdited = (targetPlatform = platform) => {
     setConfigStatus((current) => ({ ...current, [targetPlatform]: 'draft' }));
     setLastUpdated((current) => ({
       ...current,
-      [targetPlatform]: dayjs().format('MM-DD HH:mm'),
+      [targetPlatform]: dayjs().format('YYYY-MM-DD HH:mm:ss'),
     }));
   };
 
@@ -142,22 +199,63 @@ export default function HomeSectionsPage() {
     setCreating(false);
   };
 
-  const saveDraft = () => {
-    markDraftEdited();
-    message.success(`${platformLabels[platform]} 草稿已儲存`);
+  const doSave = () => {
+    const result = writeDraft(platform, configs[platform].draft);
+    if (result.ok) {
+      setConfigStatus((current) => ({ ...current, [platform]: 'draft' }));
+      setLastUpdated((current) => ({
+        ...current,
+        [platform]: dayjs(result.savedAt).format('YYYY-MM-DD HH:mm:ss'),
+      }));
+      promptedRef.current.add(platform);
+      message.success(`${platformLabels[platform]} 草稿已儲存`);
+    } else if (result.error === 'quota') {
+      message.error('草稿過大無法儲存（可能含大量自訂圖示 base64），請減少圖示數量或改用較小圖片');
+    } else {
+      message.error('草稿儲存失敗');
+    }
   };
 
-  const publish = () => {
-    setConfigs((current) => ({
-      ...current,
-      [platform]: {
-        ...current[platform],
-        published: cloneSections(current[platform].draft),
+  const saveDraft = () => {
+    if (readDraft(platform)) {
+      Modal.confirm({
+        title: '覆蓋草稿',
+        icon: <ExclamationCircleOutlined />,
+        content: `${platformLabels[platform]} 目前已存在草稿，是否覆蓋？`,
+        okText: '覆蓋',
+        cancelText: '取消',
+        onOk: doSave,
+      });
+    } else {
+      doSave();
+    }
+  };
+
+  const confirmPublish = () => {
+    Modal.confirm({
+      title: '確認發布',
+      icon: <ExclamationCircleOutlined />,
+      content: `確認發布 ${platformLabels[platform]} 首頁板塊？發布後將以當前頁面內容發佈，並清空此平台的草稿。`,
+      okText: '確認發布',
+      cancelText: '取消',
+      onOk() {
+        setConfigs((current) => ({
+          ...current,
+          [platform]: {
+            ...current[platform],
+            published: cloneSections(current[platform].draft),
+          },
+        }));
+        clearDraft(platform);
+        setConfigStatus((current) => ({ ...current, [platform]: 'published' }));
+        setLastUpdated((current) => ({
+          ...current,
+          [platform]: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        }));
+        promptedRef.current.add(platform);
+        message.success(`${platformLabels[platform]} 首頁板塊已發布，草稿已清空`);
       },
-    }));
-    setConfigStatus((current) => ({ ...current, [platform]: 'published' }));
-    setLastUpdated((current) => ({ ...current, [platform]: dayjs().format('MM-DD HH:mm') }));
-    message.success(`${platformLabels[platform]} 首頁板塊已發布`);
+    });
   };
 
   const applyCopies = (copies: Partial<Record<Platform, HomeSection[]>>) => {
@@ -241,7 +339,7 @@ export default function HomeSectionsPage() {
             <Button
               type="primary"
               icon={<SendOutlined />}
-              onClick={publish}
+              onClick={confirmPublish}
               data-e2e-id="home-sections-publish-btn"
             >
               發布

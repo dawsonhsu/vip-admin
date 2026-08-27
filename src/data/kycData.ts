@@ -14,6 +14,7 @@ export interface KycChangeLogEntry {
   operator: string;
   action: string;
   detail: string;
+  changes?: KycEditFieldChange[];
 }
 
 export type KycEditFieldChange = {
@@ -276,6 +277,7 @@ export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) =>
       operator: pendingEdit.submittedBy,
       action: '提交編輯複核',
       detail: `已提交 ${pendingEdit.changes.length} 個欄位變更：${pendingEdit.changes.map((change) => change.label).join('、')}`,
+      changes: pendingEdit.changes,
     });
   }
 
