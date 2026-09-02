@@ -12,6 +12,7 @@ import {
   Select,
   Space,
   Table,
+  Tabs,
   Tooltip,
   Typography,
   message,
@@ -47,6 +48,10 @@ interface KycReviewFilters {
   submittedRange?: [Dayjs, Dayjs];
 }
 
+type ReviewTabKey = 'pending' | 'reviewed';
+
+const settledReviewStatuses = kycEditReviewStatuses.filter((status) => status !== 'Pending');
+
 const includes = (value: string, query?: string) => (
   !query || value.toLowerCase().includes(query.trim().toLowerCase())
 );
@@ -58,6 +63,7 @@ export default function KycReviewPage() {
   const reviews = useKycEditReviews();
   const currentOperator = useKycCurrentOperator();
   const [filters, setFilters] = useState<KycReviewFilters>({});
+  const [activeTab, setActiveTab] = useState<ReviewTabKey>('pending');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [reviewEntry, setReviewEntry] = useState<KycEditReviewEntry | null>(null);
@@ -67,8 +73,11 @@ export default function KycReviewPage() {
     () => reviews.filter((entry) => entry.status === 'Pending').length,
     [reviews],
   );
+  const reviewedCount = reviews.length - pendingCount;
 
   const filteredReviews = useMemo(() => reviews.filter((entry) => {
+    const isPending = entry.status === 'Pending';
+    if (activeTab === 'pending' ? !isPending : isPending) return false;
     if (filters.uid && !includes(entry.uid, filters.uid)) return false;
     if (filters.phone) {
       const query = filters.phone.replace(/\s|\+63/g, '').toLowerCase();
@@ -86,7 +95,7 @@ export default function KycReviewPage() {
       }
     }
     return true;
-  }), [filters, reviews]);
+  }), [activeTab, filters, reviews]);
 
   const columns: ColumnsType<KycEditReviewEntry> = [
     {
@@ -169,34 +178,37 @@ export default function KycReviewPage() {
       dataIndex: 'submittedBy',
       width: 110,
     },
-    {
-      title: '複核狀態',
-      dataIndex: 'status',
-      width: 110,
-      render: (status: KycEditReviewStatus) => (
-        <span style={{ color: kycEditReviewStatusColorMap[status], fontWeight: 500 }}>
-          {kycEditReviewStatusLabelMap[status]}
-        </span>
-      ),
-    },
-    {
-      title: '複核人',
-      dataIndex: 'reviewedBy',
-      width: 100,
-      render: (value: string) => value || '-',
-    },
-    {
-      title: '複核時間',
-      dataIndex: 'reviewedAt',
-      width: 170,
-      render: (value: string) => value || '-',
-    },
-    {
-      title: '駁回原因',
-      dataIndex: 'reason',
-      width: 200,
-      render: (value: string) => <span style={{ whiteSpace: 'normal' }}>{value || '-'}</span>,
-    },
+    // 待複核頁籤下這四欄一律是空的，只在已複核頁籤顯示
+    ...(activeTab === 'reviewed' ? [
+      {
+        title: '複核狀態',
+        dataIndex: 'status',
+        width: 110,
+        render: (status: KycEditReviewStatus) => (
+          <span style={{ color: kycEditReviewStatusColorMap[status], fontWeight: 500 }}>
+            {kycEditReviewStatusLabelMap[status]}
+          </span>
+        ),
+      },
+      {
+        title: '複核人',
+        dataIndex: 'reviewedBy',
+        width: 100,
+        render: (value: string) => value || '-',
+      },
+      {
+        title: '複核時間',
+        dataIndex: 'reviewedAt',
+        width: 170,
+        render: (value: string) => value || '-',
+      },
+      {
+        title: '駁回原因',
+        dataIndex: 'reason',
+        width: 200,
+        render: (value: string) => <span style={{ whiteSpace: 'normal' }}>{value || '-'}</span>,
+      },
+    ] as ColumnsType<KycEditReviewEntry> : []),
     {
       title: '操作',
       key: 'actions',
@@ -270,6 +282,25 @@ export default function KycReviewPage() {
     message.success('KYC 複核列表已刷新');
   };
 
+  // 頁籤已經把待複核／已複核分開，切換時把複核狀態篩選清掉避免互相矛盾
+  const handleTabChange = (key: string) => {
+    setActiveTab(key as ReviewTabKey);
+    form.setFieldValue('statuses', undefined);
+    setFilters((current) => ({ ...current, statuses: undefined }));
+    setCurrentPage(1);
+  };
+
+  const tabItems = [
+    {
+      key: 'pending',
+      label: <span data-e2e-id="kyc-review-tab-pending">待複核（{pendingCount}）</span>,
+    },
+    {
+      key: 'reviewed',
+      label: <span data-e2e-id="kyc-review-tab-reviewed">已複核（{reviewedCount}）</span>,
+    },
+  ];
+
   return (
     <div data-e2e-id="kyc-review-page">
       <div style={{ marginBottom: 16 }}>
@@ -293,20 +324,22 @@ export default function KycReviewPage() {
           <Form.Item name="lastName" label="Last Name">
             <Input data-e2e-id="kyc-review-filter-last-name-input" allowClear placeholder="請輸入 Last Name" style={{ width: 170 }} />
           </Form.Item>
-          <Form.Item name="statuses" label="複核狀態">
-            <Select
-              data-e2e-id="kyc-review-filter-status-select"
-              mode="multiple"
-              allowClear
-              maxTagCount="responsive"
-              placeholder="請選擇複核狀態"
-              style={{ width: 220 }}
-              options={kycEditReviewStatuses.map((status) => ({
-                value: status,
-                label: kycEditReviewStatusLabelMap[status],
-              }))}
-            />
-          </Form.Item>
+          {activeTab === 'reviewed' && (
+            <Form.Item name="statuses" label="複核狀態">
+              <Select
+                data-e2e-id="kyc-review-filter-status-select"
+                mode="multiple"
+                allowClear
+                maxTagCount="responsive"
+                placeholder="請選擇複核狀態"
+                style={{ width: 220 }}
+                options={settledReviewStatuses.map((status) => ({
+                  value: status,
+                  label: kycEditReviewStatusLabelMap[status],
+                }))}
+              />
+            </Form.Item>
+          )}
           <Form.Item name="submittedBy" label="提交者">
             <Select
               data-e2e-id="kyc-review-filter-submitted-by-select"
@@ -330,32 +363,38 @@ export default function KycReviewPage() {
         </Form>
       </Card>
 
-      <Card
-        title={(
-          <span data-e2e-id="kyc-review-pending-count">
-            複核條目（待複核 {pendingCount}／總 {reviews.length}）
-          </span>
-        )}
-        extra={(
-          <Tooltip title="刷新">
-            <Button
-              data-e2e-id="kyc-review-reload-btn"
-              aria-label="刷新"
-              icon={<ReloadOutlined />}
-              onClick={handleReload}
-            />
-          </Tooltip>
-        )}
-      >
+      <Card>
+        <Tabs
+          data-e2e-id="kyc-review-tabs"
+          activeKey={activeTab}
+          items={tabItems}
+          onChange={handleTabChange}
+          tabBarExtraContent={(
+            <Tooltip title="刷新">
+              <Button
+                data-e2e-id="kyc-review-reload-btn"
+                aria-label="刷新"
+                icon={<ReloadOutlined />}
+                onClick={handleReload}
+              />
+            </Tooltip>
+          )}
+        />
+
         <Table
           data-e2e-id="kyc-review-table"
           rowKey="id"
           columns={columns}
           dataSource={filteredReviews}
           size="small"
-          scroll={{ x: 1800 }}
+          scroll={{ x: activeTab === 'reviewed' ? 1800 : 1180 }}
           locale={{
-            emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="查無符合條件的複核條目" />,
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={activeTab === 'pending' ? '目前沒有待複核的編輯' : '查無符合條件的複核條目'}
+              />
+            ),
           }}
           onRow={(entry) => ({
             'data-e2e-id': `kyc-review-table-row-${entry.uid}`,

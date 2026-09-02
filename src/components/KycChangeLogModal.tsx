@@ -3,7 +3,16 @@
 import React from 'react';
 import { Empty, Image, Modal, Table, Typography, theme } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import type { KycChangeLogEntry, KycEditFieldChange, KycRecord } from '@/data/kycData';
+import {
+  kycEditReviewStatusColorMap,
+  kycEditReviewStatusLabelMap,
+  kycStatusColorMap,
+  type KycChangeLogEntry,
+  type KycEditFieldChange,
+  type KycEditReviewStatus,
+  type KycRecord,
+  type KycStatus,
+} from '@/data/kycData';
 
 const { Text } = Typography;
 
@@ -13,15 +22,54 @@ interface KycChangeLogModalProps {
   onClose: () => void;
 }
 
-const columns: ColumnsType<KycChangeLogEntry> = [
-  { title: '時間', dataIndex: 'time', width: 170 },
-  { title: '操作人', dataIndex: 'operator', width: 100 },
-  { title: '操作', dataIndex: 'action', width: 130 },
-  { title: '詳情', dataIndex: 'detail' },
-];
+const renderStatus = (status: KycStatus | '') => (
+  status
+    ? <span style={{ color: kycStatusColorMap[status], fontWeight: 500 }}>{status}</span>
+    : <span>-</span>
+);
 
 export default function KycChangeLogModal({ open, record, onClose }: KycChangeLogModalProps) {
   const { token } = theme.useToken();
+
+  const columns: ColumnsType<KycChangeLogEntry> = [
+    { title: '異動時間', dataIndex: 'time', width: 170 },
+    { title: '操作', dataIndex: 'action', width: 100 },
+    {
+      title: '異動前狀態',
+      dataIndex: 'statusBefore',
+      width: 145,
+      render: renderStatus,
+    },
+    {
+      title: '異動後狀態',
+      dataIndex: 'statusAfter',
+      width: 145,
+      render: renderStatus,
+    },
+    {
+      title: '複核狀態',
+      dataIndex: 'reviewStatus',
+      width: 110,
+      render: (value: KycEditReviewStatus | null | undefined) => (
+        value
+          ? (
+            <span style={{ color: kycEditReviewStatusColorMap[value], fontWeight: 500 }}>
+              {kycEditReviewStatusLabelMap[value]}
+            </span>
+          )
+          : <span>-</span>
+      ),
+    },
+    {
+      title: '備註',
+      dataIndex: 'remark',
+      render: (value: string) => (
+        <span style={{ whiteSpace: 'normal' }}>{value?.trim() || '-'}</span>
+      ),
+    },
+    { title: '異動人員', dataIndex: 'operator', width: 130 },
+  ];
+
   const diffColumns: ColumnsType<KycEditFieldChange> = [
     {
       title: '欄位',
@@ -30,14 +78,14 @@ export default function KycChangeLogModal({ open, record, onClose }: KycChangeLo
       render: (value: string) => <strong>{value}</strong>,
     },
     {
-      title: '原值',
+      title: '異動前',
       dataIndex: 'oldValue',
       render: (value: string) => (
         <span style={{ color: token.colorTextSecondary, textDecoration: 'line-through' }}>{value || '-'}</span>
       ),
     },
     {
-      title: '新值',
+      title: '異動後',
       dataIndex: 'newValue',
       render: (value: string) => (
         <span style={{ color: token.colorSuccess, fontWeight: 600 }}>{value || '-'}</span>
@@ -51,7 +99,7 @@ export default function KycChangeLogModal({ open, record, onClose }: KycChangeLo
       title="異動記錄"
       open={open}
       onCancel={onClose}
-      width={760}
+      width={1120}
       footer={null}
     >
       {record?.changeLog.length ? (
@@ -81,7 +129,7 @@ export default function KycChangeLogModal({ open, record, onClose }: KycChangeLo
                     <Text strong style={{ width: 110 }}>{photo.label}</Text>
                     <Image
                       src={photo.oldImage}
-                      alt={`${photo.label} 原圖`}
+                      alt={`${photo.label} 異動前`}
                       width={96}
                       height={62}
                       style={{ objectFit: 'cover', borderRadius: 4, opacity: 0.7 }}
@@ -89,7 +137,7 @@ export default function KycChangeLogModal({ open, record, onClose }: KycChangeLo
                     <span style={{ color: token.colorTextSecondary }}>→</span>
                     <Image
                       src={photo.newImage}
-                      alt={`${photo.label} 新圖`}
+                      alt={`${photo.label} 異動後`}
                       width={96}
                       height={62}
                       style={{
@@ -105,7 +153,7 @@ export default function KycChangeLogModal({ open, record, onClose }: KycChangeLo
           }}
         />
       ) : (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暫無該筆審核異動記錄" />
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暫無該筆異動記錄" />
       )}
     </Modal>
   );

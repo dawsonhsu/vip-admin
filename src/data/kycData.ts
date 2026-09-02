@@ -1,3 +1,5 @@
+import dayjs from 'dayjs';
+
 export type KycStatus =
   | 'Pending'
   | 'Under Review'
@@ -61,12 +63,24 @@ export type KycEditFieldChange = {
   newValue: string;
 };
 
+/** 異動記錄的操作類型：用戶自行提交／後台審核／後台編輯／編輯複核。 */
+export type KycChangeLogAction = '用戶操作' | '審核' | '編輯' | '複核';
+
+/**
+ * 異動記錄一列。
+ * 狀態異動（用戶操作／審核）不會有 reviewStatus 與前後資訊；
+ * 只有 KYC 已通過後的後台編輯（編輯／複核）才帶 reviewStatus + changes/photoChanges。
+ */
 export interface KycChangeLogEntry {
   id: string;
   time: string;
+  action: KycChangeLogAction;
+  statusBefore: KycStatus | '';
+  statusAfter: KycStatus | '';
+  reviewStatus?: KycEditReviewStatus | null;
+  reviewId?: string;
+  remark: string;
   operator: string;
-  action: string;
-  detail: string;
   changes?: KycEditFieldChange[];
   photoChanges?: KycPhotoChange[];
 }
@@ -145,16 +159,19 @@ export interface KycEditReviewEntry {
   reason: string;
 }
 
+export const shiftTime = (base: string, minutes: number) =>
+  dayjs(base).add(minutes, 'minute').format('YYYY-MM-DD HH:mm:ss');
+
 export const describeEditSubmission = (
   changes: KycEditFieldChange[],
   photoChanges: KycPhotoChange[],
 ) => {
   const parts: string[] = [];
   if (changes.length) {
-    parts.push(`已提交 ${changes.length} 個欄位變更：${changes.map((change) => change.label).join('、')}`);
+    parts.push(`欄位 ${changes.length} 項：${changes.map((change) => change.label).join('、')}`);
   }
   if (photoChanges.length) {
-    parts.push(`已更新 ${photoChanges.length} 張證件照：${photoChanges.map((photo) => photo.label).join('、')}`);
+    parts.push(`證件照 ${photoChanges.length} 張：${photoChanges.map((photo) => photo.label).join('、')}`);
   }
   return parts.join('；') || '未變更任何內容';
 };
@@ -206,6 +223,10 @@ const branches = ['Makati Branch', 'Quezon City Branch', 'Cebu Branch', 'Davao B
 const occupations = ['受僱', '自僱', '學生', '退休', '其他'];
 const incomeSources = ['薪資', '生意', '投資', '其他'];
 const cities = ['Manila', 'Quezon City', 'Makati', 'Cebu City', 'Davao City', 'Pasig'];
+const memberAccounts = [
+  'filbet_M2s3xr', 'filbet_K9d1pq', 'filbet_R4t7bn', 'filbet_X8w2cz',
+  'filbet_Q3h6vm', 'filbet_L5y8jd', 'filbet_T7n4wk', 'filbet_B1c6zf',
+];
 const statusPattern: KycStatus[] = [
   'Pending',
   'Under Review',
@@ -226,12 +247,11 @@ const getSubmittedAt = (index: number) => {
   return `2026-08-${pad(day)} ${pad(hour)}:${pad(minute)}:00`;
 };
 
-const getReviewedAt = (index: number, status: KycStatus) => {
+/** 審核時間一律由提交時間往後推，確保異動記錄的先後順序合理。 */
+const getReviewedAt = (index: number, status: KycStatus, submittedAt: string) => {
   if (status === 'Pending') return '';
   if (status === 'Under Review' && index % 3 !== 0) return '';
-  const reviewDay = index < 16 ? 15 : 15 - Math.floor(index / 8);
-  const hour = 10 + ((index * 2) % 9);
-  return `2026-08-${pad(reviewDay)} ${pad(hour)}:${pad((index * 11) % 60)}:00`;
+  return shiftTime(submittedAt, 150 + ((index * 37) % 420));
 };
 
 const getVerifyResult = (status: KycStatus, index: number): KycVerifyResult => {
@@ -258,125 +278,153 @@ const makePendingPhotoChange = (
   newImage: makeKycDocumentImage(slot, `${uid}・新上傳`),
 });
 
-const makeChangeLog = (
+/**
+ * 狀態異動記錄：用戶提交／後台審核的來回，對應 FAT 既有的異動記錄內容。
+ * 這些列不會有複核狀態與異動前後資訊。
+ */
+const makeStatusChangeLog = (
   index: number,
   status: KycStatus,
+  submittedAt: string,
   reviewedAt: string,
   reviewer: string,
+  remark: string,
 ): KycChangeLogEntry[] => {
-  if (!reviewedAt || (!['Approved', 'Rejected', 'Resubmit Required'].includes(status)) || (index >= 10 && index % 11 !== 0)) {
-    return [];
+  const account = memberAccounts[index % memberAccounts.length];
+  const rows: KycChangeLogEntry[] = [];
+  const push = (row: Omit<KycChangeLogEntry, 'id'>) => {
+    rows.push({ ...row, id: `log-${index + 1}-status-${rows.length + 1}` });
+  };
+
+  if (status === 'Pending') {
+    push({
+      time: submittedAt,
+      action: '用戶操作',
+      statusBefore: '',
+      statusAfter: 'Pending',
+      reviewStatus: null,
+      remark: '',
+      operator: account,
+    });
+    return rows;
   }
 
-  const action = status === 'Approved' ? '審核通過' : status === 'Rejected' ? '審核駁回' : '要求重新提交';
-  const detail = status === 'Approved'
-    ? '身份資料與證件驗證通過'
-    : status === 'Rejected'
-      ? '證件影像不清晰，無法辨識'
-      : '請重新上傳清晰的證件照片';
+  push({
+    time: submittedAt,
+    action: '用戶操作',
+    statusBefore: '',
+    statusAfter: 'Under Review',
+    reviewStatus: null,
+    remark: '',
+    operator: account,
+  });
 
-  return [
-    {
-      id: `log-${index + 1}-review`,
+  if (status === 'Under Review') {
+    if (reviewedAt) {
+      push({
+        time: reviewedAt,
+        action: '審核',
+        statusBefore: 'Under Review',
+        statusAfter: 'Resubmit Required',
+        reviewStatus: null,
+        remark: 'ID details not clear',
+        operator: 'Alicia',
+      });
+      push({
+        time: shiftTime(reviewedAt, 45),
+        action: '用戶操作',
+        statusBefore: 'Resubmit Required',
+        statusAfter: 'Under Review',
+        reviewStatus: null,
+        remark: '',
+        operator: account,
+      });
+    }
+    return rows;
+  }
+
+  if (index % 3 === 0) {
+    push({
+      time: shiftTime(submittedAt, 45),
+      action: '審核',
+      statusBefore: 'Under Review',
+      statusAfter: 'Resubmit Required',
+      reviewStatus: null,
+      remark: 'ID details not clear',
+      operator: 'Alicia',
+    });
+    push({
+      time: shiftTime(submittedAt, 90),
+      action: '用戶操作',
+      statusBefore: 'Resubmit Required',
+      statusAfter: 'Under Review',
+      reviewStatus: null,
+      remark: '',
+      operator: account,
+    });
+  }
+
+  if (reviewedAt) {
+    push({
       time: reviewedAt,
-      operator: reviewer,
-      action,
-      detail,
-    },
-    ...(index === 3
-      ? [{
-          id: `log-${index + 1}-submit`,
-          time: getSubmittedAt(index),
-          operator: '系統',
-          action: '提交 KYC',
-          detail: '會員完成身份資料與證件提交',
-        }]
-      : []),
-  ];
+      action: '審核',
+      statusBefore: 'Under Review',
+      statusAfter: status,
+      reviewStatus: null,
+      remark: remark || (status === 'Approved' ? 'APPROVED' : ''),
+      operator: reviewer || 'Darren',
+    });
+  }
+
+  return rows;
 };
 
-const makePendingEdit = (
-  index: number,
-  uid: string,
-  documents: KycDocuments,
-  values: Pick<KycRecord, 'currentAddress' | 'nearestBranch' | 'occupation' | 'incomeSource'>,
-): KycPendingEdit | null => {
-  if (index === 0) {
-    return {
-      submittedBy: 'Alice',
-      submittedAt: '2026-08-15 13:20:00',
-      changes: [
-        {
-          field: 'currentAddress',
-          label: '現住址',
-          oldValue: values.currentAddress,
-          newValue: '88 Ayala Avenue, Makati',
-        },
-        {
-          field: 'occupation',
-          label: '職業',
-          oldValue: values.occupation,
-          newValue: '自僱',
-        },
-      ],
-      photoChanges: [],
-    };
-  }
-
-  if (index === 1) {
-    return {
-      submittedBy: 'Darren',
-      submittedAt: '2026-08-15 14:05:00',
-      changes: [
-        {
-          field: 'nearestBranch',
-          label: '鄰近分行',
-          oldValue: values.nearestBranch,
-          newValue: 'Makati Branch',
-        },
-        {
-          field: 'occupation',
-          label: '職業',
-          oldValue: values.occupation,
-          newValue: '受僱',
-        },
-      ],
-      photoChanges: [makePendingPhotoChange(uid, 'front', documents)],
-    };
-  }
-
-  if (index === 4) {
-    return {
-      submittedBy: 'Ben',
-      submittedAt: '2026-08-15 15:40:00',
-      changes: [
-        {
-          field: 'currentAddress',
-          label: '現住址',
-          oldValue: values.currentAddress,
-          newValue: '27 Bonifacio Street, Davao City',
-        },
-        {
-          field: 'incomeSource',
-          label: '收入來源',
-          oldValue: values.incomeSource,
-          newValue: '生意',
-        },
-      ],
-      photoChanges: [
-        makePendingPhotoChange(uid, 'back', documents),
-        makePendingPhotoChange(uid, 'selfie', documents),
-      ],
-    };
-  }
-
-  return null;
+/**
+ * 待複核的編輯只掛在 KYC 已通過（Approved）的紀錄上，
+ * 對應「只有驗證結果＝通過才能編輯」的規則。
+ */
+const pendingEditPlans: Record<number, (args: {
+  uid: string;
+  documents: KycDocuments;
+  values: Pick<KycRecord, 'currentAddress' | 'nearestBranch' | 'occupation' | 'incomeSource'>;
+  reviewedAt: string;
+}) => KycPendingEdit> = {
+  2: ({ values, reviewedAt }) => ({
+    submittedBy: 'Alice',
+    submittedAt: shiftTime(reviewedAt, 180),
+    changes: [
+      { field: 'currentAddress', label: '現住址', oldValue: values.currentAddress, newValue: '88 Ayala Avenue, Makati' },
+      { field: 'occupation', label: '職業', oldValue: values.occupation, newValue: '自僱' },
+    ],
+    photoChanges: [],
+  }),
+  3: ({ uid, documents, values, reviewedAt }) => ({
+    submittedBy: 'Darren',
+    submittedAt: shiftTime(reviewedAt, 240),
+    changes: [
+      { field: 'nearestBranch', label: '鄰近分行', oldValue: values.nearestBranch, newValue: 'Makati Branch' },
+      { field: 'occupation', label: '職業', oldValue: values.occupation, newValue: '受僱' },
+    ],
+    photoChanges: [makePendingPhotoChange(uid, 'front', documents)],
+  }),
+  6: ({ uid, documents, values, reviewedAt }) => ({
+    submittedBy: 'Ben',
+    submittedAt: shiftTime(reviewedAt, 300),
+    changes: [
+      { field: 'currentAddress', label: '現住址', oldValue: values.currentAddress, newValue: '27 Bonifacio Street, Davao City' },
+      { field: 'incomeSource', label: '收入來源', oldValue: values.incomeSource, newValue: '生意' },
+    ],
+    photoChanges: [
+      makePendingPhotoChange(uid, 'back', documents),
+      makePendingPhotoChange(uid, 'selfie', documents),
+    ],
+  }),
 };
 
 export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) => {
   const status = statusPattern[index % statusPattern.length];
   const submittedAt = getSubmittedAt(index);
-  const reviewedAt = getReviewedAt(index, status);
+  const reviewedAt = getReviewedAt(index, status, submittedAt);
   const reviewer = reviewedAt ? (status === 'Under Review' ? 'Alicia' : 'Darren') : '';
   const city = cities[index % cities.length];
   const channel: KycChannel = index % 5 === 4 ? '未分類渠道' : '主站APP/H5';
@@ -387,21 +435,35 @@ export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) =>
   const occupation = occupations[index % occupations.length];
   const incomeSource = incomeSources[index % incomeSources.length];
   const documents = makeDocuments(uid);
-  const pendingEdit = makePendingEdit(index, uid, documents, {
-    currentAddress,
-    nearestBranch,
-    occupation,
-    incomeSource,
-  });
-  const changeLog = makeChangeLog(index, status, reviewedAt, reviewer);
+  const remark = status === 'Rejected'
+    ? '證件影像模糊'
+    : status === 'Resubmit Required'
+      ? '請重新提交證件照片'
+      : '';
+
+  const pendingEditPlan = pendingEditPlans[index];
+  const pendingEdit = pendingEditPlan
+    ? pendingEditPlan({
+        uid,
+        documents,
+        values: { currentAddress, nearestBranch, occupation, incomeSource },
+        reviewedAt,
+      })
+    : null;
+
+  const changeLog = makeStatusChangeLog(index, status, submittedAt, reviewedAt, reviewer, remark);
 
   if (pendingEdit) {
-    changeLog.unshift({
+    changeLog.push({
       id: `log-${index + 1}-edit-submit`,
       time: pendingEdit.submittedAt,
+      action: '編輯',
+      statusBefore: status,
+      statusAfter: status,
+      reviewStatus: 'Pending',
+      reviewId: `kyc-${index + 1}-review-pending`,
+      remark: describeEditSubmission(pendingEdit.changes, pendingEdit.photoChanges),
       operator: pendingEdit.submittedBy,
-      action: '提交編輯複核',
-      detail: describeEditSubmission(pendingEdit.changes, pendingEdit.photoChanges),
       changes: pendingEdit.changes,
       photoChanges: pendingEdit.photoChanges,
     });
@@ -434,23 +496,20 @@ export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) =>
     reviewer,
     reviewedAt,
     userMessage: index % 7 === 0 ? '請協助盡快完成審核，謝謝。' : '',
-    remark: status === 'Rejected'
-      ? '證件影像模糊'
-      : status === 'Resubmit Required'
-        ? '請重新提交證件照片'
-        : '',
+    remark,
     changeLog,
     pendingEdit,
   };
 });
 
 type ReviewHistoryPlan = {
+  /** 皆為 Approved 的紀錄（index % 8 ∈ {2, 3, 6}），編輯只發生在 KYC 已通過之後 */
   index: number;
   submittedBy: string;
-  submittedAt: string;
+  submitAfterMinutes: number;
   status: Exclude<KycEditReviewStatus, 'Pending'>;
   reviewedBy: string;
-  reviewedAt: string;
+  settleAfterMinutes: number;
   reason: string;
   fields: { field: keyof KycRecord & string; label: string; counterValue: string }[];
   photoSlots: KycDocumentSlot[];
@@ -463,92 +522,92 @@ type ReviewHistoryPlan = {
  */
 const reviewHistoryPlans: ReviewHistoryPlan[] = [
   {
-    index: 2,
+    index: 10,
     submittedBy: 'Ben',
-    submittedAt: '2026-08-14 09:12:00',
+    submitAfterMinutes: 240,
     status: 'Approved',
     reviewedBy: 'Darren',
-    reviewedAt: '2026-08-14 10:05:00',
+    settleAfterMinutes: 65,
     reason: '',
-    fields: [{ field: 'occupation', label: '職業', counterValue: '受僱' }],
+    fields: [{ field: 'occupation', label: '職業', counterValue: '學生' }],
     photoSlots: [],
   },
   {
-    index: 3,
+    index: 11,
     submittedBy: 'Alice',
-    submittedAt: '2026-08-13 11:30:00',
+    submitAfterMinutes: 320,
     status: 'Rejected',
     reviewedBy: 'Ben',
-    reviewedAt: '2026-08-13 15:22:00',
+    settleAfterMinutes: 230,
     reason: '新地址與證件不符，請補件後再提交',
     fields: [{ field: 'currentAddress', label: '現住址', counterValue: '19 Katipunan Road, Quezon City' }],
     photoSlots: ['front'],
   },
   {
-    index: 5,
+    index: 14,
     submittedBy: 'Darren',
-    submittedAt: '2026-08-13 16:40:00',
+    submitAfterMinutes: 180,
     status: 'Approved',
     reviewedBy: 'Alice',
-    reviewedAt: '2026-08-14 09:02:00',
+    settleAfterMinutes: 95,
     reason: '',
     fields: [
-      { field: 'nearestBranch', label: '鄰近分行', counterValue: 'Pasay Branch' },
+      { field: 'nearestBranch', label: '鄰近分行', counterValue: 'Cebu Branch' },
       { field: 'incomeSource', label: '收入來源', counterValue: '其他' },
     ],
     photoSlots: [],
   },
   {
-    index: 6,
+    index: 18,
     submittedBy: 'Alice',
-    submittedAt: '2026-08-12 10:05:00',
+    submitAfterMinutes: 420,
     status: 'Approved',
     reviewedBy: 'Ben',
-    reviewedAt: '2026-08-12 14:18:00',
+    settleAfterMinutes: 150,
     reason: '',
-    fields: [{ field: 'lastName', label: 'Last Name', counterValue: 'Delacruz' }],
+    fields: [{ field: 'lastName', label: 'Last Name', counterValue: 'Navaro' }],
     photoSlots: ['selfie'],
   },
   {
-    index: 7,
+    index: 19,
     submittedBy: 'Ben',
-    submittedAt: '2026-08-12 13:55:00',
+    submitAfterMinutes: 275,
     status: 'Rejected',
     reviewedBy: 'Darren',
-    reviewedAt: '2026-08-12 17:30:00',
+    settleAfterMinutes: 200,
     reason: '證件照模糊，無法辨識證件號碼',
     fields: [],
     photoSlots: ['front', 'back'],
   },
   {
-    index: 9,
+    index: 22,
     submittedBy: 'Darren',
-    submittedAt: '2026-08-11 09:41:00',
+    submitAfterMinutes: 195,
     status: 'Approved',
     reviewedBy: 'Alice',
-    reviewedAt: '2026-08-11 11:20:00',
+    settleAfterMinutes: 80,
     reason: '',
     fields: [{ field: 'birthplace', label: '出生地', counterValue: 'Manila, Philippines' }],
     photoSlots: [],
   },
   {
-    index: 10,
+    index: 26,
     submittedBy: 'Alice',
-    submittedAt: '2026-08-10 15:08:00',
+    submitAfterMinutes: 360,
     status: 'Rejected',
     reviewedBy: 'Ben',
-    reviewedAt: '2026-08-11 09:55:00',
+    settleAfterMinutes: 260,
     reason: '職業變更缺少在職證明',
-    fields: [{ field: 'occupation', label: '職業', counterValue: '自僱' }],
+    fields: [{ field: 'occupation', label: '職業', counterValue: '學生' }],
     photoSlots: [],
   },
   {
-    index: 12,
+    index: 27,
     submittedBy: 'Ben',
-    submittedAt: '2026-08-10 08:26:00',
+    submitAfterMinutes: 210,
     status: 'Approved',
     reviewedBy: 'Darren',
-    reviewedAt: '2026-08-10 10:44:00',
+    settleAfterMinutes: 130,
     reason: '',
     fields: [
       { field: 'currentAddress', label: '現住址', counterValue: '7 Legaspi Street, Makati' },
@@ -557,23 +616,23 @@ const reviewHistoryPlans: ReviewHistoryPlan[] = [
     photoSlots: ['back'],
   },
   {
-    index: 16,
+    index: 30,
     submittedBy: 'Darren',
-    submittedAt: '2026-08-09 14:12:00',
+    submitAfterMinutes: 285,
     status: 'Approved',
     reviewedBy: 'Ben',
-    reviewedAt: '2026-08-09 16:30:00',
+    settleAfterMinutes: 110,
     reason: '',
     fields: [{ field: 'middleName', label: 'Middle Name', counterValue: 'Aquino' }],
     photoSlots: [],
   },
   {
-    index: 18,
+    index: 34,
     submittedBy: 'Alice',
-    submittedAt: '2026-08-08 10:33:00',
+    submitAfterMinutes: 330,
     status: 'Rejected',
     reviewedBy: 'Darren',
-    reviewedAt: '2026-08-08 13:02:00',
+    settleAfterMinutes: 175,
     reason: '重複提交，已有相同變更在複核中',
     fields: [{ field: 'currentAddress', label: '現住址', counterValue: '5 Roxas Boulevard, Manila' }],
     photoSlots: ['selfie'],
@@ -613,6 +672,9 @@ const pendingReviewSeed: KycEditReviewEntry[] = kycSeedData
 const historyReviewSeed: KycEditReviewEntry[] = reviewHistoryPlans.map((plan, planIndex) => {
   const record = kycSeedData[plan.index];
   const approved = plan.status === 'Approved';
+  const reviewId = `${record.key}-review-history-${planIndex}`;
+  const submittedAt = shiftTime(record.reviewedAt, plan.submitAfterMinutes);
+  const settledAt = shiftTime(submittedAt, plan.settleAfterMinutes);
 
   const changes: KycEditFieldChange[] = plan.fields.map(({ field, label, counterValue }) => {
     const liveValue = String(record[field] ?? '');
@@ -634,43 +696,49 @@ const historyReviewSeed: KycEditReviewEntry[] = reviewHistoryPlans.map((plan, pl
   }));
 
   const summary = describeEditSubmission(changes, photoChanges);
-  const changedLabels = [
-    ...changes.map((change) => change.label),
-    ...photoChanges.map((photo) => photo.label),
-  ].join('、');
 
-  record.changeLog.unshift({
-    id: `${record.key}-history-${planIndex}-submit`,
-    time: plan.submittedAt,
+  record.changeLog.push({
+    id: `${reviewId}-submit`,
+    time: submittedAt,
+    action: '編輯',
+    statusBefore: record.status,
+    statusAfter: record.status,
+    reviewStatus: plan.status,
+    reviewId,
+    remark: summary,
     operator: plan.submittedBy,
-    action: '提交編輯複核',
-    detail: summary,
     changes,
     photoChanges,
   });
-  record.changeLog.unshift({
-    id: `${record.key}-history-${planIndex}-result`,
-    time: plan.reviewedAt,
+  record.changeLog.push({
+    id: `${reviewId}-settle`,
+    time: settledAt,
+    action: '複核',
+    statusBefore: record.status,
+    statusAfter: record.status,
+    reviewStatus: plan.status,
+    reviewId,
+    remark: approved ? `核准變更：${summary}` : `駁回原因：${plan.reason}`,
     operator: plan.reviewedBy,
-    action: approved ? '編輯核准' : '編輯駁回',
-    detail: approved
-      ? `已核准變更：${changedLabels}`
-      : `駁回原因：${plan.reason}；已捨棄變更：${changedLabels}`,
     changes,
     photoChanges,
   });
 
   return makeEntryFromRecord(record, {
-    id: `${record.key}-review-history-${planIndex}`,
+    id: reviewId,
     submittedBy: plan.submittedBy,
-    submittedAt: plan.submittedAt,
+    submittedAt,
     changes,
     photoChanges,
     status: plan.status,
     reviewedBy: plan.reviewedBy,
-    reviewedAt: plan.reviewedAt,
+    reviewedAt: settledAt,
     reason: plan.reason,
   });
+});
+
+kycSeedData.forEach((record) => {
+  record.changeLog.sort((a, b) => b.time.localeCompare(a.time));
 });
 
 export const kycEditReviewSeed: KycEditReviewEntry[] = [...pendingReviewSeed, ...historyReviewSeed]

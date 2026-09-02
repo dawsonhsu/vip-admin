@@ -8,6 +8,7 @@ import {
   kycStatusLabelMap,
   type KycEditFieldChange,
   type KycEditReviewEntry,
+  type KycEditReviewStatus,
   type KycPhotoChange,
   type KycRecord,
   type KycStatus,
@@ -115,7 +116,7 @@ export const submitEdit = (
   if (!target || target.pendingEdit) return;
 
   const submittedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
-  const detail = describeEditSubmission(changes, photoChanges);
+  const reviewId = `${key}-review-${submittedAt}`;
 
   records = records.map((record) => (
     record.key === key
@@ -126,9 +127,13 @@ export const submitEdit = (
             {
               id: `${record.key}-edit-submit-${submittedAt}`,
               time: submittedAt,
+              action: '編輯' as const,
+              statusBefore: record.status,
+              statusAfter: record.status,
+              reviewStatus: 'Pending' as const,
+              reviewId,
+              remark: describeEditSubmission(changes, photoChanges),
               operator,
-              action: '提交編輯複核',
-              detail,
               changes,
               photoChanges,
             },
@@ -140,7 +145,7 @@ export const submitEdit = (
 
   reviews = [
     {
-      id: `${key}-review-${submittedAt}`,
+      id: reviewId,
       recordKey: key,
       uid: target.uid,
       phone: target.phone,
@@ -169,8 +174,6 @@ export const reviewStatus = (
   remark: string,
 ) => {
   const reviewedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
-  const action = decision === 'Approved' ? '審核通過' : decision === 'Rejected' ? '審核駁回' : '要求重新提交';
-  const detail = remark || (decision === 'Approved' ? '身份資料與證件驗證通過' : kycStatusLabelMap[decision]);
 
   records = records.map((record) => (
     record.key === key
@@ -184,9 +187,12 @@ export const reviewStatus = (
             {
               id: `${record.key}-${reviewedAt}`,
               time: reviewedAt,
+              action: '審核' as const,
+              statusBefore: record.status,
+              statusAfter: decision,
+              reviewStatus: null,
+              remark: remark || (decision === 'Approved' ? 'APPROVED' : kycStatusLabelMap[decision]),
               operator,
-              action,
-              detail,
             },
             ...record.changeLog,
           ],
@@ -206,10 +212,8 @@ const settleEdit = (
   if (!entry || entry.status !== 'Pending') return;
 
   const reviewedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
-  const changedLabels = [
-    ...entry.changes.map((change) => change.label),
-    ...entry.photoChanges.map((photo) => photo.label),
-  ].join('、');
+  const settledStatus: KycEditReviewStatus = approved ? 'Approved' : 'Rejected';
+  const summary = describeEditSubmission(entry.changes, entry.photoChanges);
 
   records = records.map((record) => {
     if (record.key !== entry.recordKey) return record;
@@ -223,15 +227,20 @@ const settleEdit = (
         {
           id: `${record.key}-edit-${approved ? 'approved' : 'rejected'}-${reviewedAt}`,
           time: reviewedAt,
+          action: '複核' as const,
+          statusBefore: record.status,
+          statusAfter: record.status,
+          reviewStatus: settledStatus,
+          reviewId,
+          remark: approved ? `核准變更：${summary}` : `駁回原因：${reason}`,
           operator,
-          action: approved ? '編輯核准' : '編輯駁回',
-          detail: approved
-            ? `已核准變更：${changedLabels}`
-            : `駁回原因：${reason}；已捨棄變更：${changedLabels}`,
           changes: entry.changes,
           photoChanges: entry.photoChanges,
         },
-        ...record.changeLog,
+        // 同一筆編輯的「編輯」列同步更新複核狀態，讓提交列也看得到最終結果
+        ...record.changeLog.map((log) => (
+          log.reviewId === reviewId ? { ...log, reviewStatus: settledStatus } : log
+        )),
       ],
     };
   });
@@ -240,7 +249,7 @@ const settleEdit = (
     review.id === reviewId
       ? {
           ...review,
-          status: approved ? 'Approved' : 'Rejected',
+          status: settledStatus,
           reviewedBy: operator,
           reviewedAt,
           reason: approved ? '' : reason,
