@@ -703,7 +703,8 @@ const historyReviewSeed: KycEditReviewEntry[] = reviewHistoryPlans.map((plan, pl
     action: '編輯',
     statusBefore: record.status,
     statusAfter: record.status,
-    reviewStatus: plan.status,
+    // 提交當下就是待複核，之後的複核結果只記在「複核」列，不回寫這裡
+    reviewStatus: 'Pending',
     reviewId,
     remark: summary,
     operator: plan.submittedBy,

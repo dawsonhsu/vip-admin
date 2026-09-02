@@ -237,10 +237,8 @@ const settleEdit = (
           changes: entry.changes,
           photoChanges: entry.photoChanges,
         },
-        // 同一筆編輯的「編輯」列同步更新複核狀態，讓提交列也看得到最終結果
-        ...record.changeLog.map((log) => (
-          log.reviewId === reviewId ? { ...log, reviewStatus: settledStatus } : log
-        )),
+        // 既有的「編輯」列保留提交當下的待複核狀態，不因複核結果回寫
+        ...record.changeLog,
       ],
     };
   });
