@@ -1,9 +1,30 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { Button, DatePicker, Form, Input, Modal, Select, Space, Typography, message, theme } from 'antd';
+import React, { useEffect, useState } from 'react';
+import {
+  Button,
+  DatePicker,
+  Form,
+  Image,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Typography,
+  Upload,
+  message,
+  theme,
+} from 'antd';
+import { UndoOutlined, UploadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
-import type { KycEditFieldChange, KycRecord } from '@/data/kycData';
+import {
+  kycDocumentLabelMap,
+  kycDocumentSlots,
+  type KycDocuments,
+  type KycEditFieldChange,
+  type KycPhotoChange,
+  type KycRecord,
+} from '@/data/kycData';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -28,9 +49,8 @@ interface EditFormValues {
 interface KycEditModalProps {
   open: boolean;
   record: KycRecord | null;
-  currentOperator: string;
   onCancel: () => void;
-  onSave: (record: KycRecord) => void;
+  onSave: (changes: KycEditFieldChange[], photoChanges: KycPhotoChange[]) => void;
 }
 
 const branchOptions = ['Makati Branch', 'Quezon City Branch', 'Cebu Branch', 'Davao Branch', 'Pasay Branch'];
@@ -50,15 +70,17 @@ const editableFields = [
   { field: 'incomeSource', label: '收入來源' },
 ] as const;
 
+const emptyDocuments: KycDocuments = { front: '', back: '', selfie: '' };
+
 export default function KycEditModal({
   open,
   record,
-  currentOperator,
   onCancel,
   onSave,
 }: KycEditModalProps) {
   const [form] = Form.useForm<EditFormValues>();
   const { token } = theme.useToken();
+  const [documents, setDocuments] = useState<KycDocuments>(emptyDocuments);
 
   useEffect(() => {
     if (!open || !record) return;
@@ -79,6 +101,7 @@ export default function KycEditModal({
       incomeSource: record.incomeSource,
       userMessage: record.userMessage,
     });
+    setDocuments({ ...record.documents });
   }, [form, open, record]);
 
   const handleSave = async () => {
@@ -108,36 +131,43 @@ export default function KycEditModal({
       const newValue = String(nextValues[field] ?? '');
       return oldValue === newValue ? [] : [{ field, label, oldValue, newValue }];
     });
+    const photoChanges: KycPhotoChange[] = kycDocumentSlots.flatMap((slot) => (
+      documents[slot] === record.documents[slot]
+        ? []
+        : [{
+            slot,
+            label: kycDocumentLabelMap[slot],
+            oldImage: record.documents[slot],
+            newImage: documents[slot],
+          }]
+    ));
 
-    if (!changes.length) {
-      message.info('未變更任何欄位');
+    if (!changes.length && !photoChanges.length) {
+      message.info('未變更任何欄位或證件照');
       return;
     }
 
-    const submittedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
-    onSave({
-      ...record,
-      pendingEdit: {
-        submittedBy: currentOperator,
-        submittedAt,
-        changes,
-      },
-      changeLog: [
-        {
-          id: `${record.key}-edit-submit-${submittedAt}`,
-          time: submittedAt,
-          operator: currentOperator,
-          action: '提交編輯複核',
-          detail: `已提交 ${changes.length} 個欄位變更：${changes.map((change) => change.label).join('、')}`,
-          changes,
-        },
-        ...record.changeLog,
-      ],
-    });
+    onSave(changes, photoChanges);
     message.success('已提交編輯複核，待他人核准');
   };
 
-  const documentLabels = ['證件照-正面', '證件照-反面', '手持證件照'];
+  const handleUpload = (slot: keyof KycDocuments) => (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      message.error('僅支援圖片格式');
+      return Upload.LIST_IGNORE;
+    }
+    if (file.size / 1024 > 500) {
+      message.error('圖片需小於 500KB');
+      return Upload.LIST_IGNORE;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setDocuments((current) => ({ ...current, [slot]: reader.result as string }));
+      message.success(`${kycDocumentLabelMap[slot]} 已更換，送出後進入複核`);
+    };
+    reader.readAsDataURL(file);
+    return false;
+  };
 
   return (
     <Modal
@@ -212,27 +242,72 @@ export default function KycEditModal({
           </Form.Item>
         </div>
 
-        <Form.Item label="證件圖片">
+        <Form.Item
+          label="證件圖片"
+          extra="支援 JPG／PNG，單張 ≤500KB；更換後需經複核才會生效"
+        >
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
-            {documentLabels.map((label, index) => (
-              <div key={label}>
-                <Text type="secondary" style={{ display: 'block', marginBottom: 6 }}>{label}</Text>
-                <div
-                  style={{
-                    height: 112,
-                    border: `1px dashed ${token.colorBorder}`,
-                    borderRadius: token.borderRadius,
-                    background: index === 0 ? token.colorInfoBg : index === 1 ? token.colorWarningBg : token.colorSuccessBg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: token.colorTextSecondary,
-                  }}
-                >
-                  {label}
+            {kycDocumentSlots.map((slot) => {
+              const label = kycDocumentLabelMap[slot];
+              const changed = Boolean(record) && documents[slot] !== record?.documents[slot];
+              return (
+                <div key={slot}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text type="secondary">{label}</Text>
+                    {changed && (
+                      <Text style={{ color: token.colorWarning, fontSize: 12 }}>已更換</Text>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      border: `1px ${changed ? 'solid' : 'dashed'} ${changed ? token.colorWarning : token.colorBorder}`,
+                      borderRadius: token.borderRadius,
+                      padding: 6,
+                      background: token.colorFillQuaternary,
+                    }}
+                  >
+                    <Image
+                      src={documents[slot]}
+                      alt={label}
+                      width="100%"
+                      height={112}
+                      style={{ objectFit: 'cover', borderRadius: token.borderRadiusSM }}
+                      data-e2e-id={`kyc-edit-document-preview-${slot}`}
+                    />
+                  </div>
+                  <Space size={4} style={{ marginTop: 8 }}>
+                    <Upload
+                      accept="image/*"
+                      showUploadList={false}
+                      maxCount={1}
+                      beforeUpload={handleUpload(slot)}
+                    >
+                      <Button
+                        size="small"
+                        icon={<UploadOutlined />}
+                        data-e2e-id={`kyc-edit-document-upload-btn-${slot}`}
+                      >
+                        更換相片
+                      </Button>
+                    </Upload>
+                    {changed && (
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<UndoOutlined />}
+                        data-e2e-id={`kyc-edit-document-reset-btn-${slot}`}
+                        onClick={() => setDocuments((current) => ({
+                          ...current,
+                          [slot]: record?.documents[slot] ?? '',
+                        }))}
+                      >
+                        還原
+                      </Button>
+                    )}
+                  </Space>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Form.Item>
 

@@ -1,9 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Empty, Modal, Table, theme } from 'antd';
+import { Empty, Image, Modal, Table, Typography, theme } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import type { KycChangeLogEntry, KycEditFieldChange, KycRecord } from '@/data/kycData';
+
+const { Text } = Typography;
 
 interface KycChangeLogModalProps {
   open: boolean;
@@ -61,16 +63,44 @@ export default function KycChangeLogModal({ open, record, onClose }: KycChangeLo
           size="small"
           pagination={false}
           expandable={{
-            rowExpandable: (entry) => Boolean(entry.changes?.length),
+            rowExpandable: (entry) => Boolean(entry.changes?.length || entry.photoChanges?.length),
             expandedRowRender: (entry) => (
-              <Table
-                data-e2e-id="kyc-change-log-diff-table"
-                rowKey="field"
-                columns={diffColumns}
-                dataSource={entry.changes}
-                size="small"
-                pagination={false}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {Boolean(entry.changes?.length) && (
+                  <Table
+                    data-e2e-id="kyc-change-log-diff-table"
+                    rowKey="field"
+                    columns={diffColumns}
+                    dataSource={entry.changes}
+                    size="small"
+                    pagination={false}
+                  />
+                )}
+                {entry.photoChanges?.map((photo) => (
+                  <div key={photo.slot} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Text strong style={{ width: 110 }}>{photo.label}</Text>
+                    <Image
+                      src={photo.oldImage}
+                      alt={`${photo.label} 原圖`}
+                      width={96}
+                      height={62}
+                      style={{ objectFit: 'cover', borderRadius: 4, opacity: 0.7 }}
+                    />
+                    <span style={{ color: token.colorTextSecondary }}>→</span>
+                    <Image
+                      src={photo.newImage}
+                      alt={`${photo.label} 新圖`}
+                      width={96}
+                      height={62}
+                      style={{
+                        objectFit: 'cover',
+                        borderRadius: 4,
+                        border: `1px solid ${token.colorSuccessBorder}`,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
             ),
           }}
         />

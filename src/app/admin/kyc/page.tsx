@@ -6,8 +6,8 @@ import {
   Card,
   DatePicker,
   Form,
+  Image,
   Input,
-  Modal,
   Select,
   Space,
   Table,
@@ -26,16 +26,20 @@ import KycChangeLogModal from '@/components/KycChangeLogModal';
 import KycEkycConfigModal, { type KycEkycConfig } from '@/components/KycEkycConfigModal';
 import {
   getKycChannelCounts,
+  kycDocumentLabelMap,
+  kycDocumentSlots,
   kycOperators,
   kycStatusColorMap,
   kycStatusLabelMap,
   kycStatuses,
   type KycChannel,
+  type KycEditFieldChange,
+  type KycPhotoChange,
   type KycRecord,
   type KycStatus,
   type KycVerifyResult,
 } from '@/data/kycData';
-import { kycStore, useKycRecords } from '@/data/kycStore';
+import { kycStore, useKycCurrentOperator, useKycRecords } from '@/data/kycStore';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -65,13 +69,12 @@ export default function KycPage() {
   const records = useKycRecords();
   const [filters, setFilters] = useState<KycFilters>({});
   const [activeChannel, setActiveChannel] = useState<KycChannel>('主站APP/H5');
-  const [currentOperator, setCurrentOperator] = useState('Darren');
+  const currentOperator = useKycCurrentOperator();
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [editRecord, setEditRecord] = useState<KycRecord | null>(null);
   const [reviewRecord, setReviewRecord] = useState<KycRecord | null>(null);
   const [logRecord, setLogRecord] = useState<KycRecord | null>(null);
-  const [preview, setPreview] = useState<{ record: KycRecord; label: string; tone: number } | null>(null);
   const [configOpen, setConfigOpen] = useState(false);
   const [ekycConfig, setEkycConfig] = useState<KycEkycConfig>({
     thirdPartyVerification: false,
@@ -101,44 +104,23 @@ export default function KycPage() {
     return true;
   }), [activeChannel, filters, records]);
 
-  const confirmEditGuard = (title: string, content: string) => new Promise<boolean>((resolve) => {
-    Modal.confirm({
-      title,
-      content,
-      okText: '是',
-      cancelText: '否',
-      onOk: () => resolve(true),
-      onCancel: () => resolve(false),
-    });
-  });
+  const handleOpenEdit = (record: KycRecord) => {
+    if (record.verifyResult !== '通過') {
+      message.warning('僅驗證結果為「通過」的 KYC 可進行編輯');
+      return;
+    }
 
-  const handleOpenEdit = async (record: KycRecord) => {
     if (record.pendingEdit) {
       message.warning('此筆已有待複核的編輯，請先完成複核');
       return;
     }
 
-    if (record.status === 'Approved') {
-      const continueApproved = await confirmEditGuard(
-        '編輯已通過紀錄',
-        '您正在編輯已通過審核的 KYC 紀錄，確定繼續？',
-      );
-      if (!continueApproved) return;
-    }
-
-    if (record.verifyResult !== '通過') {
-      const continueUnverified = await confirmEditGuard(
-        '重要',
-        '驗證結果尚未完全返回，確定進行操作？',
-      );
-      if (!continueUnverified) return;
-    }
-
     setEditRecord(record);
   };
 
-  const handleSaveEdit = (updatedRecord: KycRecord) => {
-    kycStore.saveEdit(updatedRecord);
+  const handleSubmitEdit = (changes: KycEditFieldChange[], photoChanges: KycPhotoChange[]) => {
+    if (!editRecord) return;
+    kycStore.submitEdit(editRecord.key, currentOperator, changes, photoChanges);
     setEditRecord(null);
   };
 
@@ -151,9 +133,6 @@ export default function KycPage() {
     setReviewRecord(null);
     message.success('KYC 審核結果已保存');
   };
-
-  const documentTone = [token.colorInfoBg, token.colorWarningBg, token.colorSuccessBg];
-  const documentLabels = ['證件照-正面', '證件照-反面', '手持證件照'];
 
   const columns: ColumnsType<KycRecord> = [
     {
@@ -230,32 +209,27 @@ export default function KycPage() {
       key: 'documents',
       width: 220,
       render: (_, record) => (
-        <div style={{ display: 'flex', gap: 6 }}>
-          {documentLabels.map((label, index) => (
-            <Tooltip key={label} title={label}>
-              <button
-                type="button"
-                data-e2e-id={`kyc-table-document-${index + 1}-${record.uid}`}
-                aria-label={`預覽${label}`}
-                onClick={() => setPreview({ record, label, tone: index })}
-                style={{
-                  width: 60,
-                  height: 48,
-                  padding: 3,
-                  border: `1px solid ${token.colorBorder}`,
-                  borderRadius: token.borderRadiusSM,
-                  background: documentTone[index],
-                  color: token.colorTextSecondary,
-                  fontSize: 10,
-                  lineHeight: '13px',
-                  cursor: 'pointer',
-                }}
-              >
-                {label}
-              </button>
-            </Tooltip>
-          ))}
-        </div>
+        <Image.PreviewGroup>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {kycDocumentSlots.map((slot) => (
+              <Tooltip key={slot} title={kycDocumentLabelMap[slot]}>
+                <span data-e2e-id={`kyc-table-document-${slot}-${record.uid}`}>
+                  <Image
+                    src={record.documents[slot]}
+                    alt={kycDocumentLabelMap[slot]}
+                    width={60}
+                    height={48}
+                    style={{
+                      objectFit: 'cover',
+                      border: `1px solid ${token.colorBorder}`,
+                      borderRadius: token.borderRadiusSM,
+                    }}
+                  />
+                </span>
+              </Tooltip>
+            ))}
+          </div>
+        </Image.PreviewGroup>
       ),
     },
     {
@@ -309,17 +283,21 @@ export default function KycPage() {
       fixed: 'right',
       render: (_, record) => {
         const reviewDisabled = record.status === 'Approved' || record.status === 'Rejected';
+        const editDisabled = record.verifyResult !== '通過';
         return (
           <Space size={0} split={<span style={{ color: token.colorSplit }}>|</span>}>
-            <Button
-              data-e2e-id={`kyc-table-edit-btn-${record.uid}`}
-              type="link"
-              size="small"
-              style={{ paddingInline: 4 }}
-              onClick={() => handleOpenEdit(record)}
-            >
-              編輯
-            </Button>
+            <Tooltip title={editDisabled ? '僅驗證結果為「通過」的 KYC 可編輯' : ''}>
+              <Button
+                data-e2e-id={`kyc-table-edit-btn-${record.uid}`}
+                type="link"
+                size="small"
+                disabled={editDisabled}
+                style={{ paddingInline: 4 }}
+                onClick={() => handleOpenEdit(record)}
+              >
+                編輯
+              </Button>
+            </Tooltip>
             <Button
               data-e2e-id={`kyc-table-review-btn-${record.uid}`}
               type="link"
@@ -448,7 +426,7 @@ export default function KycPage() {
                   value={currentOperator}
                   style={{ width: 110 }}
                   options={kycOperators.map((operator) => ({ value: operator, label: operator }))}
-                  onChange={setCurrentOperator}
+                  onChange={kycStore.setCurrentOperator}
                 />
               </Space>
               <Button
@@ -490,9 +468,8 @@ export default function KycPage() {
       <KycEditModal
         open={Boolean(editRecord)}
         record={editRecord}
-        currentOperator={currentOperator}
         onCancel={() => setEditRecord(null)}
-        onSave={handleSaveEdit}
+        onSave={handleSubmitEdit}
       />
       <KycReviewModal
         open={Boolean(reviewRecord)}
@@ -515,35 +492,6 @@ export default function KycPage() {
           message.success('EKYC 配置已保存');
         }}
       />
-
-      <Modal
-        data-e2e-id="kyc-document-preview-modal"
-        title={preview?.label}
-        open={Boolean(preview)}
-        onCancel={() => setPreview(null)}
-        width={620}
-        footer={<Button data-e2e-id="kyc-document-preview-close-btn" onClick={() => setPreview(null)}>關閉</Button>}
-      >
-        {preview && (
-          <div
-            style={{
-              minHeight: 360,
-              border: `1px dashed ${token.colorBorder}`,
-              borderRadius: token.borderRadius,
-              background: documentTone[preview.tone],
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              color: token.colorTextSecondary,
-            }}
-          >
-            <Text strong>{preview.label}</Text>
-            <Text type="secondary">{preview.record.uid} 的模擬證件圖片</Text>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

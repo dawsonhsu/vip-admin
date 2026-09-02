@@ -1,8 +1,14 @@
 import { useSyncExternalStore } from 'react';
 import dayjs from 'dayjs';
 import {
+  describeEditSubmission,
+  kycEditReviewSeed,
+  kycOperators,
   kycSeedData,
   kycStatusLabelMap,
+  type KycEditFieldChange,
+  type KycEditReviewEntry,
+  type KycPhotoChange,
   type KycRecord,
   type KycStatus,
 } from '@/data/kycData';
@@ -12,13 +18,25 @@ type ReviewDecision = Extract<KycStatus, 'Approved' | 'Rejected' | 'Resubmit Req
 
 export const cloneSeedRecords = () => kycSeedData.map((record) => ({
   ...record,
+  documents: { ...record.documents },
   changeLog: record.changeLog.map((entry) => ({
     ...entry,
     changes: entry.changes?.map((change) => ({ ...change })),
+    photoChanges: entry.photoChanges?.map((photo) => ({ ...photo })),
   })),
   pendingEdit: record.pendingEdit
-    ? { ...record.pendingEdit, changes: record.pendingEdit.changes.map((change) => ({ ...change })) }
+    ? {
+        ...record.pendingEdit,
+        changes: record.pendingEdit.changes.map((change) => ({ ...change })),
+        photoChanges: record.pendingEdit.photoChanges.map((photo) => ({ ...photo })),
+      }
     : null,
+}));
+
+export const cloneSeedReviews = () => kycEditReviewSeed.map((entry) => ({
+  ...entry,
+  changes: entry.changes.map((change) => ({ ...change })),
+  photoChanges: entry.photoChanges.map((photo) => ({ ...photo })),
 }));
 
 export const editableFieldNames = new Set([
@@ -36,17 +54,26 @@ export const editableFieldNames = new Set([
   'incomeSource',
 ]);
 
-export const applyPendingEdit = (record: KycRecord): KycRecord => {
-  if (!record.pendingEdit) return record;
+export const applyEditToRecord = (
+  record: KycRecord,
+  changes: KycEditFieldChange[],
+  photoChanges: KycPhotoChange[],
+): KycRecord => {
   const liveChanges = Object.fromEntries(
-    record.pendingEdit.changes
+    changes
       .filter((change) => editableFieldNames.has(change.field))
       .map((change) => [change.field, change.newValue]),
   ) as Partial<KycRecord>;
-  return { ...record, ...liveChanges };
+  const documents = { ...record.documents };
+  photoChanges.forEach((photo) => {
+    documents[photo.slot] = photo.newImage;
+  });
+  return { ...record, ...liveChanges, documents };
 };
 
 let records: KycRecord[] = cloneSeedRecords();
+let reviews: KycEditReviewEntry[] = cloneSeedReviews();
+let currentOperator: string = kycOperators[0];
 const listeners = new Set<Listener>();
 
 const notify = () => {
@@ -62,14 +89,76 @@ export const subscribe = (listener: Listener) => {
 
 export const getSnapshot = () => records;
 export const getServerSnapshot = () => records;
+export const getReviewsSnapshot = () => reviews;
+export const getCurrentOperator = () => currentOperator;
 
-export const reset = () => {
-  records = cloneSeedRecords();
+export const setCurrentOperator = (operator: string) => {
+  if (currentOperator === operator) return;
+  currentOperator = operator;
   notify();
 };
 
-export const saveEdit = (updated: KycRecord) => {
-  records = records.map((record) => (record.key === updated.key ? updated : record));
+export const reset = () => {
+  records = cloneSeedRecords();
+  reviews = cloneSeedReviews();
+  notify();
+};
+
+/** 送出編輯：寫入待複核狀態、異動記錄，並產生一筆待複核條目。 */
+export const submitEdit = (
+  key: string,
+  operator: string,
+  changes: KycEditFieldChange[],
+  photoChanges: KycPhotoChange[],
+) => {
+  const target = records.find((record) => record.key === key);
+  if (!target || target.pendingEdit) return;
+
+  const submittedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
+  const detail = describeEditSubmission(changes, photoChanges);
+
+  records = records.map((record) => (
+    record.key === key
+      ? {
+          ...record,
+          pendingEdit: { submittedBy: operator, submittedAt, changes, photoChanges },
+          changeLog: [
+            {
+              id: `${record.key}-edit-submit-${submittedAt}`,
+              time: submittedAt,
+              operator,
+              action: '提交編輯複核',
+              detail,
+              changes,
+              photoChanges,
+            },
+            ...record.changeLog,
+          ],
+        }
+      : record
+  ));
+
+  reviews = [
+    {
+      id: `${key}-review-${submittedAt}`,
+      recordKey: key,
+      uid: target.uid,
+      phone: target.phone,
+      firstName: target.firstName,
+      middleName: target.middleName,
+      lastName: target.lastName,
+      submittedBy: operator,
+      submittedAt,
+      changes,
+      photoChanges,
+      status: 'Pending',
+      reviewedBy: '',
+      reviewedAt: '',
+      reason: '',
+    },
+    ...reviews,
+  ];
+
   notify();
 };
 
@@ -107,67 +196,92 @@ export const reviewStatus = (
   notify();
 };
 
-export const approveEdit = (key: string, operator: string) => {
+const settleEdit = (
+  reviewId: string,
+  operator: string,
+  approved: boolean,
+  reason: string,
+) => {
+  const entry = reviews.find((review) => review.id === reviewId);
+  if (!entry || entry.status !== 'Pending') return;
+
   const reviewedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
+  const changedLabels = [
+    ...entry.changes.map((change) => change.label),
+    ...entry.photoChanges.map((photo) => photo.label),
+  ].join('、');
 
   records = records.map((record) => {
-    if (record.key !== key || !record.pendingEdit) return record;
-    const changes = record.pendingEdit.changes;
-    const changedFields = changes.map((change) => change.label).join('、');
-    const updatedRecord = applyPendingEdit(record);
+    if (record.key !== entry.recordKey) return record;
+    const base = approved
+      ? applyEditToRecord(record, entry.changes, entry.photoChanges)
+      : record;
     return {
-      ...updatedRecord,
+      ...base,
       pendingEdit: null,
       changeLog: [
         {
-          id: `${record.key}-edit-approved-${reviewedAt}`,
+          id: `${record.key}-edit-${approved ? 'approved' : 'rejected'}-${reviewedAt}`,
           time: reviewedAt,
           operator,
-          action: '編輯核准',
-          detail: `已核准欄位：${changedFields}`,
-          changes,
+          action: approved ? '編輯核准' : '編輯駁回',
+          detail: approved
+            ? `已核准變更：${changedLabels}`
+            : `駁回原因：${reason}；已捨棄變更：${changedLabels}`,
+          changes: entry.changes,
+          photoChanges: entry.photoChanges,
         },
         ...record.changeLog,
       ],
     };
   });
+
+  reviews = reviews.map((review) => (
+    review.id === reviewId
+      ? {
+          ...review,
+          status: approved ? 'Approved' : 'Rejected',
+          reviewedBy: operator,
+          reviewedAt,
+          reason: approved ? '' : reason,
+        }
+      : review
+  ));
+
   notify();
 };
 
-export const rejectEdit = (key: string, operator: string, reason: string) => {
-  const reviewedAt = dayjs().format('YYYY-MM-DD HH:mm:ss');
+export const approveEdit = (reviewId: string, operator: string) => {
+  settleEdit(reviewId, operator, true, '');
+};
 
-  records = records.map((record) => {
-    if (record.key !== key || !record.pendingEdit) return record;
-    const changes = record.pendingEdit.changes;
-    const changedFields = changes.map((change) => change.label).join('、');
-    return {
-      ...record,
-      pendingEdit: null,
-      changeLog: [
-        {
-          id: `${record.key}-edit-rejected-${reviewedAt}`,
-          time: reviewedAt,
-          operator,
-          action: '編輯駁回',
-          detail: `駁回原因：${reason}；已捨棄欄位：${changedFields}`,
-          changes,
-        },
-        ...record.changeLog,
-      ],
-    };
-  });
-  notify();
+export const rejectEdit = (reviewId: string, operator: string, reason: string) => {
+  settleEdit(reviewId, operator, false, reason);
 };
 
 export const useKycRecords = () => useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+export const useKycEditReviews = () => useSyncExternalStore(
+  subscribe,
+  getReviewsSnapshot,
+  getReviewsSnapshot,
+);
+
+export const useKycCurrentOperator = () => useSyncExternalStore(
+  subscribe,
+  getCurrentOperator,
+  getCurrentOperator,
+);
 
 export const kycStore = {
   subscribe,
   getSnapshot,
   getServerSnapshot,
+  getReviewsSnapshot,
+  getCurrentOperator,
+  setCurrentOperator,
   reset,
-  saveEdit,
+  submitEdit,
   reviewStatus,
   approveEdit,
   rejectEdit,
