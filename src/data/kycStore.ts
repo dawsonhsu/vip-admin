@@ -234,8 +234,6 @@ const settleEdit = (
           reviewId,
           remark: approved ? `核准變更：${summary}` : `駁回原因：${reason}`,
           operator,
-          changes: entry.changes,
-          photoChanges: entry.photoChanges,
         },
         // 既有的「編輯」列保留提交當下的待複核狀態，不因複核結果回寫
         ...record.changeLog,

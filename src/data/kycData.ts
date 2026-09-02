@@ -711,6 +711,7 @@ const historyReviewSeed: KycEditReviewEntry[] = reviewHistoryPlans.map((plan, pl
     changes,
     photoChanges,
   });
+  // 複核列只記結果，異動詳情一律掛在對應的「編輯」列
   record.changeLog.push({
     id: `${reviewId}-settle`,
     time: settledAt,
@@ -721,8 +722,6 @@ const historyReviewSeed: KycEditReviewEntry[] = reviewHistoryPlans.map((plan, pl
     reviewId,
     remark: approved ? `核准變更：${summary}` : `駁回原因：${plan.reason}`,
     operator: plan.reviewedBy,
-    changes,
-    photoChanges,
   });
 
   return makeEntryFromRecord(record, {
