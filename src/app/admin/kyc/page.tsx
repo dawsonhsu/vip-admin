@@ -105,11 +105,6 @@ export default function KycPage() {
   }), [activeChannel, filters, records]);
 
   const handleOpenEdit = (record: KycRecord) => {
-    if (record.verifyResult !== '通過') {
-      message.warning('僅驗證結果為「通過」的 KYC 可進行編輯');
-      return;
-    }
-
     if (record.pendingEdit) {
       message.warning('此筆已有待複核的編輯，請先完成複核');
       return;
@@ -283,21 +278,17 @@ export default function KycPage() {
       fixed: 'right',
       render: (_, record) => {
         const reviewDisabled = record.status === 'Approved' || record.status === 'Rejected';
-        const editDisabled = record.verifyResult !== '通過';
         return (
           <Space size={0} split={<span style={{ color: token.colorSplit }}>|</span>}>
-            <Tooltip title={editDisabled ? '僅驗證結果為「通過」的 KYC 可編輯' : ''}>
-              <Button
-                data-e2e-id={`kyc-table-edit-btn-${record.uid}`}
-                type="link"
-                size="small"
-                disabled={editDisabled}
-                style={{ paddingInline: 4 }}
-                onClick={() => handleOpenEdit(record)}
-              >
-                編輯
-              </Button>
-            </Tooltip>
+            <Button
+              data-e2e-id={`kyc-table-edit-btn-${record.uid}`}
+              type="link"
+              size="small"
+              style={{ paddingInline: 4 }}
+              onClick={() => handleOpenEdit(record)}
+            >
+              編輯
+            </Button>
             <Button
               data-e2e-id={`kyc-table-review-btn-${record.uid}`}
               type="link"

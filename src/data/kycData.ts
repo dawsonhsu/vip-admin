@@ -380,36 +380,46 @@ const makeStatusChangeLog = (
 };
 
 /**
- * 待複核的編輯只掛在 KYC 已通過（Approved）的紀錄上，
- * 對應「只有驗證結果＝通過才能編輯」的規則。
+ * 待複核的編輯可掛在任何 KYC 狀態的紀錄上 —— 編輯複核與 KYC 審核是兩條獨立的軌道。
+ * baseTime 取該筆最後一次動作（審核時間，沒有就用提交時間），編輯時間再往後推。
  */
 const pendingEditPlans: Record<number, (args: {
   uid: string;
   documents: KycDocuments;
   values: Pick<KycRecord, 'currentAddress' | 'nearestBranch' | 'occupation' | 'incomeSource'>;
-  reviewedAt: string;
+  baseTime: string;
 }) => KycPendingEdit> = {
-  2: ({ values, reviewedAt }) => ({
+  // index 0 的 KYC 還在待審核，仍然可以送編輯複核
+  0: ({ values, baseTime }) => ({
+    submittedBy: 'Ben',
+    submittedAt: shiftTime(baseTime, 95),
+    changes: [
+      { field: 'lastName', label: 'Last Name', oldValue: 'Dela Cruz', newValue: 'Dela Cruz Jr.' },
+      { field: 'incomeSource', label: '收入來源', oldValue: values.incomeSource, newValue: '生意' },
+    ],
+    photoChanges: [],
+  }),
+  2: ({ values, baseTime }) => ({
     submittedBy: 'Alice',
-    submittedAt: shiftTime(reviewedAt, 180),
+    submittedAt: shiftTime(baseTime, 180),
     changes: [
       { field: 'currentAddress', label: '現住址', oldValue: values.currentAddress, newValue: '88 Ayala Avenue, Makati' },
       { field: 'occupation', label: '職業', oldValue: values.occupation, newValue: '自僱' },
     ],
     photoChanges: [],
   }),
-  3: ({ uid, documents, values, reviewedAt }) => ({
+  3: ({ uid, documents, values, baseTime }) => ({
     submittedBy: 'Darren',
-    submittedAt: shiftTime(reviewedAt, 240),
+    submittedAt: shiftTime(baseTime, 240),
     changes: [
       { field: 'nearestBranch', label: '鄰近分行', oldValue: values.nearestBranch, newValue: 'Makati Branch' },
       { field: 'occupation', label: '職業', oldValue: values.occupation, newValue: '受僱' },
     ],
     photoChanges: [makePendingPhotoChange(uid, 'front', documents)],
   }),
-  6: ({ uid, documents, values, reviewedAt }) => ({
+  6: ({ uid, documents, values, baseTime }) => ({
     submittedBy: 'Ben',
-    submittedAt: shiftTime(reviewedAt, 300),
+    submittedAt: shiftTime(baseTime, 300),
     changes: [
       { field: 'currentAddress', label: '現住址', oldValue: values.currentAddress, newValue: '27 Bonifacio Street, Davao City' },
       { field: 'incomeSource', label: '收入來源', oldValue: values.incomeSource, newValue: '生意' },
@@ -447,7 +457,7 @@ export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) =>
         uid,
         documents,
         values: { currentAddress, nearestBranch, occupation, incomeSource },
-        reviewedAt,
+        baseTime: reviewedAt || submittedAt,
       })
     : null;
 
@@ -503,7 +513,6 @@ export const kycSeedData: KycRecord[] = Array.from({ length: 40 }, (_, index) =>
 });
 
 type ReviewHistoryPlan = {
-  /** 皆為 Approved 的紀錄（index % 8 ∈ {2, 3, 6}），編輯只發生在 KYC 已通過之後 */
   index: number;
   submittedBy: string;
   submitAfterMinutes: number;
@@ -516,11 +525,35 @@ type ReviewHistoryPlan = {
 };
 
 /**
- * 已複核（歷史）條目。
+ * 已複核（歷史）條目，涵蓋各種 KYC 狀態的紀錄。
  * Approved：counterValue 是變更前的舊值，新值即目前檔案上的值。
  * Rejected：counterValue 是被駁回、未生效的提議值。
  */
 const reviewHistoryPlans: ReviewHistoryPlan[] = [
+  // KYC 為 Rejected，編輯照樣可以送複核並被核准（兩者互不影響）
+  {
+    index: 4,
+    submittedBy: 'Darren',
+    submitAfterMinutes: 260,
+    status: 'Approved',
+    reviewedBy: 'Alice',
+    settleAfterMinutes: 120,
+    reason: '',
+    fields: [{ field: 'occupation', label: '職業', counterValue: '退休' }],
+    photoSlots: [],
+  },
+  // KYC 還在 Under Review，編輯複核被駁回
+  {
+    index: 9,
+    submittedBy: 'Ben',
+    submitAfterMinutes: 150,
+    status: 'Rejected',
+    reviewedBy: 'Darren',
+    settleAfterMinutes: 190,
+    reason: '此筆 KYC 尚在審核中，請等審核結果出來再調整',
+    fields: [{ field: 'currentAddress', label: '現住址', counterValue: '42 Bonifacio Street, Cebu City' }],
+    photoSlots: [],
+  },
   {
     index: 10,
     submittedBy: 'Ben',
@@ -673,7 +706,7 @@ const historyReviewSeed: KycEditReviewEntry[] = reviewHistoryPlans.map((plan, pl
   const record = kycSeedData[plan.index];
   const approved = plan.status === 'Approved';
   const reviewId = `${record.key}-review-history-${planIndex}`;
-  const submittedAt = shiftTime(record.reviewedAt, plan.submitAfterMinutes);
+  const submittedAt = shiftTime(record.reviewedAt || record.submittedAt, plan.submitAfterMinutes);
   const settledAt = shiftTime(submittedAt, plan.settleAfterMinutes);
 
   const changes: KycEditFieldChange[] = plan.fields.map(({ field, label, counterValue }) => {
