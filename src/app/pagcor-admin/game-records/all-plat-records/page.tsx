@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Card, Table, Input, DatePicker, Button, Space, Typography, Form, Select, Row, Col,
+  Card, Table, Input, DatePicker, Button, Space, Typography, Form, Select, Row, Col, Modal,
 } from 'antd';
 import {
   ReloadOutlined, FolderOpenOutlined, ColumnHeightOutlined, SettingOutlined,
@@ -99,7 +99,7 @@ export default function AllPlatRecordsPage() {
   const [allRecords, setAllRecords] = useState<PagcorBetRecord[]>([]);
   const [activeQuick, setActiveQuick] = useState<QuickRange | null>('month');
   const [mounted, setMounted] = useState(false);
-  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
+  const [jpDetailRecord, setJpDetailRecord] = useState<PagcorBetRecord | null>(null);
 
   useEffect(() => {
     setAllRecords(generatePagcorBetRecords(400));
@@ -154,11 +154,7 @@ export default function AllPlatRecordsPage() {
     downloadCsv(`全平台投注记录_${dayjs().format('YYYYMMDD_HHmmss')}.csv`, lines.join('\n'));
   };
 
-  const toggleJpDetail = (id: number) => {
-    setExpandedRowKeys((keys) => (keys.includes(id) ? keys.filter((k) => k !== id) : [...keys, id]));
-  };
-
-  // Multi 展開後的 JP 詳情欄位
+  // Multi 的 JP 詳情欄位
   const jpDetailColumns: ColumnsType<PagcorJpDetail> = [
     { title: 'JP Type', dataIndex: 'jpType', width: 160, align: 'center', render: (v: PagcorJpType) => pagcorJpTypeLabels[v] },
     { title: 'JP Payout', dataIndex: 'jpPayout', width: 180, align: 'center' },
@@ -195,11 +191,11 @@ export default function AllPlatRecordsPage() {
       render: (value: PagcorBetRecord['jpType'], record) => {
         if (value === '-') return '-';
         if (value !== 'multi') return pagcorJpTypeLabels[value];
-        // Multi＝同時中兩筆獎池，以超連結展開 JP 詳情
+        // Multi＝同時中兩筆獎池，以超連結開啟 JP 詳情
         return (
           <a
             data-e2e-id={`all-plat-records-jp-multi-link-${record.id}`}
-            onClick={() => toggleJpDetail(record.id)}
+            onClick={() => setJpDetailRecord(record)}
           >
             {pagcorJpTypeLabels.multi}
           </a>
@@ -384,30 +380,6 @@ export default function AllPlatRecordsPage() {
           dataSource={mounted ? filteredData : []}
           rowKey="id"
           onRow={(record) => ({ 'data-e2e-id': `all-plat-records-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
-          expandable={{
-            expandedRowKeys,
-            showExpandColumn: false,
-            rowExpandable: (record) => record.jpType === 'multi',
-            onExpand: (_expanded, record) => toggleJpDetail(record.id),
-            // 表格橫向可捲動，明細以 sticky 貼齊可視區左緣，避免展開後看不到內容
-            expandedRowRender: (record) => (
-              <div style={{ position: 'sticky', left: 0, width: 'fit-content', maxWidth: '100%' }}>
-                <Typography.Text strong style={{ display: 'block', marginBottom: 8 }}>
-                  JP 詳情（本注同時中 {record.jpDetails?.length ?? 0} 筆獎池）
-                </Typography.Text>
-                <Table
-                  data-e2e-id={`all-plat-records-jp-detail-table-${record.id}`}
-                  columns={jpDetailColumns}
-                  dataSource={record.jpDetails ?? []}
-                  rowKey="jpType"
-                  size="small"
-                  bordered
-                  pagination={false}
-                  style={{ maxWidth: 560 }}
-                />
-              </div>
-            ),
-          }}
           scroll={{ x: 4930 }}
           pagination={{
             pageSize: 20,
@@ -418,6 +390,38 @@ export default function AllPlatRecordsPage() {
           size="small"
         />
       </Card>
+      <Modal
+        data-e2e-id="all-plat-records-jp-detail-modal"
+        open={!!jpDetailRecord}
+        title="JP 詳情"
+        onCancel={() => setJpDetailRecord(null)}
+        footer={(
+          <Button
+            data-e2e-id="all-plat-records-jp-detail-close-btn"
+            onClick={() => setJpDetailRecord(null)}
+          >
+            關 閉
+          </Button>
+        )}
+        width={640}
+        destroyOnClose
+      >
+        <Typography.Paragraph>
+          本注同時中 {jpDetailRecord?.jpDetails?.length ?? 0} 筆獎池
+        </Typography.Paragraph>
+        <Typography.Paragraph>
+          Transaction ID：{jpDetailRecord?.transactionId}
+        </Typography.Paragraph>
+        <Table
+          data-e2e-id="all-plat-records-jp-detail-table"
+          columns={jpDetailColumns}
+          dataSource={jpDetailRecord?.jpDetails ?? []}
+          rowKey="jpType"
+          size="small"
+          bordered
+          pagination={false}
+        />
+      </Modal>
     </div>
   );
 }
