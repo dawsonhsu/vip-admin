@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Button,
   Card,
@@ -46,6 +47,7 @@ import DailyMultiDepositConfigModal from '@/components/DailyMultiDepositConfigMo
 import ReactivationMysteryBoxConfigModal from '@/components/ReactivationMysteryBoxConfigModal';
 import ReactivationMysteryBoxGrantModal from '@/components/ReactivationMysteryBoxGrantModal';
 import ReactivationMysteryBoxReportModal from '@/components/ReactivationMysteryBoxReportModal';
+import CashbackConfigModal from '@/components/CashbackConfigModal';
 
 // 识别哪些活动是 FreeBet 类型（可拆独立配置 + 报表）
 const FREEBET_ACTIVITY_IDS = new Set<number>([29]);
@@ -55,6 +57,7 @@ const VIP_CHECKIN_ID = 25;
 const DAILY_CUMULATIVE_ID = 13;
 const KYC_FREESPIN_ID = 19;
 const DAILY_MULTI_DEPOSIT_ID = 22;
+const CASHBACK_ID = 32;
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -67,6 +70,7 @@ const statusTag = (status: '进行中' | '关闭') =>
   );
 
 function ActivityTable({ data }: { data: ActivityRecord[] }) {
+  const router = useRouter();
   const [form] = Form.useForm();
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [freebetConfigOpen, setFreebetConfigOpen] = useState(false);
@@ -80,8 +84,13 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const [dailyCumulativeConfigOpen, setDailyCumulativeConfigOpen] = useState(false);
   const [kycFreespinConfigOpen, setKycFreespinConfigOpen] = useState(false);
   const [dailyMultiDepositConfigOpen, setDailyMultiDepositConfigOpen] = useState(false);
+  const [cashbackConfigOpen, setCashbackConfigOpen] = useState(false);
 
   const handleEditConfig = (record: ActivityRecord) => {
+    if (record.id === CASHBACK_ID) {
+      setCashbackConfigOpen(true);
+      return;
+    }
     if (FREEBET_ACTIVITY_IDS.has(record.id)) {
       setFreebetConfigOpen(true);
       return;
@@ -114,6 +123,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   };
 
   const handleViewReport = (record: ActivityRecord) => {
+    if (record.id === CASHBACK_ID) {
+      router.push('/admin/cashback-report');
+      return;
+    }
     if (FREEBET_ACTIVITY_IDS.has(record.id)) {
       setFreebetReportOpen(true);
       return;
@@ -281,7 +294,8 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
           </Button>
           {(FREEBET_ACTIVITY_IDS.has(record.id) ||
             record.id === NEW_MEMBER_TRI_DEPOSIT_ID ||
-            record.id === RECALL_MYSTERY_BOX_ID) && (
+            record.id === RECALL_MYSTERY_BOX_ID ||
+            record.id === CASHBACK_ID) && (
             <Button
               data-e2e-id={`activity-list-table-view-report-btn-${record.id}`}
               type="link"
@@ -437,6 +451,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <DailyMultiDepositConfigModal
         open={dailyMultiDepositConfigOpen}
         onClose={() => setDailyMultiDepositConfigOpen(false)}
+      />
+      <CashbackConfigModal
+        open={cashbackConfigOpen}
+        onClose={() => setCashbackConfigOpen(false)}
       />
     </>
   );
