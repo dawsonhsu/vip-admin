@@ -23,7 +23,7 @@ export interface CashbackReportRow {
   effectiveBet: number;
   cashbackAmount: number;   // = sum(breakdown.cashback) 實派
   rolloverRequired: number; // = sum(breakdown.rolloverForType)
-  settledAt: string;        // T+1 隔日凌晨結算時間
+  settledAt: string;        // T+1 04:00:00 結算時間
   breakdown: CashbackBreakdownRow[];
 }
 
@@ -159,10 +159,9 @@ export function generateCashbackReport(): CashbackReportRow[] {
         rolloverRequired: roundCurrency(
           breakdown.reduce((sum, item) => sum + item.rolloverForType, 0)
         ),
-        // T+1: settled the next morning from 01:30, staggered per member.
-        settledAt: dayjs(`${statDate} 01:30:00`)
+        // T+1 04:00:00 batch settlement (fixed run time for the whole day's turnover).
+        settledAt: dayjs(`${statDate} 04:00:00`)
           .add(1, 'day')
-          .add(memberIndex * 3, 'minute')
           .format('YYYY-MM-DD HH:mm:ss'),
         breakdown,
       });

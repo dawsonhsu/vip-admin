@@ -443,22 +443,40 @@ function DistributionStep() {
     <Card
       data-e2e-id={`${e2ePrefix}-distribution-card`}
       size="small"
-      title="派發與彈窗"
+      title="派發條件與彈窗"
       style={{ marginBottom: 8 }}
     >
       <Descriptions column={1} size="small" bordered>
-        <Descriptions.Item label="結算週期">
-          T+1（隔日凌晨結算，自動派發至獎金餘額，無需玩家領取）
+        <Descriptions.Item label="結算時間">
+          T+1 04:00:00（隔日凌晨 4 點結算，自動派發至獎金餘額，無需玩家領取）
         </Descriptions.Item>
         <Descriptions.Item label="打碼計入範圍">
           沿用基础配置的「流水場館/遊戲限制」
         </Descriptions.Item>
+        <Descriptions.Item label="帳變 / 流水記錄">
+          依遊戲類型分筆記錄（每個參與的遊戲類型各產生一筆）
+        </Descriptions.Item>
       </Descriptions>
+      <Form.Item
+        name="minEffectiveBet"
+        label="起始有效投注額"
+        tooltip="當期有效投注額需「超過」此門檻才派發返利；未達門檻不派發"
+        rules={[{ required: true, message: '請輸入起始有效投注額' }]}
+        style={{ marginTop: 20, marginBottom: 12 }}
+      >
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-min-effective-bet-input`}
+          min={0}
+          step={100}
+          prefix="₱"
+          style={{ width: 240 }}
+        />
+      </Form.Item>
       <Form.Item
         name="popupText"
         label="彈窗文案"
         rules={[{ required: true, message: '請輸入彈窗文案' }]}
-        style={{ marginTop: 20, marginBottom: 0 }}
+        style={{ marginBottom: 0 }}
       >
         <Input data-e2e-id={`${e2ePrefix}-popup-text-input`} />
       </Form.Item>
@@ -476,6 +494,7 @@ export default function CashbackConfigModal({ open, onClose }: Props) {
       '2026-09-06 00:00:00',
       '2026-12-31 23:59:59',
     ),
+    minEffectiveBet: 100,
     popupText: 'Congratulations! You received Cashback Bonus!',
   };
 
@@ -501,8 +520,8 @@ export default function CashbackConfigModal({ open, onClose }: Props) {
       render: () => <CashbackRateStep />,
     },
     {
-      title: '派發與彈窗',
-      validateFields: ['popupText'],
+      title: '派發條件與彈窗',
+      validateFields: ['minEffectiveBet', 'popupText'],
       render: () => <DistributionStep />,
     },
   ];
