@@ -75,6 +75,7 @@ interface BaseRateRow {
   key: GameType;
   gameType: GameType;
   rate: number;
+  cap: number;
   multiplier: number;
   status: RowStatus;
 }
@@ -83,6 +84,7 @@ interface OverrideRateRow {
   key: string;
   gamePaths: string[][];
   rate: number;
+  cap: number;
   multiplier: number;
   status: RowStatus;
 }
@@ -97,10 +99,22 @@ const DEFAULT_RATES: Record<GameType, number> = {
   Sports: 0.4,
 };
 
+// Cashback cap per rule / per member / per day. 0 means unlimited.
+const DEFAULT_CAPS: Record<GameType, number> = {
+  Slots: 500,
+  Live: 0,
+  Table: 0,
+  Arcade: 0,
+  Bingo: 0,
+  Fishing: 300,
+  Sports: 0,
+};
+
 const initialBaseRows: BaseRateRow[] = GAME_TYPES.map((gameType) => ({
   key: gameType,
   gameType,
   rate: DEFAULT_RATES[gameType],
+  cap: DEFAULT_CAPS[gameType],
   multiplier: 1,
   status: 'enabled',
 }));
@@ -113,6 +127,7 @@ const initialOverrideRows: OverrideRateRow[] = [
       ['Slots', 'PG', 'mahjong_ways'],
     ],
     rate: 1,
+    cap: 800,
     multiplier: 1,
     status: 'enabled',
   },
@@ -166,6 +181,7 @@ function CashbackRateStep() {
         key: `override-${Date.now()}`,
         gamePaths: [],
         rate: 0,
+        cap: 0,
         multiplier: 1,
         status: 'enabled',
       },
@@ -193,6 +209,24 @@ function CashbackRateStep() {
           value={row.rate}
           style={{ width: '100%' }}
           onChange={(value) => updateBaseRow(row.key, 'rate', Number(value ?? 0))}
+        />
+      ),
+    },
+    {
+      title: '返利上限',
+      dataIndex: 'cap',
+      width: 190,
+      render: (_, row) => (
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-base-cap-${row.gameType}`}
+          min={0}
+          step={100}
+          precision={2}
+          addonBefore="₱"
+          placeholder="0 = 不限"
+          value={row.cap}
+          style={{ width: '100%' }}
+          onChange={(value) => updateBaseRow(row.key, 'cap', Number(value ?? 0))}
         />
       ),
     },
@@ -269,6 +303,24 @@ function CashbackRateStep() {
       ),
     },
     {
+      title: '返利上限',
+      dataIndex: 'cap',
+      width: 190,
+      render: (_, row) => (
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-override-cap-${row.key}`}
+          min={0}
+          step={100}
+          precision={2}
+          addonBefore="₱"
+          placeholder="0 = 不限"
+          value={row.cap}
+          style={{ width: '100%' }}
+          onChange={(value) => updateOverrideRow(row.key, 'cap', Number(value ?? 0))}
+        />
+      ),
+    },
+    {
       title: '打碼倍數',
       dataIndex: 'multiplier',
       width: 160,
@@ -333,7 +385,7 @@ function CashbackRateStep() {
           data-e2e-id={`${e2ePrefix}-priority-alert`}
           type="info"
           showIcon
-          message="命中優先級：指定遊戲 > 遊戲類型 > 未設不返；一注只命中一條。"
+          message="命中優先級：指定遊戲 > 遊戲類型 > 未設不返；一注只命中一條。返利上限為「單一規則 / 單一會員 / 單日」上限，填 0 表示不限制。"
         />
 
         <div>
@@ -345,7 +397,7 @@ function CashbackRateStep() {
             rowKey="key"
             size="small"
             pagination={false}
-            scroll={{ x: 660 }}
+            scroll={{ x: 850 }}
             style={{ marginTop: 8 }}
             onRow={(record) =>
               ({
@@ -364,7 +416,7 @@ function CashbackRateStep() {
             rowKey="key"
             size="small"
             pagination={false}
-            scroll={{ x: 910 }}
+            scroll={{ x: 1100 }}
             style={{ marginTop: 8 }}
             onRow={(record) =>
               ({

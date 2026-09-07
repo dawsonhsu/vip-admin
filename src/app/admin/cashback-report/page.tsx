@@ -6,6 +6,7 @@ import {
   Card,
   Col,
   DatePicker,
+  Descriptions,
   Drawer,
   Form,
   Input,
@@ -48,9 +49,9 @@ const GAME_TYPES: GameType[] = [
 interface ReportFilters {
   account?: string;
   uid?: string;
+  phone?: string;
   vipLevel?: number;
   gameType?: GameType;
-  rolloverStatus?: 'pending' | 'done';
   settledRange?: [Dayjs, Dayjs];
 }
 
@@ -71,24 +72,24 @@ const downloadCsv = (rows: CashbackReportRow[]) => {
       '序號',
       '玩家帳號',
       '會員UID',
+      '手機號',
       'VIP等級',
+      '統計日期',
       '有效投注金額',
       '流水返利金額',
       '打碼要求',
-      '打碼進度',
-      '打碼狀態',
       '結算時間',
     ],
     ...rows.map((row) => [
       row.id,
       row.account,
       row.uid,
+      row.phone,
       `V${row.vipLevel}`,
+      row.statDate,
       row.effectiveBet.toFixed(2),
       row.cashbackAmount.toFixed(2),
       row.rolloverRequired.toFixed(2),
-      row.rolloverProgress.toFixed(2),
-      row.rolloverDone ? '已達標' : '未達標',
       row.settledAt,
     ]),
   ];
@@ -109,7 +110,7 @@ const downloadCsv = (rows: CashbackReportRow[]) => {
 export default function CashbackReportPage() {
   const [form] = Form.useForm<ReportFilters>();
   const [filters, setFilters] = useState<ReportFilters>({});
-  const [allRows] = useState(() => generateCashbackReport(35));
+  const [allRows] = useState(() => generateCashbackReport());
   const [selectedRow, setSelectedRow] = useState<CashbackReportRow | null>(null);
 
   const filteredRows = useMemo(
@@ -122,6 +123,7 @@ export default function CashbackReportPage() {
           return false;
         }
         if (filters.uid && !row.uid.includes(filters.uid)) return false;
+        if (filters.phone && !row.phone.includes(filters.phone)) return false;
         if (filters.vipLevel !== undefined && row.vipLevel !== filters.vipLevel) {
           return false;
         }
@@ -131,8 +133,6 @@ export default function CashbackReportPage() {
         ) {
           return false;
         }
-        if (filters.rolloverStatus === 'done' && !row.rolloverDone) return false;
-        if (filters.rolloverStatus === 'pending' && row.rolloverDone) return false;
         if (filters.settledRange?.length === 2) {
           const settledAt = dayjs(row.settledAt);
           if (
@@ -156,16 +156,11 @@ export default function CashbackReportPage() {
       (sum, row) => sum + row.cashbackAmount,
       0
     );
-    const cashbackToGgr = totalEffectiveBet
-      ? Math.round((totalCashback / (totalEffectiveBet * 0.03)) * 10000) / 100
-      : 0;
 
     return {
       members: new Set(filteredRows.map((row) => row.uid)).size,
       totalEffectiveBet,
       totalCashback,
-      cashbackToGgr,
-      rolloverPending: filteredRows.filter((row) => !row.rolloverDone).length,
     };
   }, [filteredRows]);
 
@@ -174,7 +169,7 @@ export default function CashbackReportPage() {
     {
       title: '玩家帳號',
       dataIndex: 'account',
-      width: 150,
+      width: 140,
       fixed: 'left',
       render: (value, row) => (
         <a
@@ -185,55 +180,56 @@ export default function CashbackReportPage() {
         </a>
       ),
     },
-    { title: '會員UID', dataIndex: 'uid', width: 110 },
+    { title: '會員UID', dataIndex: 'uid', width: 100 },
+    { title: '手機號', dataIndex: 'phone', width: 130 },
     {
       title: 'VIP等級',
       dataIndex: 'vipLevel',
       width: 90,
       render: (value) => `V${value}`,
     },
+    { title: '統計日期', dataIndex: 'statDate', width: 120 },
     {
       title: '有效投注金額',
       dataIndex: 'effectiveBet',
-      width: 150,
+      width: 140,
       align: 'right',
       render: formatCurrency,
     },
     {
       title: '流水返利金額',
       dataIndex: 'cashbackAmount',
-      width: 150,
+      width: 140,
       align: 'right',
       render: formatCurrency,
     },
     {
       title: '打碼要求',
       dataIndex: 'rolloverRequired',
-      width: 140,
+      width: 130,
       align: 'right',
       render: formatCurrency,
     },
+    { title: '結算時間', dataIndex: 'settledAt', width: 170 },
     {
-      title: '打碼進度',
-      dataIndex: 'rolloverProgress',
-      width: 140,
-      align: 'right',
-      render: formatCurrency,
-    },
-    {
-      title: '打碼狀態',
-      dataIndex: 'rolloverDone',
-      width: 110,
-      render: (done, row) => (
-        <Text
-          data-e2e-id={`${E2E}-table-rollover-status-${row.id}`}
-          style={{ color: done ? '#52c41a' : '#fa8c16' }}
+      title: '操作',
+      key: 'action',
+      width: 90,
+      fixed: 'right',
+      render: (_, row) => (
+        <Button
+          data-e2e-id={`${E2E}-table-detail-btn-${row.id}`}
+          type="link"
+          size="small"
+          onClick={(event) => {
+            event.stopPropagation();
+            setSelectedRow(row);
+          }}
         >
-          {done ? '已達標' : '未達標'}
-        </Text>
+          明細
+        </Button>
       ),
     },
-    { title: '結算時間', dataIndex: 'settledAt', width: 180 },
   ];
 
   const detailColumns: ColumnsType<CashbackBreakdownRow> = [
@@ -253,11 +249,32 @@ export default function CashbackReportPage() {
       render: (value) => `${value}%`,
     },
     {
-      title: '返利金額',
-      dataIndex: 'cashback',
-      width: 130,
+      title: '返利金額（封頂前）',
+      dataIndex: 'cashbackBeforeCap',
+      width: 150,
       align: 'right',
       render: formatCurrency,
+    },
+    {
+      title: '返利上限',
+      dataIndex: 'cap',
+      width: 130,
+      align: 'right',
+      render: (value: number) => (value > 0 ? formatCurrency(value) : '不限'),
+    },
+    {
+      title: '實派返利金額',
+      dataIndex: 'cashback',
+      width: 170,
+      align: 'right',
+      render: (value: number, row) => (
+        <>
+          {formatCurrency(value)}
+          {row.capped ? (
+            <Text style={{ color: '#fa8c16' }}>（已封頂）</Text>
+          ) : null}
+        </>
+      ),
     },
     {
       title: '打碼倍數',
@@ -286,7 +303,7 @@ export default function CashbackReportPage() {
         <Title level={4} style={{ margin: 0, color: '#e8e8e8' }}>
           投注返利報表
         </Title>
-        <Text type="secondary">投注返利（Cashback）派發與打碼追蹤</Text>
+        <Text type="secondary">投注返利（Cashback）派發明細（每會員每日一筆）</Text>
       </div>
 
       <Card style={{ marginBottom: 16 }}>
@@ -311,6 +328,14 @@ export default function CashbackReportPage() {
               style={{ width: 130 }}
             />
           </Form.Item>
+          <Form.Item name="phone" label="手機號">
+            <Input
+              data-e2e-id={`${E2E}-filter-phone-input`}
+              placeholder="輸入手機號"
+              allowClear
+              style={{ width: 150 }}
+            />
+          </Form.Item>
           <Form.Item name="vipLevel" label="VIP等級">
             <Select
               data-e2e-id={`${E2E}-filter-vip-level-select`}
@@ -330,18 +355,6 @@ export default function CashbackReportPage() {
               allowClear
               style={{ width: 120 }}
               options={GAME_TYPES.map((value) => ({ value, label: value }))}
-            />
-          </Form.Item>
-          <Form.Item name="rolloverStatus" label="打碼狀態">
-            <Select
-              data-e2e-id={`${E2E}-filter-rollover-status-select`}
-              placeholder="全部"
-              allowClear
-              style={{ width: 120 }}
-              options={[
-                { value: 'pending', label: '未達標' },
-                { value: 'done', label: '已達標' },
-              ]}
             />
           </Form.Item>
           <Form.Item name="settledRange" label="結算時間">
@@ -373,16 +386,16 @@ export default function CashbackReportPage() {
       </Card>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        <Col span={5}>
+        <Col span={8}>
           <Card>
             <Statistic
               data-e2e-id={`${E2E}-summary-members`}
-              title="涉及會員數"
+              title="不重複人數"
               value={stats.members}
             />
           </Card>
         </Col>
-        <Col span={5}>
+        <Col span={8}>
           <Card>
             <Statistic
               data-e2e-id={`${E2E}-summary-effective-bet`}
@@ -393,7 +406,7 @@ export default function CashbackReportPage() {
             />
           </Card>
         </Col>
-        <Col span={5}>
+        <Col span={8}>
           <Card>
             <Statistic
               data-e2e-id={`${E2E}-summary-cashback`}
@@ -402,28 +415,6 @@ export default function CashbackReportPage() {
               prefix="₱"
               precision={2}
               valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-        <Col span={5}>
-          <Card>
-            <Statistic
-              data-e2e-id={`${E2E}-summary-cashback-ggr-ratio`}
-              title="返利佔 GGR 比（模擬）"
-              value={stats.cashbackToGgr}
-              suffix="%"
-              precision={2}
-              valueStyle={{ color: '#1668dc' }}
-            />
-          </Card>
-        </Col>
-        <Col span={4}>
-          <Card>
-            <Statistic
-              data-e2e-id={`${E2E}-summary-rollover-pending`}
-              title="打碼未達標筆數"
-              value={stats.rolloverPending}
-              valueStyle={{ color: '#ff4d4f' }}
             />
           </Card>
         </Col>
@@ -445,7 +436,7 @@ export default function CashbackReportPage() {
           dataSource={filteredRows}
           rowKey="id"
           size="small"
-          scroll={{ x: 1390 }}
+          scroll={{ x: 1320 }}
           pagination={{
             pageSize: 20,
             showSizeChanger: true,
@@ -463,11 +454,41 @@ export default function CashbackReportPage() {
 
       <Drawer
         data-e2e-id={`${E2E}-detail-drawer`}
-        title={selectedRow ? `返利明細 — ${selectedRow.account}` : '返利明細'}
+        title={
+          selectedRow
+            ? `返利明細 — ${selectedRow.account}（${selectedRow.statDate}）`
+            : '返利明細'
+        }
         open={Boolean(selectedRow)}
         onClose={() => setSelectedRow(null)}
-        width={860}
+        width={1140}
       >
+        {selectedRow ? (
+          <Descriptions
+            data-e2e-id={`${E2E}-detail-descriptions`}
+            size="small"
+            column={3}
+            bordered
+            style={{ marginBottom: 16 }}
+          >
+            <Descriptions.Item label="玩家帳號">
+              {selectedRow.account}
+            </Descriptions.Item>
+            <Descriptions.Item label="手機號">{selectedRow.phone}</Descriptions.Item>
+            <Descriptions.Item label="VIP等級">
+              {`V${selectedRow.vipLevel}`}
+            </Descriptions.Item>
+            <Descriptions.Item label="統計日期">
+              {selectedRow.statDate}
+            </Descriptions.Item>
+            <Descriptions.Item label="結算時間">
+              {selectedRow.settledAt}
+            </Descriptions.Item>
+            <Descriptions.Item label="實派返利總額">
+              {formatCurrency(selectedRow.cashbackAmount)}
+            </Descriptions.Item>
+          </Descriptions>
+        ) : null}
         <Table
           data-e2e-id={`${E2E}-detail-table`}
           columns={detailColumns}
@@ -475,7 +496,7 @@ export default function CashbackReportPage() {
           rowKey="gameType"
           size="small"
           pagination={false}
-          scroll={{ x: 750 }}
+          scroll={{ x: 1070 }}
           onRow={(record) =>
             ({
               'data-e2e-id': `${E2E}-detail-row-${record.gameType}`,
