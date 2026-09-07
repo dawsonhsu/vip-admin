@@ -27,6 +27,7 @@ import {
   baseConfigInitialValues,
 } from './activityConfigShared/BaseConfigStep';
 import { freeSpinRestrictionCatalog } from '@/data/mockData';
+import { ALL_RESTRICTION_PATHS } from './GameRestrictionCascader';
 
 const { Text } = Typography;
 
@@ -539,6 +540,8 @@ export default function CashbackConfigModal({ open, onClose }: Props) {
       '2026-09-06 00:00:00',
       '2026-12-31 23:59:59',
     ),
+    // 打碼計入範圍預設「所有遊戲」(全平台)，避免必填空值卡在 Step 1；沒設就全平台。
+    wagerVenueRestriction: ALL_RESTRICTION_PATHS,
     popupText: 'Congratulations! You received Cashback Bonus!',
   };
 
