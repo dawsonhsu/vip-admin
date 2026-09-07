@@ -76,6 +76,7 @@ interface BaseRateRow {
   gameType: GameType;
   rate: number;
   cap: number;
+  minEffectiveBet: number;
   multiplier: number;
   status: RowStatus;
 }
@@ -85,6 +86,7 @@ interface OverrideRateRow {
   gamePaths: string[][];
   rate: number;
   cap: number;
+  minEffectiveBet: number;
   multiplier: number;
   status: RowStatus;
 }
@@ -110,11 +112,24 @@ const DEFAULT_CAPS: Record<GameType, number> = {
   Sports: 0,
 };
 
+// 起始有效投注額 (qualifying threshold) per game type. Cashback for that type is
+// only paid when the member's daily effective bet ON THAT TYPE exceeds this value.
+const DEFAULT_MIN_BETS: Record<GameType, number> = {
+  Slots: 1000,
+  Live: 2000,
+  Table: 2000,
+  Arcade: 1000,
+  Bingo: 800,
+  Fishing: 1000,
+  Sports: 2000,
+};
+
 const initialBaseRows: BaseRateRow[] = GAME_TYPES.map((gameType) => ({
   key: gameType,
   gameType,
   rate: DEFAULT_RATES[gameType],
   cap: DEFAULT_CAPS[gameType],
+  minEffectiveBet: DEFAULT_MIN_BETS[gameType],
   multiplier: 1,
   status: 'enabled',
 }));
@@ -128,6 +143,7 @@ const initialOverrideRows: OverrideRateRow[] = [
     ],
     rate: 1,
     cap: 800,
+    minEffectiveBet: 2000,
     multiplier: 1,
     status: 'enabled',
   },
@@ -182,6 +198,7 @@ function CashbackRateStep() {
         gamePaths: [],
         rate: 0,
         cap: 0,
+        minEffectiveBet: 0,
         multiplier: 1,
         status: 'enabled',
       },
@@ -227,6 +244,26 @@ function CashbackRateStep() {
           value={row.cap}
           style={{ width: '100%' }}
           onChange={(value) => updateBaseRow(row.key, 'cap', Number(value ?? 0))}
+        />
+      ),
+    },
+    {
+      title: '起始有效投注額',
+      dataIndex: 'minEffectiveBet',
+      width: 200,
+      render: (_, row) => (
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-base-min-bet-${row.gameType}`}
+          min={0}
+          step={100}
+          precision={2}
+          addonBefore="₱"
+          placeholder="0 = 不設門檻"
+          value={row.minEffectiveBet}
+          style={{ width: '100%' }}
+          onChange={(value) =>
+            updateBaseRow(row.key, 'minEffectiveBet', Number(value ?? 0))
+          }
         />
       ),
     },
@@ -321,6 +358,26 @@ function CashbackRateStep() {
       ),
     },
     {
+      title: '起始有效投注額',
+      dataIndex: 'minEffectiveBet',
+      width: 200,
+      render: (_, row) => (
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-override-min-bet-${row.key}`}
+          min={0}
+          step={100}
+          precision={2}
+          addonBefore="₱"
+          placeholder="0 = 不設門檻"
+          value={row.minEffectiveBet}
+          style={{ width: '100%' }}
+          onChange={(value) =>
+            updateOverrideRow(row.key, 'minEffectiveBet', Number(value ?? 0))
+          }
+        />
+      ),
+    },
+    {
       title: '打碼倍數',
       dataIndex: 'multiplier',
       width: 160,
@@ -385,7 +442,7 @@ function CashbackRateStep() {
           data-e2e-id={`${e2ePrefix}-priority-alert`}
           type="info"
           showIcon
-          message="命中優先級：指定遊戲 > 遊戲類型 > 未設不返；一注只命中一條。返利上限為「單一規則 / 單一會員 / 單日」上限，填 0 表示不限制。"
+          message="命中優先級：指定遊戲 > 遊戲類型 > 未設不返；一注只命中一條。返利上限為「單一規則 / 單一會員 / 單日」上限，填 0 表示不限制。起始有效投注額為該規則的單日門檻，當期有效投注額需「超過」門檻才派發，填 0 表示不設門檻。"
         />
 
         <div>
@@ -397,7 +454,7 @@ function CashbackRateStep() {
             rowKey="key"
             size="small"
             pagination={false}
-            scroll={{ x: 850 }}
+            scroll={{ x: 1060 }}
             style={{ marginTop: 8 }}
             onRow={(record) =>
               ({
@@ -416,7 +473,7 @@ function CashbackRateStep() {
             rowKey="key"
             size="small"
             pagination={false}
-            scroll={{ x: 1100 }}
+            scroll={{ x: 1300 }}
             style={{ marginTop: 8 }}
             onRow={(record) =>
               ({
@@ -456,27 +513,15 @@ function DistributionStep() {
         <Descriptions.Item label="帳變 / 流水記錄">
           依遊戲類型分筆記錄（每個參與的遊戲類型各產生一筆）
         </Descriptions.Item>
+        <Descriptions.Item label="起始有效投注額">
+          於「返利率配置」各遊戲類型 / 各規則分別設定；當期有效投注額需「超過」該門檻才派發該類型返利
+        </Descriptions.Item>
       </Descriptions>
-      <Form.Item
-        name="minEffectiveBet"
-        label="起始有效投注額"
-        tooltip="當期有效投注額需「超過」此門檻才派發返利；未達門檻不派發"
-        rules={[{ required: true, message: '請輸入起始有效投注額' }]}
-        style={{ marginTop: 20, marginBottom: 12 }}
-      >
-        <InputNumber
-          data-e2e-id={`${e2ePrefix}-min-effective-bet-input`}
-          min={0}
-          step={100}
-          prefix="₱"
-          style={{ width: 240 }}
-        />
-      </Form.Item>
       <Form.Item
         name="popupText"
         label="彈窗文案"
         rules={[{ required: true, message: '請輸入彈窗文案' }]}
-        style={{ marginBottom: 0 }}
+        style={{ marginTop: 20, marginBottom: 0 }}
       >
         <Input data-e2e-id={`${e2ePrefix}-popup-text-input`} />
       </Form.Item>
@@ -494,7 +539,6 @@ export default function CashbackConfigModal({ open, onClose }: Props) {
       '2026-09-06 00:00:00',
       '2026-12-31 23:59:59',
     ),
-    minEffectiveBet: 100,
     popupText: 'Congratulations! You received Cashback Bonus!',
   };
 
@@ -521,7 +565,7 @@ export default function CashbackConfigModal({ open, onClose }: Props) {
     },
     {
       title: '派發條件與彈窗',
-      validateFields: ['minEffectiveBet', 'popupText'],
+      validateFields: ['popupText'],
       render: () => <DistributionStep />,
     },
   ];
