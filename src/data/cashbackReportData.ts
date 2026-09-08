@@ -1,16 +1,24 @@
 import dayjs from 'dayjs';
 import type { GameType } from './memberStatsData';
 
+// 'game' = 指定遊戲（覆蓋層）, 'type' = 遊戲類型（基準層）。
+// Hit priority is 指定遊戲 > 遊戲類型, so one bet only ever matches one rule.
+export type CashbackRuleTier = 'game' | 'type';
+
 export interface CashbackBreakdownRow {
-  gameType: GameType;
-  effectiveBet: number;      // 該類型有效投注額
+  key: string;               // 唯一 key，例如 `type-Slots` / `game-super_ace`
+  ruleTier: CashbackRuleTier;
+  gameType: GameType;        // 指定遊戲列也帶它所屬的遊戲類型
+  gameName?: string;         // 僅 ruleTier === 'game'：遊戲名，如 'Super Ace'
+  providerName?: string;     // 僅 ruleTier === 'game'：廠商，如 'JILI'
+  effectiveBet: number;      // 該規則有效投注額
   rate: number;              // 返利率 %
   cashbackBeforeCap: number; // 封頂前返利金額 = effectiveBet * rate / 100
-  cap: number;               // 該類型返利上限，0 = 不限
+  cap: number;               // 該規則返利上限，0 = 不限
   cashback: number;          // 實派返利金額 = cap > 0 ? min(cashbackBeforeCap, cap) : cashbackBeforeCap
   capped: boolean;           // cap > 0 && cashbackBeforeCap > cap
   multiplier: number;        // 打碼倍數
-  rolloverForType: number;   // 該類型打碼要求 = cashback(實派) * multiplier
+  rolloverForType: number;   // 該規則打碼要求 = cashback(實派) * multiplier
 }
 
 export interface CashbackReportRow {
@@ -23,6 +31,8 @@ export interface CashbackReportRow {
   effectiveBet: number;
   cashbackAmount: number;   // = sum(breakdown.cashback) 實派
   rolloverRequired: number; // = sum(breakdown.rolloverForType)
+  gameRuleCashback: number; // = sum(breakdown where ruleTier === 'game').cashback
+  typeRuleCashback: number; // = sum(breakdown where ruleTier === 'type').cashback
   settledAt: string;        // T+1 04:00:00 結算時間
   breakdown: CashbackBreakdownRow[];
 }
@@ -58,6 +68,15 @@ const caps: Record<GameType, number> = {
   Fishing: 300,
   Sports: 0,
 };
+
+// Override tier (指定遊戲). Mirrors initialOverrideRows in CashbackConfigModal.
+const OVERRIDE_GAMES = [
+  { code: 'super_ace', name: 'Super Ace', provider: 'JILI', gameType: 'Slots' as GameType },
+  { code: 'mahjong_ways', name: 'Mahjong Ways', provider: 'PG', gameType: 'Slots' as GameType },
+];
+const OVERRIDE_RATE = 1;       // %
+const OVERRIDE_CAP = 800;
+const OVERRIDE_MULTIPLIER = 1;
 
 const MEMBER_COUNT = 12;
 const STAT_DAYS = 5;
@@ -115,6 +134,8 @@ const buildBreakdown = (
     const rolloverForType = roundCurrency(cashback * multiplier);
 
     return {
+      key: `type-${gameType}`,
+      ruleTier: 'type' as const,
       gameType,
       effectiveBet,
       rate,
@@ -124,6 +145,55 @@ const buildBreakdown = (
       capped,
       multiplier,
       rolloverForType,
+    };
+  });
+};
+
+// Override-tier rows (指定遊戲). Roughly half of the member-days get one, and a
+// smaller slice gets both games, so the demo shows the 指定遊戲 > 遊戲類型
+// priority without every row looking the same.
+const buildOverrideBreakdown = (
+  uid: string,
+  statDate: string,
+  memberIndex: number,
+  dayIndex: number
+): CashbackBreakdownRow[] => {
+  const bucket = hashString(`${uid}-${statDate}-override`) % 10;
+  if (bucket >= 5) return [];
+  const gameCount = bucket < 2 ? 2 : 1;
+  const startIndex = hashString(`${uid}-${statDate}-override-start`) % OVERRIDE_GAMES.length;
+
+  return Array.from({ length: gameCount }, (_, index) => {
+    const game = OVERRIDE_GAMES[(startIndex + index) % OVERRIDE_GAMES.length];
+    // High rollers stay above ₱80,000 (1% > the ₱800 cap) and everyone else
+    // stays below it, so both 已封頂 and 未封頂 override rows always exist.
+    const isHighRoller =
+      hashString(`${uid}-${statDate}-${game.code}-override-high`) % 3 === 0;
+    const effectiveBet = roundCurrency(
+      isHighRoller
+        ? 85000 + (((memberIndex + 2) * (dayIndex + 3) * (index + 5) * 733) % 35000)
+        : 5000 +
+            (((memberIndex + 4) * (dayIndex + 2) * (index + 6) * 617) % 69000) +
+            index * 55.5
+    );
+    const cashbackBeforeCap = roundCurrency((effectiveBet * OVERRIDE_RATE) / 100);
+    const capped = cashbackBeforeCap > OVERRIDE_CAP;
+    const cashback = capped ? OVERRIDE_CAP : cashbackBeforeCap;
+
+    return {
+      key: `game-${game.code}`,
+      ruleTier: 'game' as const,
+      gameType: game.gameType,
+      gameName: game.name,
+      providerName: game.provider,
+      effectiveBet,
+      rate: OVERRIDE_RATE,
+      cashbackBeforeCap,
+      cap: OVERRIDE_CAP,
+      cashback,
+      capped,
+      multiplier: OVERRIDE_MULTIPLIER,
+      rolloverForType: roundCurrency(cashback * OVERRIDE_MULTIPLIER),
     };
   });
 };
@@ -142,7 +212,11 @@ export function generateCashbackReport(): CashbackReportRow[] {
 
     memberDates.forEach((statDate) => {
       const dayIndex = STAT_DATES.indexOf(statDate);
-      const breakdown = buildBreakdown(uid, statDate, memberIndex, dayIndex);
+      // Override rows come first, mirroring the 指定遊戲 > 遊戲類型 hit priority.
+      const breakdown = [
+        ...buildOverrideBreakdown(uid, statDate, memberIndex, dayIndex),
+        ...buildBreakdown(uid, statDate, memberIndex, dayIndex),
+      ];
 
       rows.push({
         account: `member${uid}`,
@@ -158,6 +232,16 @@ export function generateCashbackReport(): CashbackReportRow[] {
         ),
         rolloverRequired: roundCurrency(
           breakdown.reduce((sum, item) => sum + item.rolloverForType, 0)
+        ),
+        gameRuleCashback: roundCurrency(
+          breakdown
+            .filter((item) => item.ruleTier === 'game')
+            .reduce((sum, item) => sum + item.cashback, 0)
+        ),
+        typeRuleCashback: roundCurrency(
+          breakdown
+            .filter((item) => item.ruleTier === 'type')
+            .reduce((sum, item) => sum + item.cashback, 0)
         ),
         // T+1 04:00:00 batch settlement (fixed run time for the whole day's turnover).
         settledAt: dayjs(`${statDate} 04:00:00`)

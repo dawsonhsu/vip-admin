@@ -25,7 +25,6 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import type { Dayjs } from 'dayjs';
 import dayjs from 'dayjs';
-import type { GameType } from '@/data/memberStatsData';
 import {
   generateCashbackReport,
   type CashbackBreakdownRow,
@@ -36,22 +35,12 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 const E2E = 'cashback-report';
-const GAME_TYPES: GameType[] = [
-  'Slots',
-  'Live',
-  'Table',
-  'Arcade',
-  'Bingo',
-  'Fishing',
-  'Sports',
-];
 
 interface ReportFilters {
   account?: string;
   uid?: string;
   phone?: string;
   vipLevel?: number;
-  gameType?: GameType;
   settledRange?: [Dayjs, Dayjs];
 }
 
@@ -125,12 +114,6 @@ export default function CashbackReportPage() {
         if (filters.uid && !row.uid.includes(filters.uid)) return false;
         if (filters.phone && !row.phone.includes(filters.phone)) return false;
         if (filters.vipLevel !== undefined && row.vipLevel !== filters.vipLevel) {
-          return false;
-        }
-        if (
-          filters.gameType &&
-          !row.breakdown.some((item) => item.gameType === filters.gameType)
-        ) {
           return false;
         }
         if (filters.settledRange?.length === 2) {
@@ -233,7 +216,29 @@ export default function CashbackReportPage() {
   ];
 
   const detailColumns: ColumnsType<CashbackBreakdownRow> = [
-    { title: '遊戲類型', dataIndex: 'gameType', width: 110 },
+    {
+      title: '命中規則',
+      dataIndex: 'ruleTier',
+      width: 110,
+      render: (value: CashbackBreakdownRow['ruleTier']) =>
+        value === 'game' ? '指定遊戲' : '遊戲類型',
+    },
+    {
+      title: '統計對象',
+      key: 'target',
+      width: 190,
+      render: (_, row) =>
+        row.ruleTier === 'game' ? (
+          <div>
+            <div>{row.gameName}</div>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {`${row.gameType} · ${row.providerName}`}
+            </Text>
+          </div>
+        ) : (
+          row.gameType
+        ),
+    },
     {
       title: '有效投注額',
       dataIndex: 'effectiveBet',
@@ -284,7 +289,7 @@ export default function CashbackReportPage() {
       render: (value) => `${value} 倍`,
     },
     {
-      title: '該類型打碼要求',
+      title: '該規則打碼要求',
       dataIndex: 'rolloverForType',
       width: 160,
       align: 'right',
@@ -346,15 +351,6 @@ export default function CashbackReportPage() {
                 value,
                 label: `V${value}`,
               }))}
-            />
-          </Form.Item>
-          <Form.Item name="gameType" label="遊戲類型">
-            <Select
-              data-e2e-id={`${E2E}-filter-game-type-select`}
-              placeholder="全部"
-              allowClear
-              style={{ width: 120 }}
-              options={GAME_TYPES.map((value) => ({ value, label: value }))}
             />
           </Form.Item>
           <Form.Item name="settledRange" label="結算時間">
@@ -461,13 +457,13 @@ export default function CashbackReportPage() {
         }
         open={Boolean(selectedRow)}
         onClose={() => setSelectedRow(null)}
-        width={1140}
+        width={1320}
       >
         {selectedRow ? (
           <Descriptions
             data-e2e-id={`${E2E}-detail-descriptions`}
             size="small"
-            column={3}
+            column={4}
             bordered
             style={{ marginBottom: 16 }}
           >
@@ -487,19 +483,25 @@ export default function CashbackReportPage() {
             <Descriptions.Item label="實派返利總額">
               {formatCurrency(selectedRow.cashbackAmount)}
             </Descriptions.Item>
+            <Descriptions.Item label="指定遊戲返利小計">
+              {formatCurrency(selectedRow.gameRuleCashback)}
+            </Descriptions.Item>
+            <Descriptions.Item label="遊戲類型返利小計">
+              {formatCurrency(selectedRow.typeRuleCashback)}
+            </Descriptions.Item>
           </Descriptions>
         ) : null}
         <Table
           data-e2e-id={`${E2E}-detail-table`}
           columns={detailColumns}
           dataSource={selectedRow?.breakdown ?? []}
-          rowKey="gameType"
+          rowKey="key"
           size="small"
           pagination={false}
-          scroll={{ x: 1070 }}
+          scroll={{ x: 1260 }}
           onRow={(record) =>
             ({
-              'data-e2e-id': `${E2E}-detail-row-${record.gameType}`,
+              'data-e2e-id': `${E2E}-detail-row-${record.key}`,
             } as React.HTMLAttributes<HTMLTableRowElement>)
           }
         />
