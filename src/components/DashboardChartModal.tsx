@@ -109,7 +109,7 @@ export default function DashboardChartModal({
         width: 120,
         fixed: 'left',
         sorter: (a, b) => String(a.bucket).localeCompare(String(b.bucket)),
-        defaultSortOrder: 'ascend' as const,
+        defaultSortOrder: 'descend' as const,
       },
       ...groupMetrics.map((metric) => ({
         title: metric.label,
