@@ -28,7 +28,6 @@ import {
   Space,
   Tooltip,
   Typography,
-  theme,
 } from 'antd';
 import type { Dayjs } from 'dayjs';
 import DashboardChartModal from '@/components/DashboardChartModal';
@@ -46,6 +45,12 @@ import {
 
 const { RangePicker } = DatePicker;
 const { Text } = Typography;
+
+const GROUP_GRADIENTS: Record<GroupKey, string> = {
+  member: 'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)',
+  betting: 'linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%)',
+  game: 'linear-gradient(135deg, #55efc4 0%, #00b894 100%)',
+};
 
 const QUICK_E2E_KEYS: Record<QuickKey, string> = {
   今日: 'today',
@@ -86,98 +91,147 @@ interface MetricCardProps {
 }
 
 function MetricCard({ metric, values, onOpen }: MetricCardProps) {
-  const { token } = theme.useToken();
   const openChart = () => onOpen(metric.key);
 
   return (
-    <Card
-      data-e2e-id={`dashboard-card-${metric.key}`}
-      hoverable
-      role="button"
-      tabIndex={0}
-      onClick={openChart}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          openChart();
-        }
-      }}
-      styles={{
-        body: {
-          minHeight: 116,
-          padding: 16,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-        },
-      }}
-    >
+    <>
       <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
+        className="metric-card"
+        style={{ background: GROUP_GRADIENTS[metric.group] }}
+        data-e2e-id={`dashboard-card-${metric.key}`}
+        role="button"
+        tabIndex={0}
+        onClick={openChart}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openChart();
+          }
         }}
       >
-        <div
-          style={{
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            color: token.colorTextSecondary,
-            fontSize: 13,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <span style={{ color: token.colorPrimary, fontSize: 15, display: 'inline-flex' }}>
+        <div className="metric-card__top-row">
+          <span className="metric-card__icon">
             {metric.icon ? iconMap[metric.icon] : null}
           </span>
+          {metric.secondary ? (
+            <div
+              className="metric-card__secondary"
+              title={`${metric.secondary.label} ${formatMetric(values[metric.secondary.key], metric.secondary.format)}`}
+            >
+              {metric.secondary.label}{' '}
+              {formatMetric(values[metric.secondary.key], metric.secondary.format)}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="metric-card__label-row">
           <span>{metric.label}</span>
           {metric.tooltip ? (
             <Tooltip title={metric.tooltip}>
               <InfoCircleOutlined
                 data-e2e-id={`dashboard-card-tooltip-${metric.key}`}
-                style={{ color: token.colorTextTertiary }}
+                className="metric-card__tooltip"
                 onClick={(event) => event.stopPropagation()}
               />
             </Tooltip>
           ) : null}
         </div>
-        {metric.secondary ? (
-          <div
-            title={`${metric.secondary.label} ${formatMetric(values[metric.secondary.key], metric.secondary.format)}`}
-            style={{
-              flexShrink: 1,
-              minWidth: 0,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              textAlign: 'right',
-              fontSize: 11,
-              color: token.colorTextTertiary,
-            }}
-          >
-            {metric.secondary.label}{' '}
-            {formatMetric(values[metric.secondary.key], metric.secondary.format)}
-          </div>
-        ) : null}
+
+        <div className="metric-card__value">
+          {formatMetric(values[metric.key], metric.format)}
+        </div>
       </div>
-      <div
-        style={{
-          color: token.colorText,
-          fontSize: 24,
-          fontWeight: 600,
-          lineHeight: 1.25,
-          fontVariantNumeric: 'tabular-nums',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
-      >
-        {formatMetric(values[metric.key], metric.format)}
-      </div>
-    </Card>
+
+      <style jsx>{`
+        .metric-card {
+          min-height: 116px;
+          padding: 16px;
+          border-radius: 8px;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          position: relative;
+          cursor: pointer;
+          color: #fff;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .metric-card::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          right: 0;
+          width: 60px;
+          height: 60px;
+          background: rgba(255, 255, 255, 0.12);
+          border-radius: 50%;
+          transform: translate(20px, -20px);
+        }
+
+        .metric-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+        }
+
+        .metric-card__top-row,
+        .metric-card__label-row,
+        .metric-card__value {
+          position: relative;
+          z-index: 1;
+        }
+
+        .metric-card__top-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+
+        .metric-card__icon {
+          display: inline-flex;
+          flex-shrink: 0;
+          color: #fff;
+          font-size: 22px;
+        }
+
+        .metric-card__secondary {
+          min-width: 0;
+          overflow: hidden;
+          color: rgba(255, 255, 255, 0.85);
+          font-size: 11px;
+          text-align: right;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .metric-card__label-row {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          color: rgba(255, 255, 255, 0.92);
+          font-size: 14px;
+          white-space: nowrap;
+        }
+
+        .metric-card__label-row :global(.metric-card__tooltip) {
+          color: rgba(255, 255, 255, 0.8);
+        }
+
+        .metric-card__value {
+          overflow: hidden;
+          color: #fff;
+          font-size: 24px;
+          font-weight: 700;
+          font-variant-numeric: tabular-nums;
+          line-height: 1.25;
+          text-overflow: ellipsis;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+          white-space: nowrap;
+        }
+      `}</style>
+    </>
   );
 }
 
