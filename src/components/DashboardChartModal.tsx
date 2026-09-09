@@ -108,6 +108,8 @@ export default function DashboardChartModal({
         key: 'bucket',
         width: 120,
         fixed: 'left',
+        sorter: (a, b) => String(a.bucket).localeCompare(String(b.bucket)),
+        defaultSortOrder: 'ascend' as const,
       },
       ...groupMetrics.map((metric) => ({
         title: metric.label,
@@ -115,6 +117,8 @@ export default function DashboardChartModal({
         key: metric.key,
         align: 'right' as const,
         width: 150,
+        sorter: (a: DashboardSeriesRow, b: DashboardSeriesRow) =>
+          Number(a[metric.key]) - Number(b[metric.key]),
         render: (value: number) => formatMetric(Number(value), metric.format),
       })),
     ],

@@ -47,9 +47,9 @@ const { RangePicker } = DatePicker;
 const { Text } = Typography;
 
 const GROUP_GRADIENTS: Record<GroupKey, string> = {
-  member: 'linear-gradient(135deg, #74b9ff 0%, #0984e3 100%)',
-  betting: 'linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%)',
-  game: 'linear-gradient(135deg, #55efc4 0%, #00b894 100%)',
+  member: 'linear-gradient(135deg, #2f74bd 0%, #0b4a86 100%)',
+  betting: 'linear-gradient(135deg, #5b3fd6 0%, #3a2699 100%)',
+  game: 'linear-gradient(135deg, #10a37f 0%, #067055 100%)',
 };
 
 const QUICK_E2E_KEYS: Record<QuickKey, string> = {
