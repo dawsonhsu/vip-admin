@@ -37,6 +37,7 @@ interface GameCascaderOption {
   value: string;
   label: string;
   children?: GameCascaderOption[];
+  disabled?: boolean;
 }
 
 // Local 3-level options (遊戲類型 → 廠商 → 遊戲) for the 覆蓋層「指定遊戲」picker.
@@ -84,6 +85,7 @@ interface BaseRateRow {
 
 interface OverrideRateRow {
   key: string;
+  groupName: string;
   gamePaths: string[][];
   rate: number;
   cap: number;
@@ -138,6 +140,7 @@ const initialBaseRows: BaseRateRow[] = GAME_TYPES.map((gameType) => ({
 const initialOverrideRows: OverrideRateRow[] = [
   {
     key: 'override-1',
+    groupName: '熱門電子',
     gamePaths: [
       ['Slots', 'JILI', 'super_ace'],
       ['Slots', 'PG', 'mahjong_ways'],
@@ -145,6 +148,19 @@ const initialOverrideRows: OverrideRateRow[] = [
     rate: 1,
     cap: 800,
     minEffectiveBet: 2000,
+    multiplier: 1,
+    status: 'enabled',
+  },
+  {
+    key: 'override-2',
+    groupName: '經典捕魚',
+    gamePaths: [
+      ['Fishing', 'JDB', 'fishing_god'],
+      ['Fishing', 'FC', 'golden_shark'],
+    ],
+    rate: 0.8,
+    cap: 500,
+    minEffectiveBet: 1500,
     multiplier: 1,
     status: 'enabled',
   },
@@ -196,6 +212,7 @@ function CashbackRateStep() {
       ...current,
       {
         key: `override-${Date.now()}`,
+        groupName: '',
         gamePaths: [],
         rate: 0,
         cap: 0,
@@ -302,7 +319,40 @@ function CashbackRateStep() {
     },
   ];
 
+  const buildOverrideOptions = (
+    currentRowKey: string,
+    rows: OverrideRateRow[],
+  ): GameCascaderOption[] => {
+    const usedByOthers = new Set<string>();
+    rows.forEach((r) => {
+      if (r.key === currentRowKey) return;
+      r.gamePaths.forEach((path) => usedByOthers.add(path.join('/')));
+    });
+    const mark = (options: GameCascaderOption[], prefix: string[]): GameCascaderOption[] =>
+      options.map((opt) => {
+        const path = [...prefix, opt.value];
+        if (opt.children) {
+          return { ...opt, children: mark(opt.children, path) };
+        }
+        return { ...opt, disabled: usedByOthers.has(path.join('/')) };
+      });
+    return mark(overrideGameOptions, []);
+  };
+
   const overrideColumns: ColumnsType<OverrideRateRow> = [
+    {
+      title: '組命名',
+      dataIndex: 'groupName',
+      width: 160,
+      render: (_, row) => (
+        <Input
+          data-e2e-id={`${e2ePrefix}-override-group-name-${row.key}`}
+          value={row.groupName}
+          placeholder="如：熱門電子"
+          onChange={(e) => updateOverrideRow(row.key, 'groupName', e.target.value)}
+        />
+      ),
+    },
     {
       title: '指定遊戲',
       dataIndex: 'gamePaths',
@@ -311,7 +361,7 @@ function CashbackRateStep() {
         <Cascader
           data-e2e-id={`${e2ePrefix}-override-games-${row.key}`}
           multiple
-          options={overrideGameOptions}
+          options={buildOverrideOptions(row.key, overrideRows)}
           value={row.gamePaths}
           placeholder="選擇遊戲類型 → 廠商 → 遊戲"
           showCheckedStrategy={Cascader.SHOW_CHILD}
@@ -443,7 +493,7 @@ function CashbackRateStep() {
           data-e2e-id={`${e2ePrefix}-priority-alert`}
           type="info"
           showIcon
-          message="命中優先級：指定遊戲 > 遊戲類型 > 未設不返；一注只命中一條。返利上限為「單一規則 / 單一會員 / 單日」上限，填 0 表示不限制。起始有效投注額為該規則的單日門檻，當期有效投注額需「超過」門檻才派發，填 0 表示不設門檻。"
+          message="命中優先級：指定遊戲 > 遊戲類型 > 未設不返；一注只命中一條。指定遊戲可分組命名，同一款遊戲不可被不同組重複選取；同組遊戲共用同一組返利率／返利上限／起始有效投注額門檻。返利上限為「單一規則 / 單一會員 / 單日」上限，填 0 表示不限制。起始有效投注額為該規則的單日門檻，當期有效投注額需「超過」門檻才派發，填 0 表示不設門檻。"
         />
 
         <div>
@@ -474,7 +524,7 @@ function CashbackRateStep() {
             rowKey="key"
             size="small"
             pagination={false}
-            scroll={{ x: 1300 }}
+            scroll={{ x: 1480 }}
             style={{ marginTop: 8 }}
             onRow={(record) =>
               ({

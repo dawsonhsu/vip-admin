@@ -226,18 +226,25 @@ export default function CashbackReportPage() {
     {
       title: '統計對象',
       key: 'target',
-      width: 190,
+      width: 200,
       render: (_, row) =>
         row.ruleTier === 'game' ? (
           <div>
-            <div>{row.gameName}</div>
+            <div>{row.groupName}</div>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {`${row.gameType} · ${row.providerName}`}
+              {`${row.gameType} · ${(row.groupGames ?? []).join('、')}`}
             </Text>
           </div>
         ) : (
           row.gameType
         ),
+    },
+    {
+      title: '起始有效投注額',
+      dataIndex: 'minEffectiveBet',
+      width: 130,
+      align: 'right',
+      render: (value: number) => (value > 0 ? formatCurrency(value) : '不設門檻'),
     },
     {
       title: '有效投注額',
@@ -498,7 +505,7 @@ export default function CashbackReportPage() {
           rowKey="key"
           size="small"
           pagination={false}
-          scroll={{ x: 1260 }}
+          scroll={{ x: 1400 }}
           onRow={(record) =>
             ({
               'data-e2e-id': `${E2E}-detail-row-${record.key}`,

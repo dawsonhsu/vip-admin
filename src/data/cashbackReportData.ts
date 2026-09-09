@@ -9,8 +9,11 @@ export interface CashbackBreakdownRow {
   key: string;               // 唯一 key，例如 `type-Slots` / `game-super_ace`
   ruleTier: CashbackRuleTier;
   gameType: GameType;        // 指定遊戲列也帶它所屬的遊戲類型
+  groupName?: string;        // 僅 ruleTier === 'game'：指定遊戲組名
+  groupGames?: string[];     // 僅 group：組內遊戲名列表，供次要文字
   gameName?: string;         // 僅 ruleTier === 'game'：遊戲名，如 'Super Ace'
   providerName?: string;     // 僅 ruleTier === 'game'：廠商，如 'JILI'
+  minEffectiveBet: number;   // 起始有效投注額門檻
   effectiveBet: number;      // 該規則有效投注額
   rate: number;              // 返利率 %
   cashbackBeforeCap: number; // 封頂前返利金額 = effectiveBet * rate / 100
@@ -69,14 +72,44 @@ const caps: Record<GameType, number> = {
   Sports: 0,
 };
 
-// Override tier (指定遊戲). Mirrors initialOverrideRows in CashbackConfigModal.
-const OVERRIDE_GAMES = [
-  { code: 'super_ace', name: 'Super Ace', provider: 'JILI', gameType: 'Slots' as GameType },
-  { code: 'mahjong_ways', name: 'Mahjong Ways', provider: 'PG', gameType: 'Slots' as GameType },
+const minBets: Record<GameType, number> = {
+  Slots: 1000,
+  Live: 2000,
+  Table: 2000,
+  Arcade: 1000,
+  Bingo: 800,
+  Fishing: 1000,
+  Sports: 2000,
+};
+
+const OVERRIDE_GROUPS = [
+  {
+    id: 'hot_slots',
+    name: '熱門電子',
+    gameType: 'Slots' as GameType,
+    rate: 1,
+    cap: 800,
+    multiplier: 1,
+    minEffectiveBet: 2000,
+    games: [
+      { code: 'super_ace', name: 'Super Ace', provider: 'JILI' },
+      { code: 'mahjong_ways', name: 'Mahjong Ways', provider: 'PG' },
+    ],
+  },
+  {
+    id: 'classic_fishing',
+    name: '經典捕魚',
+    gameType: 'Fishing' as GameType,
+    rate: 0.8,
+    cap: 500,
+    multiplier: 1,
+    minEffectiveBet: 1500,
+    games: [
+      { code: 'fishing_god', name: 'Fishing God', provider: 'JDB' },
+      { code: 'golden_shark', name: 'Golden Shark', provider: 'FC' },
+    ],
+  },
 ];
-const OVERRIDE_RATE = 1;       // %
-const OVERRIDE_CAP = 800;
-const OVERRIDE_MULTIPLIER = 1;
 
 const MEMBER_COUNT = 12;
 const STAT_DAYS = 5;
@@ -137,6 +170,7 @@ const buildBreakdown = (
       key: `type-${gameType}`,
       ruleTier: 'type' as const,
       gameType,
+      minEffectiveBet: minBets[gameType],
       effectiveBet,
       rate,
       cashbackBeforeCap,
@@ -149,52 +183,54 @@ const buildBreakdown = (
   });
 };
 
-// Override-tier rows (指定遊戲). Roughly half of the member-days get one, and a
-// smaller slice gets both games, so the demo shows the 指定遊戲 > 遊戲類型
-// priority without every row looking the same.
-const buildOverrideBreakdown = (
+// 指定遊戲以「組」為單位：組內各遊戲有效投注額合併成一筆，套用該組單一門檻/費率/上限。
+const buildGroupBreakdown = (
   uid: string,
   statDate: string,
   memberIndex: number,
   dayIndex: number
 ): CashbackBreakdownRow[] => {
-  const bucket = hashString(`${uid}-${statDate}-override`) % 10;
-  if (bucket >= 5) return [];
-  const gameCount = bucket < 2 ? 2 : 1;
-  const startIndex = hashString(`${uid}-${statDate}-override-start`) % OVERRIDE_GAMES.length;
+  return OVERRIDE_GROUPS.flatMap((group) => {
+    const bucket = hashString(`${uid}-${statDate}-group-${group.id}`) % 10;
+    if (bucket >= 5) return []; // 約半數 member-day 參與該組
 
-  return Array.from({ length: gameCount }, (_, index) => {
-    const game = OVERRIDE_GAMES[(startIndex + index) % OVERRIDE_GAMES.length];
-    // High rollers stay above ₱80,000 (1% > the ₱800 cap) and everyone else
-    // stays below it, so both 已封頂 and 未封頂 override rows always exist.
     const isHighRoller =
-      hashString(`${uid}-${statDate}-${game.code}-override-high`) % 3 === 0;
-    const effectiveBet = roundCurrency(
-      isHighRoller
-        ? 85000 + (((memberIndex + 2) * (dayIndex + 3) * (index + 5) * 733) % 35000)
-        : 5000 +
-            (((memberIndex + 4) * (dayIndex + 2) * (index + 6) * 617) % 69000) +
-            index * 55.5
+      hashString(`${uid}-${statDate}-${group.id}-high`) % 3 === 0;
+    // 組內每款遊戲各自模擬有效投注額，再合併為組有效投注額。
+    const groupEffectiveBet = roundCurrency(
+      group.games.reduce((sum, _game, idx) => {
+        const perGame = isHighRoller
+          ? 45000 + (((memberIndex + 2) * (dayIndex + 3) * (idx + 5) * 733) % 30000)
+          : 3000 + (((memberIndex + 4) * (dayIndex + 2) * (idx + 6) * 617) % 40000);
+        return sum + perGame;
+      }, 0)
     );
-    const cashbackBeforeCap = roundCurrency((effectiveBet * OVERRIDE_RATE) / 100);
-    const capped = cashbackBeforeCap > OVERRIDE_CAP;
-    const cashback = capped ? OVERRIDE_CAP : cashbackBeforeCap;
 
-    return {
-      key: `game-${game.code}`,
-      ruleTier: 'game' as const,
-      gameType: game.gameType,
-      gameName: game.name,
-      providerName: game.provider,
-      effectiveBet,
-      rate: OVERRIDE_RATE,
-      cashbackBeforeCap,
-      cap: OVERRIDE_CAP,
-      cashback,
-      capped,
-      multiplier: OVERRIDE_MULTIPLIER,
-      rolloverForType: roundCurrency(cashback * OVERRIDE_MULTIPLIER),
-    };
+    // 門檻閘：組有效投注額需「超過」該組門檻才派發。
+    if (groupEffectiveBet <= group.minEffectiveBet) return [];
+
+    const cashbackBeforeCap = roundCurrency((groupEffectiveBet * group.rate) / 100);
+    const capped = group.cap > 0 && cashbackBeforeCap > group.cap;
+    const cashback = capped ? group.cap : cashbackBeforeCap;
+
+    return [
+      {
+        key: `group-${group.id}`,
+        ruleTier: 'game' as const,
+        gameType: group.gameType,
+        groupName: group.name,
+        groupGames: group.games.map((g) => g.name),
+        minEffectiveBet: group.minEffectiveBet,
+        effectiveBet: groupEffectiveBet,
+        rate: group.rate,
+        cashbackBeforeCap,
+        cap: group.cap,
+        cashback,
+        capped,
+        multiplier: group.multiplier,
+        rolloverForType: roundCurrency(cashback * group.multiplier),
+      },
+    ];
   });
 };
 
@@ -214,7 +250,7 @@ export function generateCashbackReport(): CashbackReportRow[] {
       const dayIndex = STAT_DATES.indexOf(statDate);
       // Override rows come first, mirroring the 指定遊戲 > 遊戲類型 hit priority.
       const breakdown = [
-        ...buildOverrideBreakdown(uid, statDate, memberIndex, dayIndex),
+        ...buildGroupBreakdown(uid, statDate, memberIndex, dayIndex),
         ...buildBreakdown(uid, statDate, memberIndex, dayIndex),
       ];
 
