@@ -26,6 +26,7 @@ import {
   BASE_CONFIG_STEP_FIELDS,
   baseConfigInitialValues,
 } from './activityConfigShared/BaseConfigStep';
+import RichTextEditor, { isRichTextEmpty, richTextToPlainText } from './RichTextEditor';
 import { freeSpinRestrictionCatalog } from '@/data/mockData';
 import { ALL_RESTRICTION_PATHS } from './GameRestrictionCascader';
 
@@ -58,6 +59,9 @@ const overrideGameOptions: GameCascaderOption[] = (
 }));
 
 const e2ePrefix = 'cashback-config-modal';
+
+/** 活動規則純文字字數上限 */
+const ACTIVITY_RULES_MAX_LENGTH = 2000;
 const ACTIVITY_ID = 32;
 const ACTIVITY_NAME = '投注返利';
 
@@ -572,9 +576,38 @@ function DistributionStep() {
         name="popupText"
         label="彈窗文案"
         rules={[{ required: true, message: '請輸入彈窗文案' }]}
-        style={{ marginTop: 20, marginBottom: 0 }}
+        style={{ marginTop: 20, marginBottom: 16 }}
       >
         <Input data-e2e-id={`${e2ePrefix}-popup-text-input`} />
+      </Form.Item>
+      <Form.Item
+        name="activityRules"
+        label="活動規則"
+        tooltip="彈窗下方顯示的活動規則說明，支援標題、清單、粗體等排版"
+        rules={[
+          {
+            validator: (_, value) => {
+              if (isRichTextEmpty(value)) {
+                return Promise.reject(new Error('請輸入活動規則'));
+              }
+              if (richTextToPlainText(value).length > ACTIVITY_RULES_MAX_LENGTH) {
+                return Promise.reject(
+                  new Error(`活動規則不可超過 ${ACTIVITY_RULES_MAX_LENGTH} 字`)
+                );
+              }
+              return Promise.resolve();
+            },
+          },
+        ]}
+        required
+        style={{ marginBottom: 0 }}
+      >
+        <RichTextEditor
+          data-e2e-id={`${e2ePrefix}-activity-rules-editor`}
+          placeholder="請輸入活動規則，例如結算時間、有效投注認定、派發方式等"
+          minHeight={220}
+          maxLength={ACTIVITY_RULES_MAX_LENGTH}
+        />
       </Form.Item>
     </Card>
   );
@@ -593,6 +626,16 @@ export default function CashbackConfigModal({ open, onClose }: Props) {
     // 打碼計入範圍預設「所有遊戲」(全平台)，避免必填空值卡在 Step 1；沒設就全平台。
     wagerVenueRestriction: ALL_RESTRICTION_PATHS,
     popupText: 'Congratulations! You received Cashback Bonus!',
+    activityRules: [
+      '<h3>Cashback Bonus Rules</h3>',
+      '<ol>',
+      '<li>Cashback is calculated from the valid turnover of the previous day and settled daily at 04:00 (GMT+8).</li>',
+      '<li>Each game type is calculated separately and credited to your Bonus Wallet automatically — no claim needed.</li>',
+      '<li>Your valid turnover must exceed the minimum turnover of the corresponding game type to qualify.</li>',
+      '<li>The payout of each tier is limited by its daily cap.</li>',
+      '<li>Filbet reserves the right of final interpretation of this promotion.</li>',
+      '</ol>',
+    ].join(''),
   };
 
   const steps: WizardStepDef[] = [
@@ -618,7 +661,7 @@ export default function CashbackConfigModal({ open, onClose }: Props) {
     },
     {
       title: '派發條件與彈窗',
-      validateFields: ['popupText'],
+      validateFields: ['popupText', 'activityRules'],
       render: () => <DistributionStep />,
     },
   ];
