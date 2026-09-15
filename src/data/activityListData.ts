@@ -36,6 +36,14 @@ export interface VipTaskRecord {
 // 限时活动（有效）
 export const activeActivities: ActivityRecord[] = [
   {
+    key: 33, id: 33, type: '返水类', name: '輸值返利', status: '进行中',
+    introEN: '-', introTA: '-',
+    startTime: '2026-09-01 00:00:00', endTime: '2026-12-31 23:59:59',
+    cycle: '日', settleCycle: '日',
+    report: '查看报表', budgetLimit: '-', currentPaid: '₱ 0.00',
+    updatedAt: '2026-09-15 00:00:00', updatedBy: 'darren@filbetph.com',
+  },
+  {
     key: 32, id: 32, type: '返水类', name: '投注返利', status: '进行中',
     introEN: '-', introTA: '-',
     startTime: '2026-09-06 00:00:00', endTime: '2026-12-31 23:59:59',

@@ -48,6 +48,7 @@ import ReactivationMysteryBoxConfigModal from '@/components/ReactivationMysteryB
 import ReactivationMysteryBoxGrantModal from '@/components/ReactivationMysteryBoxGrantModal';
 import ReactivationMysteryBoxReportModal from '@/components/ReactivationMysteryBoxReportModal';
 import CashbackConfigModal from '@/components/CashbackConfigModal';
+import LossRebateConfigModal from '@/components/LossRebateConfigModal';
 
 // 识别哪些活动是 FreeBet 类型（可拆独立配置 + 报表）
 const FREEBET_ACTIVITY_IDS = new Set<number>([29]);
@@ -58,6 +59,7 @@ const DAILY_CUMULATIVE_ID = 13;
 const KYC_FREESPIN_ID = 19;
 const DAILY_MULTI_DEPOSIT_ID = 22;
 const CASHBACK_ID = 32;
+const LOSS_REBATE_ID = 33;
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -85,8 +87,13 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const [kycFreespinConfigOpen, setKycFreespinConfigOpen] = useState(false);
   const [dailyMultiDepositConfigOpen, setDailyMultiDepositConfigOpen] = useState(false);
   const [cashbackConfigOpen, setCashbackConfigOpen] = useState(false);
+  const [lossRebateConfigOpen, setLossRebateConfigOpen] = useState(false);
 
   const handleEditConfig = (record: ActivityRecord) => {
+    if (record.id === LOSS_REBATE_ID) {
+      setLossRebateConfigOpen(true);
+      return;
+    }
     if (record.id === CASHBACK_ID) {
       setCashbackConfigOpen(true);
       return;
@@ -123,6 +130,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   };
 
   const handleViewReport = (record: ActivityRecord) => {
+    if (record.id === LOSS_REBATE_ID) {
+      router.push('/admin/loss-rebate-report');
+      return;
+    }
     if (record.id === CASHBACK_ID) {
       router.push('/admin/cashback-report');
       return;
@@ -295,7 +306,8 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
           {(FREEBET_ACTIVITY_IDS.has(record.id) ||
             record.id === NEW_MEMBER_TRI_DEPOSIT_ID ||
             record.id === RECALL_MYSTERY_BOX_ID ||
-            record.id === CASHBACK_ID) && (
+            record.id === CASHBACK_ID ||
+            record.id === LOSS_REBATE_ID) && (
             <Button
               data-e2e-id={`activity-list-table-view-report-btn-${record.id}`}
               type="link"
@@ -455,6 +467,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <CashbackConfigModal
         open={cashbackConfigOpen}
         onClose={() => setCashbackConfigOpen(false)}
+      />
+      <LossRebateConfigModal
+        open={lossRebateConfigOpen}
+        onClose={() => setLossRebateConfigOpen(false)}
       />
     </>
   );
