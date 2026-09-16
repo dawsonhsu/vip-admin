@@ -7,7 +7,11 @@
 //
 // 注意：代理端前端不在已 clone 的 repo 內，以下資料為依 API 結構合成的假資料。
 
+import dayjs from 'dayjs';
 import { agencySeed, createRng, rngInt, rngPick } from '@/lib/agencyUtils';
+
+// 每小時的 demo 快照：同一小時、同 seed 跨頁或重新載入皆相同，事件不晚於現在。
+export const AGENCY_DATA_NOW = dayjs().startOf('hour').unix();
 
 // ---- 遊戲分類（對應 fb_game_class，demo 取平台常見八類）----
 export interface AgencyGameClass {
@@ -132,7 +136,7 @@ export interface AgencyMember {
   deposit_count: number;
   withdraw_total: string;
   withdraw_count: number;
-  first_deposit: number;
+  first_deposit: number; // 1 表示生涯曾經存款，須與存款總額及事件一致
   balance: string;
   is_online: boolean;
   parent: AgencyParentInfo;
@@ -145,6 +149,7 @@ export const agencyAccount = {
   username: 'agent_darren',
   phone: '09171234567',
   settle_type: 2, // 1 每週 2 每月
+  // 真實 /agency/profile 的邀請欄位保留，目前前端未呈現。
   invite_code: 'FB8K2M',
   invite_link: 'https://www.filbet.com/?c=FB8K2M',
   invite_img: [
@@ -183,80 +188,165 @@ function amount(rng: () => number, min: number, max: number): string {
   return (rng() * (max - min) + min).toFixed(2);
 }
 
-/**
- * 產生代理的下線會員名單。相同 seed 必得相同結果，
- * 讓會員列表 / 活躍會員 / 投注紀錄 / 禮金各頁的會員能對得起來。
- */
-export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] {
-  const rng = createRng(seed);
-  const now = Math.floor(Date.now() / 1000);
+export interface AgencyMonthProfile {
+  hasDeposit: boolean;
+  hasWithdraw: boolean;
+  hasBet: boolean;
+}
 
-  return Array.from({ length: count }, (_, index) => {
+export function agencyHistoricFirstDepositAt(seed: number, uid: string, createdAt: number): number {
+  const monthStart = dayjs.unix(AGENCY_DATA_NOW).startOf('month').unix();
+  const rng = createRng(agencySeed(seed, uid, 'first-deposit'));
+  return Math.min(createdAt + rngInt(rng, 0, 30 * 86400), monthStart - 1);
+}
+
+type MemberIdentity = Pick<AgencyMember, 'uid' | 'created_at' | 'first_deposit'>;
+
+// 小型展示樣本採分層抽樣：用各會員自己的 seeded roll 排序，避免 2~4 位新會員全轉換。
+function sampleMembers(members: MemberIdentity[], count: number, roll: (member: MemberIdentity) => number): Set<string> {
+  return new Set([...members].sort((a, b) => roll(a) - roll(b) || a.uid.localeCompare(b.uid))
+    .slice(0, Math.max(0, Math.round(count))).map((member) => member.uid));
+}
+
+function monthProfiles(seed: number, members: MemberIdentity[], month: string): Map<string, AgencyMonthProfile> {
+  const period = dayjs(month).startOf('month');
+  const current = period.isSame(dayjs.unix(AGENCY_DATA_NOW), 'month');
+  const alive = members.filter((member) => member.created_at <= Math.min(AGENCY_DATA_NOW, period.endOf('month').unix()));
+  const rolls = new Map(alive.map((member) => {
+    const rng = createRng(agencySeed(seed, member.uid, month, 'profile'));
+    return [member.uid, [rng(), rng(), rng()]] as const;
+  }));
+  const roll = (index: number) => (member: MemberIdentity) => rolls.get(member.uid)![index];
+  const newMembers = alive.filter((member) => member.created_at >= period.unix());
+  const oldMembers = alive.filter((member) => member.created_at < period.unix());
+  const firstAt = (member: MemberIdentity) => agencyHistoricFirstDepositAt(seed, member.uid, member.created_at);
+  const eligible = alive.filter((member) => member.first_deposit === 1 && firstAt(member) <= period.endOf('month').unix());
+  const firstMembers = current ? [] : eligible.filter((member) => firstAt(member) >= period.unix());
+  const deposits = current ? sampleMembers(newMembers, newMembers.length * 0.45, roll(0)) : new Set<string>();
+  firstMembers.forEach((member) => deposits.add(member.uid));
+  const repeatCandidates = eligible.filter((member) => !deposits.has(member.uid) && member.created_at < period.unix());
+  // 已有存款經驗才會續存；未曾首存者不能出現存款流水。
+  const repeat = sampleMembers(repeatCandidates, oldMembers.length * 0.60 - firstMembers.filter((member) => member.created_at < period.unix()).length, roll(0));
+  repeat.forEach((uid) => deposits.add(uid));
+  const depositMembers = alive.filter((member) => deposits.has(member.uid));
+  // 只有曾經首存的會員才可能有結餘可動用；從未首存者當月不得投注或提款。
+  const nonDepositMembers = oldMembers.filter((member) => !deposits.has(member.uid) && member.first_deposit === 1);
+  const bettingWithoutDeposit = sampleMembers(nonDepositMembers, alive.length * 0.10, roll(2));
+  // 58% 目標取整若剛好等於存款人數，少抽一位，保留小樣本的行為差異。
+  const betTarget = Math.round(alive.length * 0.58);
+  const betting = sampleMembers(depositMembers,
+    betTarget - (betTarget === deposits.size ? 1 : 0) - bettingWithoutDeposit.size, roll(2));
+  bettingWithoutDeposit.forEach((uid) => betting.add(uid));
+  const withdrawing = sampleMembers(depositMembers, depositMembers.length * (0.35 / 0.60), roll(1));
+  sampleMembers(nonDepositMembers.filter((member) => betting.has(member.uid)), alive.length * 0.03, roll(1))
+    .forEach((uid) => withdrawing.add(uid));
+  sampleMembers(nonDepositMembers.filter((member) => !betting.has(member.uid)), alive.length * 0.02, roll(1))
+    .forEach((uid) => withdrawing.add(uid));
+  return new Map(alive.map((member) => [member.uid, {
+    hasDeposit: deposits.has(member.uid), hasWithdraw: withdrawing.has(member.uid), hasBet: betting.has(member.uid),
+  }]));
+}
+
+const monthProfileCache = new Map<string, Map<string, AgencyMonthProfile>>();
+
+// 會員列表、歷史事件、禮金共用同一月份與同一批會員的行為輪廓。
+export function agencyMonthProfile(seed: number, uid: string, month: string): AgencyMonthProfile {
+  const key = `${seed}:${month}`;
+  let profiles = monthProfileCache.get(key);
+  if (!profiles) {
+    profiles = monthProfiles(seed, agencyMembers, month);
+    monthProfileCache.set(key, profiles);
+  }
+  return profiles.get(uid) ?? { hasDeposit: false, hasWithdraw: false, hasBet: false };
+}
+
+/** 相同 seed 與小時快照必得相同會員；基本資料與月度行為分開抽樣。 */
+export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] {
+  const now = AGENCY_DATA_NOW;
+  const month = dayjs.unix(now).startOf('month');
+  const members: AgencyMember[] = Array.from({ length: count }, (_, index) => {
+    const rng = createRng(agencySeed(seed, index, 'member'));
     const first = rngPick(rng, firstNames);
     const middle = rngPick(rng, middleNames);
     const last = rngPick(rng, lastNames);
     const uid = String(80260000 + index * 7 + rngInt(rng, 1, 6));
-    const username = `${first.toLowerCase()}${rngInt(rng, 10, 99)}`;
-
-    const betTotal = Number(amount(rng, 20000, 4000000));
-    const validBetTotal = betTotal * (0.82 + rng() * 0.15);
-    const ggrTotal = validBetTotal * (0.02 + rng() * 0.06);
-
-    // 約 35% 的下線當月沉睡（無存款、無投注），符合真實代理下線結構；
-    // 若全員皆有當月流水，活躍會員數會等於會員總數，活躍門檻就失去意義。
-    const isDormant = rng() < 0.35;
-    const monthRatio = isDormant ? 0 : 0.08 + rng() * 0.22;
-
-    const depositMonth = isDormant ? 0 : Number(amount(rng, 800, 180000));
-    const withdrawMonth = isDormant ? 0 : depositMonth * (0.3 + rng() * 0.8);
-    const depositTotal = Number(amount(rng, 5000, 900000));
-    const withdrawTotal = depositTotal * (0.35 + rng() * 0.6);
-
+    const bet = Number(amount(rng, 20000, 4000000));
+    const validBet = bet * (0.82 + rng() * 0.15);
+    const ggr = validBet * (0.02 + rng() * 0.06);
+    const createdAt = now - rngInt(rng, 86400, 86400 * 400);
     return {
-      uid,
-      username,
-      phone: phoneOf(rng),
-      nick_name: `${first}${rngInt(rng, 1, 999)}`,
+      uid, username: `${first.toLowerCase()}${rngInt(rng, 10, 99)}`,
+      phone: phoneOf(rng), nick_name: `${first}${rngInt(rng, 1, 999)}`,
       real_usernames: { first_name: first, middle_name: middle, last_name: last },
-      vip: rngInt(rng, 0, 8),
-      state: rng() > 0.94 ? 2 : 1,
-      kyc_status: rngPick(rng, [1, 1, 1, 2, 4, 5, 5]),
-      created_at: now - rngInt(rng, 86400, 86400 * 400),
-      // 沉睡會員的最後登入時間拉遠，讓列表上的「沉睡」狀態前後一致
-      last_login_at: isDormant
-        ? now - rngInt(rng, 86400 * 20, 86400 * 180)
-        : now - rngInt(rng, 300, 86400 * 14),
+      vip: rngInt(rng, 0, 8), state: rng() > 0.94 ? 2 : 1,
+      kyc_status: rngPick(rng, [1, 1, 1, 2, 4, 5, 5]), created_at: createdAt,
+      last_login_at: createdAt,
       last_login_ip: `112.${rngInt(rng, 190, 210)}.${rngInt(rng, 1, 254)}.${rngInt(rng, 1, 254)}`,
-      deposit_total: depositTotal.toFixed(2),
-      deposit_count: rngInt(rng, 3, 220),
-      withdraw_total: withdrawTotal.toFixed(2),
-      withdraw_count: rngInt(rng, 1, 90),
-      first_deposit: rng() > 0.15 ? 1 : 0,
-      balance: amount(rng, 0, 45000),
-      is_online: isDormant ? false : rng() > 0.6,
-      parent: {
-        uid: agencyAccount.uid,
-        username: agencyAccount.username,
-        nick_name: 'Darren',
-        phone: agencyAccount.phone,
-      },
+      deposit_total: amount(rng, 5000, 900000), deposit_count: rngInt(rng, 3, 220),
+      // 生涯 GGR 恆為正（平台贏），所以累計提款必定小於累計存款；實際值在下方依存款推算。
+      withdraw_total: '0.00', withdraw_count: rngInt(rng, 1, 90),
+      first_deposit: 0, balance: amount(rng, 0, 45000), is_online: false,
+      parent: { uid: agencyAccount.uid, username: agencyAccount.username, nick_name: 'Darren', phone: agencyAccount.phone },
       stat: {
-        bet: betTotal.toFixed(2),
-        bet_month: (betTotal * monthRatio).toFixed(2),
-        valid_bet: validBetTotal.toFixed(2),
-        valid_bet_month: (validBetTotal * monthRatio).toFixed(2),
-        ggr: ggrTotal.toFixed(2),
-        ggr_month: (ggrTotal * monthRatio).toFixed(2),
-        // 筆數必須跟金額同進退：金額為 0 就不能有筆數，有金額就至少 1 筆
-        deposit_amount_month: depositMonth.toFixed(2),
-        deposit_count_month: depositMonth > 0 ? rngInt(rng, 1, 26) : 0,
-        withdraw_amount_month: withdrawMonth.toFixed(2),
-        withdraw_count_month: withdrawMonth > 0 ? rngInt(rng, 1, 12) : 0,
-        dw_diff: (depositTotal - withdrawTotal).toFixed(2),
-        dw_diff_month: (depositMonth - withdrawMonth).toFixed(2),
-        tax: (ggrTotal * 0.32).toFixed(2),
-        venue_fee: (validBetTotal * 0.012).toFixed(2),
-        bonus: amount(rng, 0, 12000),
+        bet: bet.toFixed(2), bet_month: '0.00', valid_bet: validBet.toFixed(2), valid_bet_month: '0.00',
+        ggr: ggr.toFixed(2), ggr_month: '0.00',
+        deposit_amount_month: '0.00', deposit_count_month: 0, withdraw_amount_month: '0.00', withdraw_count_month: 0,
+        dw_diff: '0.00', dw_diff_month: '0.00', tax: (ggr * 0.32).toFixed(2),
+        venue_fee: (validBet * 0.012).toFixed(2), bonus: amount(rng, 0, 12000),
+      },
+    };
+  });
+  // 新近註冊仍有未轉換者；較久的會員累積較高的生涯首存率。
+  const cohorts = new Map<string, AgencyMember[]>();
+  members.forEach((member) => {
+    const key = dayjs.unix(member.created_at).format('YYYY-MM');
+    cohorts.set(key, [...(cohorts.get(key) ?? []), member]);
+  });
+  cohorts.forEach((cohort, key) => {
+    const rate = dayjs(key).isBefore(month.subtract(2, 'month')) ? 0.85 : 0.45;
+    const converted = sampleMembers(cohort, cohort.length * rate,
+      (member) => createRng(agencySeed(seed, member.uid, 'conversion'))());
+    cohort.forEach((member) => { member.first_deposit = converted.has(member.uid) ? 1 : 0; });
+  });
+  const profiles = monthProfiles(seed, members, month.format('YYYY-MM'));
+  return members.map((member) => {
+    const rng = createRng(agencySeed(seed, member.uid, month.format('YYYY-MM'), 'amounts'));
+    const profile = profiles.get(member.uid)!;
+    const dormant = !profile.hasDeposit && !profile.hasWithdraw && !profile.hasBet;
+    const isNew = member.created_at >= month.unix();
+    const deposit = profile.hasDeposit ? amount(rng, 800, 180000) : '0.00';
+    const withdraw = profile.hasWithdraw ? amount(rng, 400, 120000) : '0.00';
+    const depositCount = profile.hasDeposit ? rngInt(rng, 1, 26) : 0;
+    const withdrawCount = profile.hasWithdraw ? rngInt(rng, 1, 12) : 0;
+    const ratio = profile.hasBet ? 0.08 + rng() * 0.22 : 0;
+    if (isNew) member.first_deposit = profile.hasDeposit ? 1 : 0;
+    // 從未首存者沒有任何資金進出，生涯存提、投注與 GGR 一律為 0，餘額只剩未使用的註冊禮金。
+    const neverDeposited = member.first_deposit === 0;
+    // 累計提款＝累計存款 ×0.35~0.95：生涯 GGR 為正代表平台贏錢，提款不可能超過存款。
+    // 累計存款同時墊高到「當月提款 ÷ 比例」，確保累計提款不低於當月提款。
+    const payout = 0.35 + rng() * 0.6;
+    const depositTotal = neverDeposited ? '0.00'
+      : Math.max(Number(deposit), isNew ? 0 : Number(member.deposit_total), Number(withdraw) / payout).toFixed(2);
+    const withdrawTotal = neverDeposited ? '0.00' : (Number(depositTotal) * payout).toFixed(2);
+    const bet = neverDeposited ? '0.00' : member.stat.bet;
+    const validBet = neverDeposited ? '0.00' : member.stat.valid_bet;
+    const ggr = neverDeposited ? '0.00' : member.stat.ggr;
+    const difference = (a: string, b: string) => ((Math.round(Number(a) * 100) - Math.round(Number(b) * 100)) / 100).toFixed(2);
+    return {
+      ...member, deposit_total: depositTotal, withdraw_total: withdrawTotal,
+      deposit_count: Number(depositTotal) === 0 ? 0 : isNew ? depositCount : Math.max(depositCount, member.deposit_count),
+      withdraw_count: Number(withdrawTotal) === 0 ? 0 : isNew ? withdrawCount : Math.max(withdrawCount, member.withdraw_count),
+      balance: neverDeposited ? Math.min(Number(member.balance), Number(member.stat.bonus)).toFixed(2) : member.balance,
+      last_login_at: Math.max(member.created_at, now - (dormant ? rngInt(rng, 86400 * 20, 86400 * 180) : rngInt(rng, 300, 86400 * 14))),
+      is_online: !dormant && rng() > 0.6,
+      stat: {
+        ...member.stat, bet, valid_bet: validBet, ggr,
+        bet_month: (Number(bet) * ratio).toFixed(2),
+        valid_bet_month: (Number(validBet) * ratio).toFixed(2), ggr_month: (Number(ggr) * ratio).toFixed(2),
+        deposit_amount_month: deposit, deposit_count_month: depositCount,
+        withdraw_amount_month: withdraw, withdraw_count_month: withdrawCount,
+        tax: (Number(ggr) * 0.32).toFixed(2), venue_fee: (Number(validBet) * 0.012).toFixed(2),
+        dw_diff: difference(depositTotal, withdrawTotal), dw_diff_month: difference(deposit, withdraw),
       },
     };
   });

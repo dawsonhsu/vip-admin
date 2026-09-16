@@ -54,6 +54,11 @@ export function rngPick<T>(rng: () => number, list: readonly T[]): T {
   return list[Math.floor(rng() * list.length)];
 }
 
+// 在已經過的秒數中均勻抽樣，未完整的首／末日自然按可活動時數降低權重。
+export function agencyEventTime(rng: () => number, startTs: number, endTs: number): number {
+  return rngInt(rng, startTs, endTs);
+}
+
 // 後端金額一律回 string（decimal），前端顯示加 P 前綴
 export function formatAmount(value: number | string): string {
   const n = typeof value === 'string' ? Number(value) : value;

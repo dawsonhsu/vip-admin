@@ -5,16 +5,15 @@ import { Button, Card, Checkbox, Col, DatePicker, Dropdown, Form, Input, Popover
 import { CheckOutlined, ColumnHeightOutlined, CopyOutlined, DownloadOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
-import { generateAgencyBonuses, type AgencyBonusRow } from '@/data/agency/commission';
+import { AGENCY_BONUS_SEED, generateAgencyBonuses, type AgencyBonusRow } from '@/data/agency/commission';
 import { agencyBonusCashTypes } from '@/data/agency/shared';
-import { agencyRangeOf, agencySeed, bonusReviewStateLabels, downloadCsv, formatPeso, formatTs, toCsvCell } from '@/lib/agencyUtils';
+import { agencyRangeOf, bonusReviewStateLabels, downloadCsv, formatPeso, formatTs, toCsvCell } from '@/lib/agencyUtils';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 interface BonusFormValues { ty: number; username?: string; cash_type?: number; dateRange?: [Dayjs, Dayjs] | null }
 interface BonusFilters { ty: number; username?: string; cash_type?: number; start_time?: number; end_time?: number }
 type BonusColumnKey = keyof AgencyBonusRow | 'sequence';
-const BONUS_SEED = agencySeed('agency-bonus', 20260916);
 const reviewColors: Record<number, string> = { 1: '#d48806', 2: '#52c41a', 3: '#f5222d' };
 const cashTypeColors: Record<number, string> = Object.fromEntries(Object.keys(agencyBonusCashTypes).map((key, index) => [key, ['#1677ff', '#389e0d', '#722ed1', '#d48806', '#08979c', '#c41d7f'][index % 6]]));
 const columnSpecs: Array<{ key: BonusColumnKey; title: string; width: number }> = [
@@ -59,7 +58,7 @@ export default function AgencyBonusPage() {
   }, [form]);
 
   // 對應 GET /agency/child/bonus/list，bonus_total 與當前篩選集合一致，跨頁加總。
-  const allRows = useMemo(() => mounted ? generateAgencyBonuses(BONUS_SEED) : [], [mounted, revision]);
+  const allRows = useMemo(() => mounted ? generateAgencyBonuses(AGENCY_BONUS_SEED) : [], [mounted, revision]);
   const rows = useMemo(() => allRows.filter((row) => {
     if (filters.username && !row.username.toLowerCase().includes(filters.username)) return false;
     if (filters.cash_type !== undefined && row.cash_type !== filters.cash_type) return false;

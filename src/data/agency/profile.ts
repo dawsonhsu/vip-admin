@@ -1,13 +1,15 @@
+/**
+ * 後端 model/agency.go profileStat 現有：ggr / members / active_members / reg / first_deposit / bonus / bonus_list / ggr_detail
+ * 本次沿用：members(→累積會員總數) / reg / first_deposit(→首存人數) / ggr / bonus
+ * 本次新增，後端尚未提供，上線前需擴充 profileStat：
+ *   first_deposit_amount / deposit_users / deposit_count / deposit_amount /
+ *   withdraw_users / withdraw_count / withdraw_amount / dw_diff /
+ *   bet_users / valid_bet / ngr
+ * 另：現有 reg / first_deposit 後端是「當月」口徑（寫死當月），本次改為依 start_time / end_time 區間，後端也需配合調整。
+ */
 import dayjs from 'dayjs';
-import {
-  agencyAccount,
-  agencyActiveMembers,
-  agencyBonusCashTypes,
-  agencyGameClasses,
-  agencyMembers,
-  type AgencyRealUsername,
-} from '@/data/agency/shared';
-import { agencySeed, createRng, rngInt } from '@/lib/agencyUtils';
+import { agencyDailyEvents } from './daily';
+import { AGENCY_DATA_NOW, agencyAccount, agencyMembers, type AgencyRealUsername } from './shared';
 
 export interface ProfileResult {
   uid: string;
@@ -23,66 +25,65 @@ export interface ProfileResult {
   last_login_addr: string;
   real_username: AgencyRealUsername;
   stat: {
-    ggr: string;
     members: number;
-    active_members: number;
     reg: number;
     first_deposit: number;
+    first_deposit_amount: string;
+    deposit_users: number;
+    deposit_count: number;
+    deposit_amount: string;
+    withdraw_users: number;
+    withdraw_count: number;
+    withdraw_amount: string;
+    dw_diff: string;
+    bet_users: number;
+    valid_bet: string;
+    ggr: string;
     bonus: string;
-    bonus_list: Array<{ cash_type: number; bonus: string }>;
-    ggr_detail: Array<{ game_class: number; name: string; ggr: string }>;
+    ngr: string;
   };
 }
 
-// 以分為單位分攤，尾差歸入最後一類，確保分類加總與會員總額完全一致。
-function splitAmount(totalCents: number, weights: number[]): string[] {
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-  let remaining = totalCents;
-  return weights.map((weight, index) => {
-    const cents = index === weights.length - 1
-      ? remaining
-      : Math.round(totalCents * weight / totalWeight);
-    remaining -= cents;
-    return (cents / 100).toFixed(2);
-  });
-}
-
-export function buildAgencyProfile(startTs?: number, endTs?: number): ProfileResult {
-  const now = dayjs();
-  const monthStart = now.startOf('month').unix();
-  const monthEnd = now.endOf('month').unix();
-  const rng = createRng(agencySeed('agency-profile', startTs ?? monthStart, endTs ?? monthEnd));
-  const monthlyRng = createRng(agencySeed('agency-profile-month', monthStart));
-  const newMembers = agencyMembers.filter((member) => member.created_at >= monthStart && member.created_at <= monthEnd);
-  const reg = newMembers.length || Math.min(agencyMembers.length, rngInt(monthlyRng, 5, 10));
-
-  // 共用會員缺少首存時間，以當月註冊且已首存的會員估算當月首存人數。
-  const firstDeposit = newMembers.filter((member) => member.first_deposit === 1).length;
-  const ggrCents = agencyMembers.reduce((sum, member) => sum + Math.round(Number(member.stat.ggr_month) * 100), 0);
-  const bonusCents = agencyMembers.reduce((sum, member) => sum + Math.round(Number(member.stat.bonus) * 100), 0);
-
-  // 共用資料只有當月彙總；日期僅影響示範分類分布，總額持續與會員列表對齊。
-  const gameWeights = agencyGameClasses.map(({ game_class }) => {
-    const baseWeight = game_class === 1 ? 52 : game_class === 2 ? 29 : 3;
-    return baseWeight * (0.85 + rng() * 0.3);
-  });
-  const gameAmounts = splitAmount(ggrCents, gameWeights);
-  const cashTypes = Object.keys(agencyBonusCashTypes).map(Number).slice(0, 8);
-  const bonusAmounts = splitAmount(bonusCents, cashTypes.map(() => rngInt(rng, 5, 22)));
+export function buildAgencyProfile(
+  startTs = dayjs.unix(AGENCY_DATA_NOW).startOf('month').unix(),
+  endTs = dayjs.unix(AGENCY_DATA_NOW).endOf('month').unix(),
+): ProfileResult {
+  const start = Math.max(startTs, agencyDailyEvents.start_time);
+  const end = Math.min(endTs, agencyDailyEvents.end_time);
+  const inRange = (event: { created_at: number }) => event.created_at >= start && event.created_at <= end;
+  const deposits = agencyDailyEvents.deposits.filter(inRange);
+  const withdrawals = agencyDailyEvents.withdrawals.filter(inRange);
+  const bets = agencyDailyEvents.bets.filter(inRange);
+  const firstDeposits = agencyDailyEvents.firstDeposits.filter(inRange);
+  const deposit = deposits.reduce((sum, event) => sum + event.amount_cents, 0);
+  const withdraw = withdrawals.reduce((sum, event) => sum + event.amount_cents, 0);
+  const ggr = bets.reduce((sum, event) => sum + event.ggr_cents, 0);
+  const bonus = agencyDailyEvents.bonuses.filter(inRange).reduce((sum, row) => sum + Math.round(Number(row.bonus) * 100), 0);
+  const users = (events: Array<{ uid: string }>) => new Set(events.map((event) => event.uid)).size;
+  const decimal = (value: number) => (value / 100).toFixed(2);
 
   return {
     ...agencyAccount,
     invite_img: [...agencyAccount.invite_img],
     real_username: { ...agencyAccount.real_username },
     stat: {
-      ggr: (ggrCents / 100).toFixed(2),
-      members: agencyMembers.length,
-      active_members: agencyActiveMembers().length,
-      reg,
-      first_deposit: newMembers.length ? firstDeposit : Math.min(reg, agencyMembers.filter((member) => member.first_deposit === 1).length, rngInt(monthlyRng, 3, 7)),
-      bonus: (bonusCents / 100).toFixed(2),
-      bonus_list: cashTypes.map((cash_type, index) => ({ cash_type, bonus: bonusAmounts[index] })),
-      ggr_detail: agencyGameClasses.map((game, index) => ({ ...game, ggr: gameAmounts[index] })),
+      members: agencyMembers.filter((member) => member.created_at <= endTs).length,
+      // 註冊是會員屬性而非事件，不受事件視窗（近 6 個月）限制，一律用原始區間比對。
+      reg: agencyMembers.filter((member) => member.created_at >= startTs && member.created_at <= endTs).length,
+      first_deposit: users(firstDeposits),
+      first_deposit_amount: decimal(firstDeposits.reduce((sum, event) => sum + event.amount_cents, 0)),
+      deposit_users: users(deposits),
+      deposit_count: deposits.length,
+      deposit_amount: decimal(deposit),
+      withdraw_users: users(withdrawals),
+      withdraw_count: withdrawals.length,
+      withdraw_amount: decimal(withdraw),
+      dw_diff: decimal(deposit - withdraw),
+      bet_users: users(bets),
+      valid_bet: decimal(bets.reduce((sum, event) => sum + event.valid_bet_cents, 0)),
+      ggr: decimal(ggr),
+      bonus: decimal(bonus),
+      ngr: decimal(ggr - bonus),
     },
   };
 }

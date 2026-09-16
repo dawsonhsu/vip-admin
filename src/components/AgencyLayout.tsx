@@ -11,7 +11,6 @@ import {
   DollarOutlined,
   SwapOutlined,
   GiftOutlined,
-  ShareAltOutlined,
   PercentageOutlined,
   SettingOutlined,
   LockOutlined,
@@ -79,11 +78,6 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
-    key: '/agency/promotion',
-    icon: <ShareAltOutlined />,
-    label: <span data-e2e-id="agency-menu-promotion">推廣中心</span>,
-  },
-  {
     key: '/agency/rates',
     icon: <PercentageOutlined />,
     label: <span data-e2e-id="agency-menu-rates">費率查詢</span>,
@@ -109,7 +103,6 @@ const breadcrumbMap: Record<string, string[]> = {
   '/agency/commission': ['佣金管理', '佣金報表'],
   '/agency/transactions': ['佣金管理', '佣金帳變'],
   '/agency/bonus': ['佣金管理', '禮金列表'],
-  '/agency/promotion': ['推廣中心'],
   '/agency/rates': ['費率查詢'],
   '/agency/password': ['帳號設定', '修改密碼'],
 };

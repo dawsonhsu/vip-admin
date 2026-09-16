@@ -1,12 +1,13 @@
 import dayjs from 'dayjs';
-import { agencySeed, createRng, rngInt, rngPick } from '@/lib/agencyUtils';
+import { agencyEventTime, agencySeed, createRng, rngInt, rngPick } from '@/lib/agencyUtils';
 import {
   agencyAccount, agencyActiveMembers, agencyBonusCashTypes, agencyGameClasses,
-  agencyMembers, agencyPagcorTaxRates, agencyTransCashTypes, agencyVenues,
+  agencyMembers, agencyMonthProfile, agencyPagcorTaxRates, agencyTransCashTypes, agencyVenues, AGENCY_DATA_NOW, AGENCY_MEMBER_SEED,
 } from './shared';
 
 // 全部為合成展示資料；報表與帳變共用種子，讓已通過佣金和實際發放可互相核對。
 export const AGENCY_COMMISSION_SEED = agencySeed('agency-commission', 20260916);
+export const AGENCY_BONUS_SEED = agencySeed('agency-bonus', 20260916);
 
 export interface AgencyCommissionRow {
   id: string;
@@ -230,16 +231,26 @@ export function generateAgencyTransactions(seed: number, month: string): AgencyC
   }).filter((row) => dayjs.unix(row.created_at).format('YYYY-MM') === month);
 }
 
-export function generateAgencyBonuses(seed: number, count = 180): AgencyBonusRow[] {
+export function generateAgencyBonuses(seed: number, count = 300): AgencyBonusRow[] {
   const rng = createRng(seed);
-  const now = dayjs();
+  const now = dayjs.unix(AGENCY_DATA_NOW);
   const cashTypes = Object.keys(agencyBonusCashTypes).map(Number);
-  const rows = Array.from({ length: Math.max(0, Math.floor(count)) }, (_, index) => {
-    const period = now.startOf('month').subtract(index % 2 ? rngInt(rng, 1, 5) : 0, 'month');
+  const periods = Array.from({ length: 6 }, (_, offset) => {
+    const period = now.startOf('month').subtract(offset, 'month');
     const end = Math.min(now.unix(), period.endOf('month').unix());
-    const eligibleMembers = agencyMembers.filter((member) => member.created_at <= end);
-    const member = rngPick(rng, eligibleMembers.length ? eligibleMembers : agencyMembers);
-    const createdAt = rngInt(rng, Math.max(period.unix(), member.created_at), Math.max(end, member.created_at));
+    const eligibleMembers = agencyMembers.filter((member) => {
+      if (member.created_at > end) return false;
+      const profile = agencyMonthProfile(AGENCY_MEMBER_SEED, member.uid, period.format('YYYY-MM'));
+      return profile.hasDeposit || profile.hasWithdraw || profile.hasBet;
+    });
+    return { period, end, eligibleMembers };
+  });
+  const rows = Array.from({ length: Math.max(0, Math.floor(count)) }, (_, index) => {
+    const { period, end, eligibleMembers } = periods[index % periods.length];
+    // 各月共用該月行為輪廓；尚未註冊或三項行為皆無的會員不發禮金。
+    if (!eligibleMembers.length) return null;
+    const member = rngPick(rng, eligibleMembers);
+    const createdAt = agencyEventTime(rng, Math.max(period.unix(), member.created_at), end);
     const cashType = rngPick(rng, cashTypes);
     const reviewState = rngPick(rng, [2, 2, 2, 2, 2, 1, 3]);
     return {
@@ -254,24 +265,20 @@ export function generateAgencyBonuses(seed: number, count = 180): AgencyBonusRow
       remark: reviewState === 3 ? '活動條件未符合（展示）' : reviewState === 1 ? '等待活動資格審核（展示）' : `${agencyBonusCashTypes[cashType]}發放（展示）`,
       created_name: '活動系統',
     };
-  }).sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id));
+  }).filter((row): row is AgencyBonusRow => row !== null)
+    .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id));
 
-  // 首頁看板的「活動禮金」是會員當月禮金加總；這裡把當月的禮金紀錄等比正規化到同一個總額，
-  // 避免首頁卡片與禮金列表的當月總額對不起來。歷史月份維持原值。
-  const monthStart = dayjs().startOf('month').unix();
-  const monthRows = rows.filter((row) => row.created_at >= monthStart);
+  // 當月總額精確等於會員列表；歷史月依活躍人數與該月確定性係數正規化。
   const target = agencyMembers.reduce((sum, member) => sum + cents(member.stat.bonus), 0);
-  const currentTotal = monthRows.reduce((sum, row) => sum + cents(row.bonus), 0);
-  if (monthRows.length > 0 && currentTotal > 0) {
-    let allocated = 0;
-    monthRows.forEach((row, index) => {
-      const value = index === monthRows.length - 1
-        ? target - allocated
-        : Math.round(cents(row.bonus) * target / currentTotal);
-      allocated += value;
-      row.bonus = decimal(value);
-    });
-  }
+  periods.forEach(({ period, eligibleMembers }, offset) => {
+    const monthRows = rows.filter((row) => dayjs.unix(row.created_at).isSame(period, 'month'));
+    const factorRng = createRng(agencySeed(seed, period.format('YYYY-MM'), 'bonus-target'));
+    const monthTarget = offset === 0 ? target : Math.round(
+      target * eligibleMembers.length / Math.max(1, periods[0].eligibleMembers.length) * (0.75 + factorRng() * 0.45),
+    );
+    const amounts = allocate(monthTarget, monthRows.map((row) => cents(row.bonus)));
+    monthRows.forEach((row, index) => { row.bonus = decimal(amounts[index]); });
+  });
 
   return rows;
 }
