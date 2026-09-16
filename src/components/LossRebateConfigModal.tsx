@@ -34,7 +34,9 @@ import { freeSpinRestrictionCatalog } from '@/data/mockData';
 import { ALL_RESTRICTION_PATHS } from './GameRestrictionCascader';
 import {
   DEFAULT_ACTIVITY_RULES,
+  DEFAULT_LOSS_CAPS,
   DEFAULT_LOSS_REBATE_SETTINGS,
+  DEFAULT_MIN_NET_LOSS,
   DEFAULT_OVERRIDE_GROUPS,
   DEFAULT_POPUP_TEXT,
   DEFAULT_VIP_RATE_MATRIX,
@@ -93,7 +95,22 @@ interface Props {
   onClose: () => void;
 }
 
+interface BaseRuleRow {
+  key: GameType;
+  gameType: GameType;
+  minNetLoss: number;
+  cap: number;
+}
+
 function LossRebateRateStep() {
+  const [baseRows, setBaseRows] = useState<BaseRuleRow[]>(() =>
+    LOSS_REBATE_GAME_TYPES.map((gameType) => ({
+      key: gameType,
+      gameType,
+      minNetLoss: DEFAULT_MIN_NET_LOSS[gameType],
+      cap: DEFAULT_LOSS_CAPS[gameType],
+    }))
+  );
   const [rateMatrix, setRateMatrix] = useState<VipRateMatrix>(() =>
     VIP_TIERS.reduce((acc, tier) => {
       acc[tier.key] = { ...DEFAULT_VIP_RATE_MATRIX[tier.key] };
@@ -114,6 +131,12 @@ function LossRebateRateStep() {
     }));
   };
 
+  const updateBaseRow = (key: GameType, field: 'minNetLoss' | 'cap', value: number) => {
+    setBaseRows((current) =>
+      current.map((row) => (row.key === key ? { ...row, [field]: value } : row))
+    );
+  };
+
   const updateOverrideRow = <K extends keyof LossRebateOverrideGroup>(
     key: string,
     field: K,
@@ -132,6 +155,8 @@ function LossRebateRateStep() {
         groupName: '',
         gamePaths: [],
         rate: 0,
+        minNetLoss: 0,
+        cap: 0,
         status: 'enabled',
       },
     ]);
@@ -169,6 +194,51 @@ function LossRebateRateStep() {
         />
       ),
     })),
+  ];
+
+  const baseColumns: ColumnsType<BaseRuleRow> = [
+    {
+      title: '遊戲類型',
+      dataIndex: 'gameType',
+      width: 160,
+      render: (value) => <Text>{value}</Text>,
+    },
+    {
+      title: '起始淨輸門檻',
+      dataIndex: 'minNetLoss',
+      width: 200,
+      render: (_, row) => (
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-base-min-net-loss-${row.gameType}`}
+          min={0}
+          step={100}
+          precision={2}
+          addonBefore="₱"
+          placeholder="0 = 不設門檻"
+          value={row.minNetLoss}
+          style={{ width: '100%' }}
+          onChange={(value) => updateBaseRow(row.key, 'minNetLoss', Number(value ?? 0))}
+        />
+      ),
+    },
+    {
+      title: '返利上限',
+      dataIndex: 'cap',
+      width: 190,
+      render: (_, row) => (
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-base-cap-${row.gameType}`}
+          min={0}
+          step={100}
+          precision={2}
+          addonBefore="₱"
+          placeholder="0 = 不限"
+          value={row.cap}
+          style={{ width: '100%' }}
+          onChange={(value) => updateBaseRow(row.key, 'cap', Number(value ?? 0))}
+        />
+      ),
+    },
   ];
 
   const buildOverrideOptions = (
@@ -243,6 +313,42 @@ function LossRebateRateStep() {
       ),
     },
     {
+      title: '起始淨輸門檻',
+      dataIndex: 'minNetLoss',
+      width: 200,
+      render: (_, row) => (
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-override-min-net-loss-${row.key}`}
+          min={0}
+          step={100}
+          precision={2}
+          addonBefore="₱"
+          placeholder="0 = 不設門檻"
+          value={row.minNetLoss}
+          style={{ width: '100%' }}
+          onChange={(value) => updateOverrideRow(row.key, 'minNetLoss', Number(value ?? 0))}
+        />
+      ),
+    },
+    {
+      title: '返利上限',
+      dataIndex: 'cap',
+      width: 190,
+      render: (_, row) => (
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-override-cap-${row.key}`}
+          min={0}
+          step={100}
+          precision={2}
+          addonBefore="₱"
+          placeholder="0 = 不限"
+          value={row.cap}
+          style={{ width: '100%' }}
+          onChange={(value) => updateOverrideRow(row.key, 'cap', Number(value ?? 0))}
+        />
+      ),
+    },
+    {
       title: '狀態',
       dataIndex: 'status',
       width: 130,
@@ -289,7 +395,7 @@ function LossRebateRateStep() {
           data-e2e-id={`${e2ePrefix}-priority-alert`}
           type="info"
           showIcon
-          message="命中優先級：排除遊戲 > 指定遊戲 > VIP × 遊戲類型 > 未設不返；一注只命中一條規則。排除遊戲不計入任何輸值返利。指定遊戲的比例會覆蓋該遊戲原本所屬的 VIP × 遊戲類型比例。最低輸值、返利上限、流水倍數、統計週期、派發時間為「全活動共用一組」，於下一步設定。"
+          message="命中優先級：排除遊戲 > 指定遊戲 > VIP × 遊戲類型 > 未設不返；一注只命中一條規則。排除遊戲不計入輸值返利；指定遊戲不再計入所屬場館。同一款遊戲不可被不同組重複選取，同組遊戲合併淨輸並共用門檻／比例／上限。各場館與各分組獨立判斷，淨輸值需「超過」門檻，達標後以整筆淨輸計算，再套用該列上限；淨輸值 ≤ 0 不派發。門檻 0 = 不設門檻，上限 0 = 不限。上限以單會員／單結算週期／單一規則計算，活動總額不再封頂。流水倍數、統計週期、派發時間仍為全活動共用，於下一步設定。"
         />
 
         <div>
@@ -312,6 +418,25 @@ function LossRebateRateStep() {
         </div>
 
         <div>
+          <Text strong>基準層門檻與上限（各場館獨立，不分 VIP）</Text>
+          <Table
+            data-e2e-id={`${e2ePrefix}-base-table`}
+            columns={baseColumns}
+            dataSource={baseRows}
+            rowKey="key"
+            size="small"
+            pagination={false}
+            scroll={{ x: 550 }}
+            style={{ marginTop: 8 }}
+            onRow={(record) =>
+              ({
+                'data-e2e-id': `${e2ePrefix}-base-row-${record.gameType}`,
+              } as React.HTMLAttributes<HTMLTableRowElement>)
+            }
+          />
+        </div>
+
+        <div>
           <Text strong>覆蓋層（指定遊戲）</Text>
           <div>
             <Text type="secondary" style={{ fontSize: 12 }}>
@@ -325,7 +450,7 @@ function LossRebateRateStep() {
             rowKey="key"
             size="small"
             pagination={false}
-            scroll={{ x: 960 }}
+            scroll={{ x: 1320 }}
             style={{ marginTop: 8 }}
             onRow={(record) =>
               ({
@@ -381,16 +506,16 @@ function RebateSettingsStep() {
     >
       <Descriptions column={1} size="small" bordered>
         <Descriptions.Item label="計算公式">
-          有效投注額 − 派彩金額 = 淨輸值；淨輸值 × 返利比例 = 返利金額（淨輸值 ≤ 0 不派發）
+          有效投注額 − 派彩金額 = 淨輸值；各場館／分組淨輸值需超過該列門檻，達標後以整筆淨輸 × 返利比例計算，再套用該列上限（淨輸值 ≤ 0 不派發）
         </Descriptions.Item>
         <Descriptions.Item label="比例來源">
           指定遊戲 &gt; VIP × 遊戲類型；排除遊戲不計
         </Descriptions.Item>
         <Descriptions.Item label="封頂層級">
-          返利上限套用於「單會員 / 單結算週期」的返利總額，非逐規則
+          各場館／指定遊戲分組獨立設定門檻與上限，不分 VIP；上限 0 = 不限，活動返利總額無全域上限
         </Descriptions.Item>
         <Descriptions.Item label="帳變 / 流水記錄">
-          封頂前依命中規則分筆計算，派發時合併為單筆帳變
+          各規則獨立計算並封頂後加總，派發時合併為單筆帳變；總額 × 全域流水倍數 = 打碼要求
         </Descriptions.Item>
         <Descriptions.Item label="打碼計入範圍">
           沿用基础配置的「流水場館/遊戲限制」
@@ -398,44 +523,10 @@ function RebateSettingsStep() {
       </Descriptions>
 
       <Form.Item
-        name="minNetLoss"
-        label="最低輸值"
-        tooltip="當期淨輸值需達到此金額才派發返利"
-        rules={[{ required: true, message: '請輸入最低輸值' }]}
-        style={{ marginTop: 20, marginBottom: 16 }}
-      >
-        <InputNumber
-          data-e2e-id={`${e2ePrefix}-min-net-loss-input`}
-          min={0}
-          step={100}
-          precision={2}
-          addonBefore="₱"
-          style={{ width: '100%' }}
-        />
-      </Form.Item>
-
-      <Form.Item
-        name="rebateCap"
-        label="返利上限"
-        tooltip="單一會員單一結算週期的返利上限。留空 = 無上限；填 0 = 該期不派發（與投注返利的「0 = 不限」相反，請留意）"
-        style={{ marginBottom: 16 }}
-      >
-        <InputNumber
-          data-e2e-id={`${e2ePrefix}-rebate-cap-input`}
-          min={0}
-          step={100}
-          precision={2}
-          addonBefore="₱"
-          placeholder="空白 = 無上限"
-          style={{ width: '100%' }}
-        />
-      </Form.Item>
-
-      <Form.Item
         name="rolloverMultiplier"
         label="流水倍數"
         rules={[{ required: true, message: '請輸入流水倍數' }]}
-        style={{ marginBottom: 16 }}
+        style={{ marginTop: 20, marginBottom: 16 }}
       >
         <InputNumber
           data-e2e-id={`${e2ePrefix}-rollover-multiplier-input`}
@@ -530,8 +621,6 @@ export default function LossRebateConfigModal({ open, onClose }: Props) {
     // 打碼計入範圍預設「所有遊戲」(全平台)，避免必填空值卡在 Step 1；沒設就全平台。
     wagerVenueRestriction: ALL_RESTRICTION_PATHS,
     excludedGames: [],
-    minNetLoss: DEFAULT_LOSS_REBATE_SETTINGS.minNetLoss,
-    rebateCap: DEFAULT_LOSS_REBATE_SETTINGS.rebateCap,
     rolloverMultiplier: DEFAULT_LOSS_REBATE_SETTINGS.rolloverMultiplier,
     settleCycle: DEFAULT_LOSS_REBATE_SETTINGS.settleCycle,
     // 專案未載入 dayjs customParseFormat plugin，純時間字串無法直接解析，
@@ -564,9 +653,7 @@ export default function LossRebateConfigModal({ open, onClose }: Props) {
     },
     {
       title: '返利設置與彈窗',
-      // rebateCap 非必填，不列入 Step 3 驗證
       validateFields: [
-        'minNetLoss',
         'rolloverMultiplier',
         'settleCycle',
         'dispatchTime',

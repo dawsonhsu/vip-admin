@@ -40,8 +40,8 @@ const { RangePicker } = DatePicker;
 
 const E2E = 'loss-rebate-report';
 
-// 返利上限與流水倍數是「全活動共用一組」設定，報表只負責呈現，不在此重新定義數字。
-const { rebateCap: REBATE_CAP, rolloverMultiplier: ROLLOVER_MULTIPLIER } =
+// 流水倍數仍為全活動共用；各場館 / 分組的門檻與上限由 breakdown 呈現。
+const { rolloverMultiplier: ROLLOVER_MULTIPLIER } =
   DEFAULT_LOSS_REBATE_SETTINGS;
 
 interface ReportFilters {
@@ -79,7 +79,7 @@ const downloadCsv = (rows: LossRebateReportRow[]) => {
       '淨輸值',
       '封頂前返利',
       '實派返利金額',
-      '是否封頂',
+      '是否有規則封頂',
       '打碼要求',
       '結算時間',
     ],
@@ -230,7 +230,7 @@ export default function LossRebateReportPage() {
           <Text style={{ color: '#faad14' }}>{formatCurrency(value)}</Text>
           {row.capped ? (
             <Text type="secondary" style={{ fontSize: 12 }}>
-              （已封頂）
+              （有規則已封頂）
             </Text>
           ) : null}
         </>
@@ -282,14 +282,19 @@ export default function LossRebateReportPage() {
           <div>
             <div>{row.groupName}</div>
             <Text type="secondary" style={{ fontSize: 12 }}>
-              {`${row.providerName} ${row.gameName}`}
+              {row.groupGames?.join('、')}
             </Text>
           </div>
         ) : (
-          row.gameType
+          row.gameTypes.join('、')
         ),
     },
-    { title: '遊戲類型', dataIndex: 'gameType', width: 100 },
+    {
+      title: '遊戲類型',
+      dataIndex: 'gameTypes',
+      width: 100,
+      render: (value: LossRebateBreakdownRow['gameTypes']) => value.join('、'),
+    },
     {
       title: '有效投注額',
       dataIndex: 'effectiveBet',
@@ -309,10 +314,16 @@ export default function LossRebateReportPage() {
       dataIndex: 'netLoss',
       width: 140,
       align: 'right',
-      // 淨輸值 ≤ 0 代表當期該規則玩家反贏，不派發返利。
       render: (value: number) => (
         <Text type={value <= 0 ? 'secondary' : undefined}>{formatCurrency(value)}</Text>
       ),
+    },
+    {
+      title: '起始淨輸門檻',
+      dataIndex: 'minNetLoss',
+      width: 140,
+      align: 'right',
+      render: (value: number) => value === 0 ? '不設門檻' : formatCurrency(value),
     },
     {
       title: '返利比例',
@@ -322,11 +333,30 @@ export default function LossRebateReportPage() {
       render: (value: number) => `${value}%`,
     },
     {
-      title: '返利金額',
-      dataIndex: 'rebate',
+      title: '封頂前返利',
+      dataIndex: 'rebateBeforeCap',
       width: 140,
       align: 'right',
       render: formatCurrency,
+    },
+    {
+      title: '返利上限',
+      dataIndex: 'cap',
+      width: 140,
+      align: 'right',
+      render: (value: number) => value === 0 ? '不限' : formatCurrency(value),
+    },
+    {
+      title: '實派返利金額',
+      dataIndex: 'rebate',
+      width: 140,
+      align: 'right',
+      render: (value: number, row) => (
+        <>
+          <Text>{formatCurrency(value)}</Text>
+          {row.capped ? <Text type="secondary">（已封頂）</Text> : null}
+        </>
+      ),
     },
   ];
 
@@ -519,15 +549,13 @@ export default function LossRebateReportPage() {
       >
         {selectedRow ? (
           <>
-            {/* 讓運營一眼對上主表數字：封頂前 → 上限 → 實派 → 打碼要求。 */}
+            {/* 各規則先獨立封頂，再合計實派與全域打碼要求。 */}
             <div
               data-e2e-id={`${E2E}-detail-summary`}
               style={{ marginBottom: 12, fontSize: 14 }}
             >
               <Text>
-                {`封頂前合計 ${formatCurrency(selectedRow.rebateBeforeCap)} → 返利上限 ${
-                  REBATE_CAP !== undefined ? formatCurrency(REBATE_CAP) : '無上限'
-                } → 實派 `}
+                {`封頂前合計 ${formatCurrency(selectedRow.rebateBeforeCap)} → 各場館／分組獨立封頂 → 實派合計 `}
               </Text>
               <Text strong style={{ color: '#faad14' }}>
                 {formatCurrency(selectedRow.rebateAmount)}
@@ -539,7 +567,7 @@ export default function LossRebateReportPage() {
               </Text>
               {selectedRow.capped ? (
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  　已封頂
+                  　有規則已封頂
                 </Text>
               ) : null}
             </div>
@@ -585,9 +613,8 @@ export default function LossRebateReportPage() {
                 {formatCurrency(selectedRow.rolloverRequired)}
               </Descriptions.Item>
             </Descriptions>
-            {/* 明細僅供對帳；封頂後金額無法回攤至各規則，實際派發為合併單筆。 */}
             <Text type="secondary" style={{ fontSize: 12 }}>
-              以下逐規則明細為封頂前的計算過程，僅供對帳；實際派發時合併為單筆帳變。
+              僅列出淨輸值超過各自門檻的場館／分組；達標後以整筆淨輸計算，再套用該列上限（0 = 不限）。指定遊戲不重複計入場館，各列實派加總後合併為單筆帳變，無全域上限。有效投注額、派彩金額與淨輸值合計僅包含下列達標規則。
             </Text>
           </>
         ) : null}
@@ -598,7 +625,7 @@ export default function LossRebateReportPage() {
           rowKey="key"
           size="small"
           pagination={false}
-          scroll={{ x: 1120 }}
+          scroll={{ x: 1540 }}
           onRow={(record) =>
             ({
               'data-e2e-id': `${E2E}-detail-row-${record.key}`,

@@ -4,7 +4,8 @@ import type { GameType } from './memberStatsData';
  * 輸值返利（Loss Rebate）共用設定。
  *
  * 計算式：有效投注額 − 派彩金額 = 淨輸值；淨輸值 × 返利比例 = 返利金額。
- * 淨輸值 ≤ 0（玩家贏錢）時不派發。
+ * 各場館 / 指定遊戲分組獨立判斷：淨輸值需超過門檻，達標後以整筆淨輸計算，再套用該列上限。
+ * 淨輸值 ≤ 0（玩家贏錢）時不派發；指定遊戲不重複計入場館基準層。
  *
  * 這份檔案同時被 LossRebateConfigModal（後台配置預設值）與
  * lossRebateReportData（報表 mock 推算）引用，避免兩邊數值漂移。
@@ -60,6 +61,28 @@ export const DEFAULT_VIP_RATE_MATRIX: VipRateMatrix = {
   Diamond: { Slots: 3.0, Live: 1.6, Table: 1.6, Arcade: 2.5, Bingo: 1.8, Fishing: 2.5, Sports: 1.2 },
 };
 
+/** 各場館起始淨輸門檻（demo 預設值，可由後台配置）；0 = 不設門檻。 */
+export const DEFAULT_MIN_NET_LOSS: Record<GameType, number> = {
+  Slots: 500,
+  Live: 800,
+  Table: 800,
+  Arcade: 500,
+  Bingo: 300,
+  Fishing: 300,
+  Sports: 800,
+};
+
+/** 各場館 / 單會員 / 單結算週期返利上限（demo 預設值）；0 = 不限。 */
+export const DEFAULT_LOSS_CAPS: Record<GameType, number> = {
+  Slots: 5000,
+  Live: 0,
+  Table: 0,
+  Arcade: 3000,
+  Bingo: 2000,
+  Fishing: 3000,
+  Sports: 0,
+};
+
 export type RowStatus = 'enabled' | 'disabled';
 
 export interface LossRebateOverrideGroup {
@@ -69,6 +92,10 @@ export interface LossRebateOverrideGroup {
   gamePaths: string[][];
   /** 覆蓋比例（%），不分 VIP 分級 */
   rate: number;
+  /** 組內合計淨輸需超過此門檻；0 = 不設門檻。 */
+  minNetLoss: number;
+  /** 單會員 / 單結算週期 / 整組返利上限；0 = 不限。 */
+  cap: number;
   status: RowStatus;
 }
 
@@ -85,6 +112,8 @@ export const DEFAULT_OVERRIDE_GROUPS: LossRebateOverrideGroup[] = [
       ['Slots', 'PG', 'mahjong_ways'],
     ],
     rate: 2.5,
+    minNetLoss: 500,
+    cap: 5000,
     status: 'enabled',
   },
   {
@@ -95,6 +124,8 @@ export const DEFAULT_OVERRIDE_GROUPS: LossRebateOverrideGroup[] = [
       ['Fishing', 'FC', 'golden_shark'],
     ],
     rate: 2.0,
+    minNetLoss: 300,
+    cap: 3000,
     status: 'enabled',
   },
 ];
@@ -107,13 +138,8 @@ export const SETTLE_CYCLE_OPTIONS: { value: SettleCycle; label: string }[] = [
   { value: 'monthly', label: '月結' },
 ];
 
-/**
- * 返利設置為「全活動共用一組」，不分 VIP、不分遊戲。
- * rebateCap 為 undefined 代表無上限（需求原文：空置為無上限）。
- */
+/** 流水倍數、統計週期與派發時間為全活動共用；門檻與上限由各場館 / 分組設定。 */
 export interface LossRebateSettings {
-  minNetLoss: number;
-  rebateCap?: number;
   rolloverMultiplier: number;
   settleCycle: SettleCycle;
   /** 'HH:mm:ss' */
@@ -121,8 +147,6 @@ export interface LossRebateSettings {
 }
 
 export const DEFAULT_LOSS_REBATE_SETTINGS: LossRebateSettings = {
-  minNetLoss: 500,
-  rebateCap: 5000,
   rolloverMultiplier: 1,
   settleCycle: 'daily',
   dispatchTime: '04:00:00',
@@ -136,7 +160,9 @@ export const DEFAULT_ACTIVITY_RULES = [
   '<li>Loss rebate is calculated as valid turnover minus payout for the settlement period; only a net loss qualifies.</li>',
   '<li>The rebate rate is determined by your VIP tier and the game type; selected games may use their own rate.</li>',
   '<li>Excluded games are not counted towards the loss rebate.</li>',
-  '<li>Your net loss must reach the minimum loss amount, and the payout is limited by the rebate cap.</li>',
+  '<li>Each game type has its own minimum net loss. Your net loss must strictly exceed that threshold; once qualified, the rebate is calculated on the full net loss, not just the amount above the threshold.</li>',
+  '<li>Selected-game groups aggregate their games\' net loss and use their own threshold, rate and cap. These games are excluded from their game-type totals.</li>',
+  '<li>Rebate caps apply independently to each game type and each selected-game group per member per settlement period; a cap of 0 means unlimited. The activity rebate is the sum of these capped rebates, with no overall cap.</li>',
   '<li>Filbet reserves the right of final interpretation of this promotion.</li>',
   '</ol>',
 ].join('');

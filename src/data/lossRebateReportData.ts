@@ -2,7 +2,9 @@ import dayjs from 'dayjs';
 import type { GameType } from './memberStatsData';
 import { freeSpinRestrictionCatalog } from './mockData';
 import {
+  DEFAULT_LOSS_CAPS,
   DEFAULT_LOSS_REBATE_SETTINGS,
+  DEFAULT_MIN_NET_LOSS,
   DEFAULT_OVERRIDE_GROUPS,
   DEFAULT_VIP_RATE_MATRIX,
   LOSS_REBATE_GAME_TYPES,
@@ -14,17 +16,20 @@ import {
 export type LossRebateRuleTier = 'game' | 'type';
 
 export interface LossRebateBreakdownRow {
-  key: string;                // 如 `type-Slots` / `game-super_ace`
+  key: string;                // 如 `type-Slots` / `group-override-1`
   ruleTier: LossRebateRuleTier;
-  gameType: GameType;
+  gameTypes: GameType[];      // 分組可包含多個場館
   groupName?: string;         // 僅 game：組名
-  gameName?: string;          // 僅 game
-  providerName?: string;      // 僅 game
+  groupGames?: string[];      // 僅 game：組內參與遊戲（廠商 + 遊戲名）
   effectiveBet: number;       // 該規則有效投注額
   payout: number;             // 該規則派彩金額
-  netLoss: number;            // = effectiveBet - payout（可為負，負值不返利）
+  netLoss: number;            // = effectiveBet - payout；僅通過門檻的規則產列
   rate: number;               // 命中的返利比例 %
-  rebate: number;             // = max(netLoss,0) * rate / 100（封頂前，逐規則）
+  minNetLoss: number;         // 淨輸需嚴格超過此門檻，達標後以整筆淨輸計算
+  rebateBeforeCap: number;    // = netLoss * rate / 100（通過門檻後）
+  cap: number;                // 該規則上限；0 = 不限
+  capped: boolean;            // 該規則是否觸及上限
+  rebate: number;             // 該規則封頂後實派
 }
 
 export interface LossRebateReportRow {
@@ -38,18 +43,15 @@ export interface LossRebateReportRow {
   effectiveBet: number;       // = sum(breakdown.effectiveBet)
   payout: number;             // = sum(breakdown.payout)
   netLoss: number;            // = sum(breakdown.netLoss)
-  rebateBeforeCap: number;    // = sum(breakdown.rebate)
-  capped: boolean;            // rebateCap > 0 && rebateBeforeCap > rebateCap
-  rebateAmount: number;       // 實派 = capped ? rebateCap : rebateBeforeCap
+  rebateBeforeCap: number;    // = sum(breakdown.rebateBeforeCap)
+  capped: boolean;            // 任一規則已封頂（無全活動上限）
+  rebateAmount: number;       // 實派 = sum(breakdown.rebate)
   rolloverRequired: number;   // = rebateAmount * rolloverMultiplier
   settledAt: string;          // 結算時間 'YYYY-MM-DD HH:mm:ss'
   breakdown: LossRebateBreakdownRow[];
 }
 
-// 全活動共用一組設定，直接取自 lossRebateConfig（＝ Modal Step3 的預設值），
-// 不在此重新定義數字，避免配置與報表兩邊漂移。
-const MIN_NET_LOSS = DEFAULT_LOSS_REBATE_SETTINGS.minNetLoss;          // 500：當期淨輸值門檻
-const REBATE_CAP = DEFAULT_LOSS_REBATE_SETTINGS.rebateCap;             // 5000；undefined = 無上限
+// 全域流水倍數與派發時間取自 Modal Step3 共用預設值；各列門檻 / 上限同樣引用配置。
 const ROLLOVER_MULTIPLIER = DEFAULT_LOSS_REBATE_SETTINGS.rolloverMultiplier; // 1 倍
 const SETTLE_TIME = DEFAULT_LOSS_REBATE_SETTINGS.dispatchTime;         // '04:00:00'
 
@@ -76,39 +78,26 @@ const hashString = (value: string): number => {
 
 const buildPhone = (uid: string) => `09${10000000 + (hashString(`${uid}-phone`) % 90000000)}`;
 
-interface OverrideGameRef {
-  key: string;
-  groupName: string;
+export interface LossRebateGameActivity {
   gameType: GameType;
-  providerName: string;
-  gameName: string;
-  rate: number;
+  providerCode: string;
+  gameCode: string;
+  effectiveBet: number;
+  payout: number;
 }
 
-// 覆蓋層以「指定遊戲」逐款展開（明細一款遊戲一列），比例取該組比例、不分 VIP 分級。
-// 廠商 / 遊戲顯示名由 freeSpinRestrictionCatalog 反查，確保與配置目錄同一份資料。
-const ENABLED_OVERRIDE_GAMES: OverrideGameRef[] = DEFAULT_OVERRIDE_GROUPS
-  .filter((group) => group.status === 'enabled')
-  .flatMap((group) =>
-    group.gamePaths.map(([gameTypePath, providerCode, gameCode]) => {
-      const gameType = gameTypePath as GameType;
-      const provider = freeSpinRestrictionCatalog[gameType]?.find(
-        (item) => item.code === providerCode
-      );
-      const game = provider?.games.find((item) => item.code === gameCode);
+const gamePathOf = (game: LossRebateGameActivity) =>
+  [game.gameType, game.providerCode, game.gameCode].join('/');
 
-      return {
-        key: gameCode,
-        groupName: group.groupName,
-        gameType,
-        providerName: provider?.name ?? providerCode,
-        gameName: game?.name ?? gameCode,
-        rate: group.rate,
-      };
-    })
+const gameLabelOf = (game: LossRebateGameActivity) => {
+  const provider = freeSpinRestrictionCatalog[game.gameType].find(
+    (item) => item.code === game.providerCode
   );
+  const name = provider?.games.find((item) => item.code === game.gameCode)?.name;
+  return `${provider?.name ?? game.providerCode} ${name ?? game.gameCode}`;
+};
 
-// 巨額輸家（whale）才有機會把單期返利推過 ₱5,000 上限，讓報表一定看得到「已封頂」案例。
+// 大額淨輸 mock 用來呈現各規則獨立封頂的案例。
 const isWhale = (uid: string, statPeriod: string) =>
   hashString(`${uid}-${statPeriod}-whale`) % 4 === 0;
 
@@ -124,82 +113,129 @@ const payoutRatioOf = (seed: string) => 0.88 + (hashString(seed) % 160) / 1000;
 const buildBreakdownRow = (
   key: string,
   ruleTier: LossRebateRuleTier,
-  gameType: GameType,
+  games: LossRebateGameActivity[],
   rate: number,
-  seed: string,
-  whale: boolean,
-  extra: Pick<LossRebateBreakdownRow, 'groupName' | 'gameName' | 'providerName'> = {}
-): LossRebateBreakdownRow => {
-  const effectiveBet = betOf(seed, whale);
-  const payout = roundCurrency(effectiveBet * payoutRatioOf(`${seed}-payout`));
+  minNetLoss: number,
+  cap: number,
+  groupName?: string
+): LossRebateBreakdownRow[] => {
+  const effectiveBet = roundCurrency(games.reduce((sum, game) => sum + game.effectiveBet, 0));
+  const payout = roundCurrency(games.reduce((sum, game) => sum + game.payout, 0));
   const netLoss = roundCurrency(effectiveBet - payout);
 
-  return {
+  // 同場館 / 同組先合計（含贏錢遊戲），嚴格超過門檻後，整筆淨輸乘以比例。
+  if (netLoss <= 0 || netLoss <= minNetLoss) return [];
+  const rebateBeforeCap = roundCurrency((netLoss * rate) / 100);
+  const capped = cap > 0 && rebateBeforeCap > cap;
+
+  return [{
     key,
     ruleTier,
-    gameType,
-    ...extra,
+    gameTypes: LOSS_REBATE_GAME_TYPES.filter((type) => games.some((game) => game.gameType === type)),
+    ...(ruleTier === 'game' ? {
+      groupName,
+      groupGames: Array.from(new Set(games.map(gameLabelOf))),
+    } : {}),
     effectiveBet,
     payout,
     netLoss,
     rate,
-    // 淨輸值 ≤ 0（玩家贏錢）時不返利。
-    rebate: roundCurrency((Math.max(netLoss, 0) * rate) / 100),
+    minNetLoss,
+    rebateBeforeCap,
+    cap,
+    capped,
+    rebate: capped ? cap : rebateBeforeCap,
+  }];
+};
+
+// 先按完整遊戲路徑分配覆蓋組，再將剩餘遊戲分配場館；組未達門檻也不回流基準層。
+// 排除遊戲的 demo 預設為空，因此輸入包含所有參與遊戲。
+export function calculateLossRebateBreakdown(
+  games: LossRebateGameActivity[],
+  vipLevel: number
+): LossRebateBreakdownRow[] {
+  const assignedPaths = new Set<string>();
+  const groupRows = DEFAULT_OVERRIDE_GROUPS.filter((group) => group.status === 'enabled').flatMap((group) => {
+    const paths = new Set(group.gamePaths.map((path) => path.join('/')));
+    const groupGames = games.filter((game) => {
+      const path = gamePathOf(game);
+      return paths.has(path) && !assignedPaths.has(path);
+    });
+    groupGames.forEach((game) => assignedPaths.add(gamePathOf(game)));
+    return buildBreakdownRow(
+      `group-${group.key}`, 'game', groupGames, group.rate, group.minNetLoss, group.cap, group.groupName
+    );
+  });
+
+  const tier = vipTierOfLevel(vipLevel);
+  const typeRows = LOSS_REBATE_GAME_TYPES.flatMap((gameType) =>
+    buildBreakdownRow(
+      `type-${gameType}`,
+      'type',
+      games.filter((game) => game.gameType === gameType && !assignedPaths.has(gamePathOf(game))),
+      DEFAULT_VIP_RATE_MATRIX[tier][gameType],
+      DEFAULT_MIN_NET_LOSS[gameType],
+      DEFAULT_LOSS_CAPS[gameType]
+    )
+  );
+  return [...groupRows, ...typeRows];
+}
+
+const buildGameActivity = (
+  gameType: GameType,
+  providerCode: string,
+  gameCode: string,
+  seed: string,
+  whale: boolean
+): LossRebateGameActivity => {
+  const effectiveBet = betOf(seed, whale);
+  return {
+    gameType,
+    providerCode,
+    gameCode,
+    effectiveBet,
+    payout: roundCurrency(effectiveBet * payoutRatioOf(`${seed}-payout`)),
   };
 };
 
-const buildOverrideBreakdown = (
+// 產生逐款遊戲 mock，再統一走分組 / 場館路由與門檻計算。
+const buildGameActivities = (
   uid: string,
   statPeriod: string,
   whale: boolean
-): LossRebateBreakdownRow[] =>
-  ENABLED_OVERRIDE_GAMES.flatMap((ref) => {
-    // 約半數 member-period 會玩到該款指定遊戲。
-    if (hashString(`${uid}-${statPeriod}-${ref.key}-join`) % 10 >= 5) return [];
-
-    return [
-      buildBreakdownRow(
-        `game-${ref.key}`,
-        'game',
-        ref.gameType,
-        ref.rate,
-        `${uid}-${statPeriod}-game-${ref.key}`,
-        whale,
-        {
-          groupName: ref.groupName,
-          gameName: ref.gameName,
-          providerName: ref.providerName,
-        }
-      ),
-    ];
+): LossRebateGameActivity[] => {
+  const overridePaths = Array.from(new Set(
+    DEFAULT_OVERRIDE_GROUPS.filter((group) => group.status === 'enabled')
+      .flatMap((group) => group.gamePaths.map((path) => path.join('/')))
+  ));
+  const overrideGames = overridePaths.flatMap((path) => {
+    const [gameType, providerCode, gameCode] = path.split('/');
+    if (hashString(`${uid}-${statPeriod}-${gameCode}-join`) % 10 >= 5) return [];
+    return [buildGameActivity(
+      gameType as GameType, providerCode, gameCode, `${uid}-${statPeriod}-game-${gameCode}`, whale
+    )];
   });
-
-// 基準層：該遊戲類型「扣掉指定遊戲之後」的剩餘投注，比例查 VIP 分級 × 遊戲類型矩陣。
-const buildTypeBreakdown = (
-  uid: string,
-  statPeriod: string,
-  vipLevel: number,
-  whale: boolean
-): LossRebateBreakdownRow[] => {
-  const tier = vipTierOfLevel(vipLevel);
   const typeCount = 2 + (hashString(`${uid}-${statPeriod}-type-count`) % 3); // 2 ~ 4
   const startIndex = hashString(`${uid}-${statPeriod}-type-start`) % LOSS_REBATE_GAME_TYPES.length;
   // LOSS_REBATE_GAME_TYPES.length is prime and stride < length, so the picked types never repeat.
   const stride = 1 + (hashString(`${uid}-${statPeriod}-type-stride`) % 3);
 
-  return Array.from({ length: typeCount }, (_, index) => {
+  const typeGames = Array.from({ length: typeCount }, (_, index) => {
     const gameType =
       LOSS_REBATE_GAME_TYPES[(startIndex + index * stride) % LOSS_REBATE_GAME_TYPES.length];
 
-    return buildBreakdownRow(
-      `type-${gameType}`,
-      'type',
-      gameType,
-      DEFAULT_VIP_RATE_MATRIX[tier][gameType],
-      `${uid}-${statPeriod}-type-${gameType}`,
-      whale
+    const candidates = freeSpinRestrictionCatalog[gameType].flatMap((provider) =>
+      provider.games
+        .filter((game) => !overridePaths.includes([gameType, provider.code, game.code].join('/')))
+        .map((game) => ({ providerCode: provider.code, gameCode: game.code }))
     );
-  });
+    if (candidates.length === 0) return [];
+    const game = candidates[hashString(`${uid}-${statPeriod}-${gameType}-game`) % candidates.length];
+    return [buildGameActivity(
+      gameType, game.providerCode, game.gameCode, `${uid}-${statPeriod}-type-${gameType}`, whale
+    )];
+  }).flat();
+  return [...overrideGames, ...typeGames];
 };
 
 export function generateLossRebateReport(): LossRebateReportRow[] {
@@ -221,25 +257,22 @@ export function generateLossRebateReport(): LossRebateReportRow[] {
       const whale = isWhale(uid, statPeriod);
       // 覆蓋層在前，對應 指定遊戲 > VIP × 遊戲類型 的命中優先級。
       // 排除遊戲（預設為空）完全不產列，因此這裡沒有對應的 breakdown。
-      const breakdown = [
-        ...buildOverrideBreakdown(uid, statPeriod, whale),
-        ...buildTypeBreakdown(uid, statPeriod, vipLevel, whale),
-      ];
+      const breakdown = calculateLossRebateBreakdown(
+        buildGameActivities(uid, statPeriod, whale), vipLevel
+      );
+      if (breakdown.length === 0) return;
 
       const netLoss = roundCurrency(
         breakdown.reduce((sum, item) => sum + item.netLoss, 0)
       );
-      // 最低輸值是「全活動 / 單結算週期」門檻，不是逐規則：當期淨輸值總額未達門檻
-      // 就整位會員不派發，也不入報表。
-      if (netLoss < MIN_NET_LOSS) return;
-
       const rebateBeforeCap = roundCurrency(
+        breakdown.reduce((sum, item) => sum + item.rebateBeforeCap, 0)
+      );
+      // 各規則封頂後直接加總，不再套全域門檻或上限。
+      const capped = breakdown.some((item) => item.capped);
+      const rebateAmount = roundCurrency(
         breakdown.reduce((sum, item) => sum + item.rebate, 0)
       );
-      // 返利上限同樣是活動層級：套用於單會員單結算週期的返利總額，非逐規則。
-      // 僅 undefined 代表無上限；0 是合法上限值（＝停發），不可用 truthiness 判斷。
-      const capped = REBATE_CAP !== undefined && rebateBeforeCap > REBATE_CAP;
-      const rebateAmount = capped ? REBATE_CAP : rebateBeforeCap;
 
       rows.push({
         account: `member${uid}`,
