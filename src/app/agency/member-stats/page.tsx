@@ -23,22 +23,16 @@ interface Filters extends FilterValues {
   searchType: MemberSearchType;
 }
 
+// 代理端只留「能據以行動」的指標：資金進出、佣金基礎（有效流水）、平台輸贏（GGR）、
+// 成本（彩金）與自身收益（佣金）。手續費為平台成本、FS/JP 屬遊戲營運細節、
+// 總投注／排除投注額／總派獎皆可由有效流水與 GGR 推得，一律不在代理端呈現。
 const metrics: Array<{ key: keyof AgencyMemberMetrics; title: string; count?: boolean; signed?: boolean }> = [
   { key: 'depositCount', title: '存款次數', count: true },
   { key: 'totalDeposit', title: '總存款' },
   { key: 'withdrawCount', title: '提款次數', count: true },
   { key: 'totalWithdraw', title: '總提款' },
-  { key: 'depositFee', title: '存款手續費' },
-  { key: 'withdrawFee', title: '提款手續費' },
-  { key: 'totalBet', title: '總投注' },
-  { key: 'excludedBet', title: '排除投注額' },
   { key: 'validBet', title: '有效流水' },
-  { key: 'totalPayout', title: '總派獎' },
   { key: 'ggr', title: 'GGR', signed: true },
-  { key: 'fsBet', title: 'FS 投注額' },
-  { key: 'fsGgr', title: 'FS GGR', signed: true },
-  { key: 'jpBet', title: 'JP 投注額' },
-  { key: 'jpGgr', title: 'JP GGR', signed: true },
   { key: 'totalBonus', title: '總彩金' },
   { key: 'totalCommission', title: '總佣金' },
 ];
@@ -117,17 +111,18 @@ export default function AgencyMemberStatsPage() {
   };
   const onExport = () => {
     const lines = [
-      ['統計日期', 'UID', '帳號', '手機號', ...metrics.map(({ title }) => title)],
+      ['UID', '帳號', '手機號', ...metrics.map(({ title }) => title)],
       ...sortedRows.map((row) => [
-        dateRangeText, row.uid, row.username, maskPhone(row.phone),
+        row.uid, row.username, maskPhone(row.phone),
         ...metrics.map(({ key, count }) => count ? String(row[key]) : formatPeso(row[key])),
       ]),
     ];
     downloadCsv(`會員日統計_${queryStart}_${queryEnd}.csv`, lines.map((line) => line.map(toCsvCell).join(',')).join('\n'));
   };
 
+  // 主表不放「統計日期」：整張表就是同一個查詢區間，逐列重複顯示只是噪音，
+  // 區間已顯示在篩選器與卡片標題；Drawer 的統計日期才是真正逐日的資訊。
   const columns: ColumnsType<AgencyMemberStat> = [
-    { title: '統計日期', key: 'dateRange', width: 240, ellipsis: true, sorter: () => 0, render: () => <span style={{ whiteSpace: 'nowrap' }}>{dateRangeText}</span> },
     { title: 'UID', key: 'uid', dataIndex: 'uid', width: 110, sorter: (a, b) => a.uid.localeCompare(b.uid) },
     {
       title: '帳號', key: 'username', dataIndex: 'username', width: 140,
