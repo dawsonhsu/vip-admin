@@ -7,10 +7,7 @@ import {
   DashboardOutlined,
   TeamOutlined,
   UnorderedListOutlined,
-  FileTextOutlined,
-  DollarOutlined,
-  SwapOutlined,
-  GiftOutlined,
+  BarChartOutlined,
   PercentageOutlined,
   SettingOutlined,
   LockOutlined,
@@ -49,31 +46,9 @@ const menuItems: MenuItem[] = [
         label: <span data-e2e-id="agency-menu-members">會員列表</span>,
       },
       {
-        key: '/agency/bet-records',
-        icon: <FileTextOutlined />,
-        label: <span data-e2e-id="agency-menu-bet-records">投注紀錄</span>,
-      },
-    ],
-  },
-  {
-    key: 'commission',
-    icon: <DollarOutlined />,
-    label: <span data-e2e-id="agency-menu-commission-group">佣金管理</span>,
-    children: [
-      {
-        key: '/agency/commission',
-        icon: <FileTextOutlined />,
-        label: <span data-e2e-id="agency-menu-commission">佣金報表</span>,
-      },
-      {
-        key: '/agency/transactions',
-        icon: <SwapOutlined />,
-        label: <span data-e2e-id="agency-menu-transactions">佣金帳變</span>,
-      },
-      {
-        key: '/agency/bonus',
-        icon: <GiftOutlined />,
-        label: <span data-e2e-id="agency-menu-bonus">禮金列表</span>,
+        key: '/agency/member-stats',
+        icon: <BarChartOutlined />,
+        label: <span data-e2e-id="agency-menu-member-stats">會員日統計</span>,
       },
     ],
   },
@@ -99,10 +74,7 @@ const menuItems: MenuItem[] = [
 const breadcrumbMap: Record<string, string[]> = {
   '/agency/home': ['首頁看板'],
   '/agency/members': ['會員管理', '會員列表'],
-  '/agency/bet-records': ['會員管理', '投注紀錄'],
-  '/agency/commission': ['佣金管理', '佣金報表'],
-  '/agency/transactions': ['佣金管理', '佣金帳變'],
-  '/agency/bonus': ['佣金管理', '禮金列表'],
+  '/agency/member-stats': ['會員管理', '會員日統計'],
   '/agency/rates': ['費率查詢'],
   '/agency/password': ['帳號設定', '修改密碼'],
 };
@@ -158,7 +130,7 @@ export default function AgencyLayout({ children, isDark, onThemeChange }: Agency
   const logoColor = isDark ? '#fff' : '#1a1a1a';
   const headerTextColor = isDark ? '#e8e8e8' : '#333';
 
-  const openKeys = ['member', 'commission', 'account'];
+  const openKeys = ['member', 'account'];
 
   return (
     <Layout style={{ minHeight: '100vh' }} data-e2e-id="agency-layout-root">

@@ -179,6 +179,13 @@ const lastNames = [
   'Ramos', 'Flores', 'Villanueva', 'Aquino', 'Castillo', 'Navarro', 'Domingo', 'Salazar',
 ];
 
+// 暱稱素材刻意與 firstNames 無關：暱稱不隱碼，若沿用真實名字會把 maskName 遮掉的字洩漏回去。
+const nickWords = [
+  'Tiger', 'Lucky', 'Ocean', 'Falcon', 'Storm', 'Jade', 'Comet', 'Bamboo',
+  'Panther', 'Sunrise', 'Cobalt', 'Mango', 'Thunder', 'Pearl', 'Zenith', 'Coral',
+  'Onyx', 'Breeze', 'Summit', 'Amber',
+];
+
 function phoneOf(rng: () => number): string {
   const prefixes = ['0917', '0918', '0919', '0920', '0927', '0935', '0945', '0956', '0966', '0977'];
   return `${rngPick(rng, prefixes)}${String(rngInt(rng, 1000000, 9999999))}`;
@@ -270,13 +277,15 @@ export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] 
     const middle = rngPick(rng, middleNames);
     const last = rngPick(rng, lastNames);
     const uid = String(80260000 + index * 7 + rngInt(rng, 1, 6));
+    // 帳號與暱稱同源於 nickWords，與真實姓名無關：兩者都不隱碼，沿用本名會抵銷 maskName。
+    const nick = rngPick(rng, nickWords);
     const bet = Number(amount(rng, 20000, 4000000));
     const validBet = bet * (0.82 + rng() * 0.15);
     const ggr = validBet * (0.02 + rng() * 0.06);
     const createdAt = now - rngInt(rng, 86400, 86400 * 400);
     return {
-      uid, username: `${first.toLowerCase()}${rngInt(rng, 10, 99)}`,
-      phone: phoneOf(rng), nick_name: `${first}${rngInt(rng, 1, 999)}`,
+      uid, username: `${nick.toLowerCase()}${rngInt(rng, 10, 99)}`,
+      phone: phoneOf(rng), nick_name: `${nick}${rngInt(rng, 1, 999)}`,
       real_usernames: { first_name: first, middle_name: middle, last_name: last },
       vip: rngInt(rng, 0, 8), state: rng() > 0.94 ? 2 : 1,
       kyc_status: rngPick(rng, [1, 1, 1, 2, 4, 5, 5]), created_at: createdAt,
@@ -295,6 +304,19 @@ export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] 
         venue_fee: (validBet * 0.012).toFixed(2), bonus: amount(rng, 0, 12000),
       },
     };
+  });
+  // 帳號是登入身分，必須唯一；nickWords × 兩位數的組合會撞號，依固定順序遞增去重。
+  const usedUsernames = new Set<string>();
+  members.forEach((member) => {
+    let candidate = member.username;
+    const base = candidate.replace(/\d+$/, '');
+    let suffix = Number(candidate.slice(base.length));
+    while (usedUsernames.has(candidate)) {
+      suffix = suffix >= 99 ? 10 : suffix + 1;
+      candidate = `${base}${suffix}`;
+    }
+    usedUsernames.add(candidate);
+    member.username = candidate;
   });
   // 新近註冊仍有未轉換者；較久的會員累積較高的生涯首存率。
   const cohorts = new Map<string, AgencyMember[]>();

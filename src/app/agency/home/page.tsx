@@ -132,7 +132,7 @@ export default function AgencyHomePage() {
       <Alert
         showIcon
         type="info"
-        message="示範資料：每日固定快照，數據依所選區間彙總；選擇「本月」時存提款、有效投注與 GGR 與會員列表當月欄位，Bonus 與禮金列表當月總額完全一致。＊標示之指標後端 /agency/profile 尚未提供，上線前需擴充。"
+        message="示範資料：每小時固定快照，數據依所選區間彙總；存提款金額與筆數、有效投注、GGR 及 Bonus 與會員日統計同區間總計完全一致。＊標示之指標後端 /agency/profile 尚未提供，上線前需擴充。"
         style={{ marginBottom: 16 }}
       />
 

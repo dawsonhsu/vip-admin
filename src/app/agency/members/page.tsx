@@ -8,14 +8,13 @@ import {
 import { ColumnHeightOutlined, FolderOpenOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
-import { agencyAccount, agencyActiveMembers, agencyMembers, type AgencyMember } from '@/data/agency/shared';
-import { downloadCsv, formatCount, formatPeso, formatTs, memberStateLabels, toCsvCell } from '@/lib/agencyUtils';
+import { agencyAccount, agencyMembers, type AgencyMember } from '@/data/agency/shared';
+import { downloadCsv, formatTs, maskName, maskPhone, memberStateLabels, toCsvCell } from '@/lib/agencyUtils';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const secondaryStyle: React.CSSProperties = { color: '#8c8c8c', fontSize: 12 };
 const stateColors: Record<number, string> = { 1: '#52c41a', 2: '#fa8c16', 3: '#ff4d4f' };
-const gainColor = (value: string | number) => Number(value) > 0 ? '#52c41a' : Number(value) < 0 ? '#ff4d4f' : undefined;
 
 interface MemberListFd {
   username?: string;
@@ -43,35 +42,16 @@ function matches(value: string, query?: string): boolean {
   return !query || value.toLowerCase().includes(query.toLowerCase());
 }
 
-function AmountPair({ total, month, color, signed = false, counts }: {
-  total: string; month: string; color?: string; signed?: boolean; counts?: [number, number];
-}) {
-  return (
-    <div style={{ whiteSpace: 'nowrap', lineHeight: 1.8 }}>
-      <div><span style={secondaryStyle}>累計 </span><span style={{ color: signed ? gainColor(total) : color }}>{formatPeso(total)}</span>{counts && <span style={secondaryStyle}> · {formatCount(counts[0])} 筆</span>}</div>
-      <div><span style={secondaryStyle}>當月 </span><span style={{ color: signed ? gainColor(month) : color }}>{formatPeso(month)}</span>{counts && <span style={secondaryStyle}> · {formatCount(counts[1])} 筆</span>}</div>
-    </div>
-  );
-}
-
 const exportColumns: Array<[string, (row: AgencyMember, index: number) => string]> = [
   ['序號', (_r, index) => String(index + 1)],
   ['在線狀態', (r) => r.is_online ? '在線' : '離線'],
-  ['會員帳號', (r) => r.username], ['暱稱', (r) => r.nick_name],
-  ['真實姓名', (r) => Object.values(r.real_usernames).filter(Boolean).join(' ')],
-  ['會員手機', (r) => r.phone], ['會員狀態', (r) => memberStateLabels[r.state] ?? '-'],
-  ['VIP 等級', (r) => `VIP ${r.vip}`],
-  ['累計存款', (r) => formatPeso(r.deposit_total)], ['累計存款筆數', (r) => String(r.deposit_count)],
-  ['當月存款', (r) => formatPeso(r.stat.deposit_amount_month)], ['當月存款筆數', (r) => String(r.stat.deposit_count_month)],
-  ['累計提款', (r) => formatPeso(r.withdraw_total)], ['累計提款筆數', (r) => String(r.withdraw_count)],
-  ['當月提款', (r) => formatPeso(r.stat.withdraw_amount_month)], ['當月提款筆數', (r) => String(r.stat.withdraw_count_month)],
-  ['累計存提差', (r) => formatPeso(r.stat.dw_diff)], ['當月存提差', (r) => formatPeso(r.stat.dw_diff_month)],
-  ['累計投注', (r) => formatPeso(r.stat.bet)], ['當月投注', (r) => formatPeso(r.stat.bet_month)],
-  ['累計有效投注', (r) => formatPeso(r.stat.valid_bet)], ['當月有效投注', (r) => formatPeso(r.stat.valid_bet_month)],
-  ['累計 GGR', (r) => formatPeso(r.stat.ggr)], ['當月 GGR', (r) => formatPeso(r.stat.ggr_month)],
-  ['稅收', (r) => formatPeso(r.stat.tax)], ['場館費', (r) => formatPeso(r.stat.venue_fee)],
-  ['活動禮金', (r) => formatPeso(r.stat.bonus)],
-  ['最後登入', (r) => formatTs(r.last_login_at)], ['註冊時間', (r) => formatTs(r.created_at)],
+  ['會員帳號', (r) => r.username],
+  ['暱稱', (r) => r.nick_name],
+  ['真實姓名', (r) => maskName(Object.values(r.real_usernames).filter(Boolean).join(' '))],
+  ['會員手機', (r) => maskPhone(r.phone)],
+  ['會員狀態', (r) => memberStateLabels[r.state] ?? '-'],
+  ['註冊時間', (r) => formatTs(r.created_at)],
+  ['最後登入時間', (r) => formatTs(r.last_login_at)],
 ];
 
 export default function AgencyMembersPage() {
@@ -101,14 +81,6 @@ export default function AgencyMembersPage() {
     return true;
   }), [allRows, filters]);
 
-  const totals = useMemo(() => ({
-    members: rows.length,
-    active: agencyActiveMembers(rows).length,
-    deposit: rows.reduce((sum, r) => sum + Math.round(Number(r.stat.deposit_amount_month) * 100), 0) / 100,
-    validBet: rows.reduce((sum, r) => sum + Math.round(Number(r.stat.valid_bet_month) * 100), 0) / 100,
-    ggr: rows.reduce((sum, r) => sum + Math.round(Number(r.stat.ggr_month) * 100), 0) / 100,
-  }), [rows]);
-
   const search = (values: MemberFilterForm) => {
     setFilters(memberFilters(values));
     setPagination((current) => ({ ...current, current: 1 }));
@@ -136,24 +108,14 @@ export default function AgencyMembersPage() {
         <div style={{ lineHeight: 1.8 }}>
           <Text strong copyable={{ text: r.username, tooltips: ['複製會員帳號', '已複製'] }} data-e2e-id={`agency-members-username-${r.uid}-copy`}>{r.username}</Text>
           <div style={secondaryStyle}>暱稱：{r.nick_name}</div>
-          <div style={secondaryStyle}>真實姓名：{[r.real_usernames.first_name, r.real_usernames.middle_name, r.real_usernames.last_name].filter(Boolean).join(' ')}</div>
-          <div style={secondaryStyle}>{r.phone}</div>
+          <div style={secondaryStyle}>真實姓名：{maskName([r.real_usernames.first_name, r.real_usernames.middle_name, r.real_usernames.last_name].filter(Boolean).join(' '))}</div>
+          <div style={secondaryStyle}>{maskPhone(r.phone)}</div>
         </div>
       ),
     },
     { title: '會員狀態', key: 'state', width: 120, render: (_v, r) => <span style={{ color: stateColors[r.state] }}>{memberStateLabels[r.state] ?? '-'}</span> },
-    { title: 'VIP 等級', key: 'vip', width: 110, render: (_v, r) => `VIP ${r.vip}` },
-    { title: '存款', key: 'deposit', width: 200, render: (_v, r) => <AmountPair total={r.deposit_total} month={r.stat.deposit_amount_month} color="#52c41a" counts={[r.deposit_count, r.stat.deposit_count_month]} /> },
-    { title: '提款', key: 'withdraw', width: 200, render: (_v, r) => <AmountPair total={r.withdraw_total} month={r.stat.withdraw_amount_month} color="#ff4d4f" counts={[r.withdraw_count, r.stat.withdraw_count_month]} /> },
-    { title: '存提差', key: 'dw_diff', width: 200, render: (_v, r) => <AmountPair total={r.stat.dw_diff} month={r.stat.dw_diff_month} signed /> },
-    { title: '投注', key: 'bet', width: 180, render: (_v, r) => <AmountPair total={r.stat.bet} month={r.stat.bet_month} /> },
-    { title: '有效投注', key: 'valid_bet', width: 180, render: (_v, r) => <AmountPair total={r.stat.valid_bet} month={r.stat.valid_bet_month} /> },
-    { title: 'GGR', key: 'ggr', width: 180, render: (_v, r) => <AmountPair total={r.stat.ggr} month={r.stat.ggr_month} signed /> },
-    { title: '稅收', key: 'tax', width: 150, align: 'right', render: (_v, r) => formatPeso(r.stat.tax) },
-    { title: '場館費', key: 'venue_fee', width: 150, align: 'right', render: (_v, r) => formatPeso(r.stat.venue_fee) },
-    { title: '活動禮金', key: 'bonus', width: 150, align: 'right', render: (_v, r) => formatPeso(r.stat.bonus) },
-    { title: '最後登入', key: 'last_login_at', width: 180, render: (_v, r) => formatTs(r.last_login_at) },
     { title: '註冊時間', key: 'created_at', width: 180, render: (_v, r) => formatTs(r.created_at) },
+    { title: '最後登入時間', key: 'last_login_at', width: 180, render: (_v, r) => formatTs(r.last_login_at) },
   ];
   const visibleColumns = columns.filter((column) => !hiddenColumns.includes(String(column.key)));
 
@@ -204,16 +166,6 @@ export default function AgencyMembersPage() {
             }><Button icon={<SettingOutlined />} data-e2e-id="agency-members-toolbar-settings-btn">設定</Button></Popover>
           </Space>
         </div>
-
-        <Row gutter={[24, 12]} data-e2e-id="agency-members-summary-strip" style={{ padding: '12px 16px', marginBottom: 16, background: '#fafafa', borderRadius: 6 }}>
-          {[
-            { label: '會員數', value: formatCount(totals.members) },
-            { label: '活躍會員數', value: formatCount(totals.active) },
-            { label: '當月存款', value: formatPeso(totals.deposit), color: '#52c41a' },
-            { label: '當月有效投注', value: formatPeso(totals.validBet) },
-            { label: '當月 GGR', value: formatPeso(totals.ggr), color: gainColor(totals.ggr) },
-          ].map((item) => <Col key={item.label} xs={12} sm={8} xl={{ flex: 1 }}><div style={secondaryStyle}>{item.label}</div><div style={{ marginTop: 4, fontSize: 18, fontWeight: 600, color: item.color }}>{item.value}</div></Col>)}
-        </Row>
 
         <Table<AgencyMember>
           data-e2e-id="agency-members-table"

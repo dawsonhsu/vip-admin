@@ -74,6 +74,24 @@ export function formatCount(value: number): string {
   return value.toLocaleString('en-US');
 }
 
+/** 手機保留前 4 後 3 碼，中間固定 4 顆星；短號碼只留前 2 碼。 */
+export function maskPhone(phone?: string): string {
+  const value = phone?.trim();
+  if (!value) return '-';
+  if (value.length < 8) return `${value.slice(0, 2)}${'*'.repeat(Math.max(1, value.length - 2))}`;
+  return `${value.slice(0, 4)}****${value.slice(-3)}`;
+}
+
+/** 姓名每段只留首字，單字元維持原樣。 */
+export function maskName(name?: string): string {
+  const value = name?.trim();
+  if (!value) return '-';
+  return value.split(/\s+/).map((part) => {
+    const characters = Array.from(part);
+    return `${characters[0]}${'*'.repeat(characters.length - 1)}`;
+  }).join(' ');
+}
+
 // 後端時間戳為秒級 int64
 export function formatTs(seconds: number): string {
   if (!seconds) return '-';
