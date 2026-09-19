@@ -44,10 +44,9 @@ export interface ProfileResult {
   };
 }
 
-export function buildAgencyProfile(
-  startTs = dayjs.unix(AGENCY_DATA_NOW).startOf('month').unix(),
-  endTs = dayjs.unix(AGENCY_DATA_NOW).endOf('month').unix(),
-): ProfileResult {
+export type AgencyRangeStat = ProfileResult['stat'];
+
+export function buildAgencyRangeStat(startTs: number, endTs: number): AgencyRangeStat {
   const start = Math.max(startTs, agencyDailyEvents.start_time);
   const end = Math.min(endTs, agencyDailyEvents.end_time);
   const inRange = (event: { created_at: number }) => event.created_at >= start && event.created_at <= end;
@@ -63,27 +62,34 @@ export function buildAgencyProfile(
   const decimal = (value: number) => (value / 100).toFixed(2);
 
   return {
+    members: agencyMembers.filter((member) => member.created_at <= endTs).length,
+    // 註冊是會員屬性而非事件，不受事件視窗（近 6 個月）限制，一律用原始區間比對。
+    reg: agencyMembers.filter((member) => member.created_at >= startTs && member.created_at <= endTs).length,
+    first_deposit: users(firstDeposits),
+    first_deposit_amount: decimal(firstDeposits.reduce((sum, event) => sum + event.amount_cents, 0)),
+    deposit_users: users(deposits),
+    deposit_count: deposits.length,
+    deposit_amount: decimal(deposit),
+    withdraw_users: users(withdrawals),
+    withdraw_count: withdrawals.length,
+    withdraw_amount: decimal(withdraw),
+    dw_diff: decimal(deposit - withdraw),
+    bet_users: users(bets),
+    valid_bet: decimal(bets.reduce((sum, event) => sum + event.valid_bet_cents, 0)),
+    ggr: decimal(ggr),
+    bonus: decimal(bonus),
+    ngr: decimal(ggr - bonus),
+  };
+}
+
+export function buildAgencyProfile(
+  startTs = dayjs.unix(AGENCY_DATA_NOW).startOf('month').unix(),
+  endTs = dayjs.unix(AGENCY_DATA_NOW).endOf('month').unix(),
+): ProfileResult {
+  return {
     ...agencyAccount,
     invite_img: [...agencyAccount.invite_img],
     real_username: { ...agencyAccount.real_username },
-    stat: {
-      members: agencyMembers.filter((member) => member.created_at <= endTs).length,
-      // 註冊是會員屬性而非事件，不受事件視窗（近 6 個月）限制，一律用原始區間比對。
-      reg: agencyMembers.filter((member) => member.created_at >= startTs && member.created_at <= endTs).length,
-      first_deposit: users(firstDeposits),
-      first_deposit_amount: decimal(firstDeposits.reduce((sum, event) => sum + event.amount_cents, 0)),
-      deposit_users: users(deposits),
-      deposit_count: deposits.length,
-      deposit_amount: decimal(deposit),
-      withdraw_users: users(withdrawals),
-      withdraw_count: withdrawals.length,
-      withdraw_amount: decimal(withdraw),
-      dw_diff: decimal(deposit - withdraw),
-      bet_users: users(bets),
-      valid_bet: decimal(bets.reduce((sum, event) => sum + event.valid_bet_cents, 0)),
-      ggr: decimal(ggr),
-      bonus: decimal(bonus),
-      ngr: decimal(ggr - bonus),
-    },
+    stat: buildAgencyRangeStat(startTs, endTs),
   };
 }

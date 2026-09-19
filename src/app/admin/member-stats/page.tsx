@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Button,
   Card,
@@ -34,6 +34,7 @@ type MemberSearchType = '手機號' | '賬號' | 'UID';
 interface PersonalFormValues {
   searchValue?: string;
   inviterUid?: string;
+  agencyUsername?: string;
   inviterLevel: 1 | 2 | 3;
   dateRange: [Dayjs, Dayjs];
 }
@@ -48,6 +49,8 @@ interface AggregatedPersonalStat {
   phone: string;
   inviterUid?: string;
   inviterUsername?: string;
+  agencyUid?: string;
+  agencyUsername?: string;
   depositCount: number;
   totalDeposit: number;
   withdrawCount: number;
@@ -123,6 +126,10 @@ const renderGgr = (value: number) => (
   </span>
 );
 
+const addAmount = (left: number, right: number) => (
+  (Math.round(left * 100) + Math.round(right * 100)) / 100
+);
+
 const exportCsv = (filename: string, headers: string[], rows: Array<Array<string | number>>) => {
   const csv = [
     headers.join(','),
@@ -158,6 +165,8 @@ const aggregatePersonalStats = (rows: PersonalStat[]): AggregatedPersonalStat[] 
         phone: row.phone,
         inviterUid: row.inviterUid,
         inviterUsername: row.inviterUsername,
+        agencyUid: row.agencyUid,
+        agencyUsername: row.agencyUsername,
         depositCount: 0,
         totalDeposit: 0,
         withdrawCount: 0,
@@ -180,22 +189,22 @@ const aggregatePersonalStats = (rows: PersonalStat[]): AggregatedPersonalStat[] 
     }
 
     acc[row.uid].depositCount += row.depositCount;
-    acc[row.uid].totalDeposit += row.totalDeposit;
+    acc[row.uid].totalDeposit = addAmount(acc[row.uid].totalDeposit, row.totalDeposit);
     acc[row.uid].withdrawCount += row.withdrawCount;
-    acc[row.uid].totalWithdraw += row.totalWithdraw;
-    acc[row.uid].depositFee += row.depositFee;
-    acc[row.uid].withdrawFee += row.withdrawFee;
-    acc[row.uid].totalBet += row.totalBet;
-    acc[row.uid].excludedBet += row.excludedBet;
-    acc[row.uid].validBet += row.validBet;
-    acc[row.uid].totalPayout += row.totalPayout;
-    acc[row.uid].ggr += row.ggr;
-    acc[row.uid].fsBet += row.fsBet;
-    acc[row.uid].fsGgr += row.fsGgr;
-    acc[row.uid].jpBet += row.jpBet;
-    acc[row.uid].jpGgr += row.jpGgr;
-    acc[row.uid].totalBonus += row.totalBonus;
-    acc[row.uid].totalCommission += row.totalCommission;
+    acc[row.uid].totalWithdraw = addAmount(acc[row.uid].totalWithdraw, row.totalWithdraw);
+    acc[row.uid].depositFee = addAmount(acc[row.uid].depositFee, row.depositFee);
+    acc[row.uid].withdrawFee = addAmount(acc[row.uid].withdrawFee, row.withdrawFee);
+    acc[row.uid].totalBet = addAmount(acc[row.uid].totalBet, row.totalBet);
+    acc[row.uid].excludedBet = addAmount(acc[row.uid].excludedBet, row.excludedBet);
+    acc[row.uid].validBet = addAmount(acc[row.uid].validBet, row.validBet);
+    acc[row.uid].totalPayout = addAmount(acc[row.uid].totalPayout, row.totalPayout);
+    acc[row.uid].ggr = addAmount(acc[row.uid].ggr, row.ggr);
+    acc[row.uid].fsBet = addAmount(acc[row.uid].fsBet, row.fsBet);
+    acc[row.uid].fsGgr = addAmount(acc[row.uid].fsGgr, row.fsGgr);
+    acc[row.uid].jpBet = addAmount(acc[row.uid].jpBet, row.jpBet);
+    acc[row.uid].jpGgr = addAmount(acc[row.uid].jpGgr, row.jpGgr);
+    acc[row.uid].totalBonus = addAmount(acc[row.uid].totalBonus, row.totalBonus);
+    acc[row.uid].totalCommission = addAmount(acc[row.uid].totalCommission, row.totalCommission);
 
     return acc;
   }, {});
@@ -208,22 +217,22 @@ const sumPersonal = (rows: AggregatedPersonalStat[]) => rows.reduce(
     memberCount: acc.memberCount + 1,
     achievedCount: acc.achievedCount + (row.achievedInvitation ? 1 : 0),
     depositCount: acc.depositCount + row.depositCount,
-    totalDeposit: acc.totalDeposit + row.totalDeposit,
+    totalDeposit: addAmount(acc.totalDeposit, row.totalDeposit),
     withdrawCount: acc.withdrawCount + row.withdrawCount,
-    totalWithdraw: acc.totalWithdraw + row.totalWithdraw,
-    depositFee: acc.depositFee + row.depositFee,
-    withdrawFee: acc.withdrawFee + row.withdrawFee,
-    totalBet: acc.totalBet + row.totalBet,
-    excludedBet: acc.excludedBet + row.excludedBet,
-    validBet: acc.validBet + row.validBet,
-    totalPayout: acc.totalPayout + row.totalPayout,
-    ggr: acc.ggr + row.ggr,
-    fsBet: acc.fsBet + row.fsBet,
-    fsGgr: acc.fsGgr + row.fsGgr,
-    jpBet: acc.jpBet + row.jpBet,
-    jpGgr: acc.jpGgr + row.jpGgr,
-    totalBonus: acc.totalBonus + row.totalBonus,
-    totalCommission: acc.totalCommission + row.totalCommission,
+    totalWithdraw: addAmount(acc.totalWithdraw, row.totalWithdraw),
+    depositFee: addAmount(acc.depositFee, row.depositFee),
+    withdrawFee: addAmount(acc.withdrawFee, row.withdrawFee),
+    totalBet: addAmount(acc.totalBet, row.totalBet),
+    excludedBet: addAmount(acc.excludedBet, row.excludedBet),
+    validBet: addAmount(acc.validBet, row.validBet),
+    totalPayout: addAmount(acc.totalPayout, row.totalPayout),
+    ggr: addAmount(acc.ggr, row.ggr),
+    fsBet: addAmount(acc.fsBet, row.fsBet),
+    fsGgr: addAmount(acc.fsGgr, row.fsGgr),
+    jpBet: addAmount(acc.jpBet, row.jpBet),
+    jpGgr: addAmount(acc.jpGgr, row.jpGgr),
+    totalBonus: addAmount(acc.totalBonus, row.totalBonus),
+    totalCommission: addAmount(acc.totalCommission, row.totalCommission),
   }),
   { memberCount: 0, achievedCount: 0, depositCount: 0, totalDeposit: 0, withdrawCount: 0, totalWithdraw: 0, depositFee: 0, withdrawFee: 0, totalBet: 0, excludedBet: 0, validBet: 0, totalPayout: 0, ggr: 0, fsBet: 0, fsGgr: 0, jpBet: 0, jpGgr: 0, totalBonus: 0, totalCommission: 0 }
 );
@@ -333,6 +342,7 @@ const sumInvite = (rows: AggregatedInviteStat[]) => rows.reduce(
 
 function PersonalStatsTab() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [form] = Form.useForm<PersonalFormValues>();
   const [searchType, setSearchType] = useState<MemberSearchType>('手機號');
   const [filters, setFilters] = useState<PersonalFilters>({ searchType: '手機號', inviterLevel: 1, dateRange: defaultRange() });
@@ -343,6 +353,21 @@ function PersonalStatsTab() {
     pageSizeOptions: ['10', '20', '50'],
   });
   const [drawerTarget, setDrawerTarget] = useState<AggregatedPersonalStat | null>(null);
+
+  useEffect(() => {
+    const agent = searchParams.get('agent')?.trim();
+    const start = searchParams.get('start');
+    const end = searchParams.get('end');
+    if (!agent && !start && !end) return;
+    const startDate = start && dayjs(start).isValid() ? dayjs(start) : dayjs();
+    const endDate = end && dayjs(end).isValid() ? dayjs(end) : startDate;
+    const dateRange: [Dayjs, Dayjs] = endDate.isBefore(startDate)
+      ? [startDate, startDate]
+      : [startDate, endDate];
+    form.setFieldsValue({ agencyUsername: agent || undefined, dateRange });
+    setFilters({ searchType: '手機號', inviterLevel: 1, agencyUsername: agent || undefined, dateRange });
+    setPagination((current) => ({ ...current, current: 1 }));
+  }, [form, searchParams]);
 
   const [queryStart, queryEnd] = getDateRangeStrings(filters.dateRange);
   const dateRangeText = formatDateRange(queryStart, queryEnd);
@@ -371,6 +396,7 @@ function PersonalStatsTab() {
         if (l2?.inviterUid !== target) return false;
       }
     }
+    if (filters.agencyUsername && row.agencyUsername?.toLowerCase() !== filters.agencyUsername.toLowerCase()) return false;
     return true;
   }), [filters, queryEnd, queryStart]);
 
@@ -389,6 +415,7 @@ function PersonalStatsTab() {
       searchType,
       searchValue: values.searchValue?.trim() || undefined,
       inviterUid: values.inviterUid?.trim() || undefined,
+      agencyUsername: values.agencyUsername?.trim() || undefined,
       inviterLevel: (values.inviterLevel as 1 | 2 | 3) || 1,
       dateRange: values.dateRange || defaultRange(),
     });
@@ -397,7 +424,7 @@ function PersonalStatsTab() {
 
   const handleReset = () => {
     const nextRange = defaultRange();
-    form.setFieldsValue({ searchValue: undefined, inviterUid: undefined, inviterLevel: 1, dateRange: nextRange });
+    form.setFieldsValue({ searchValue: undefined, inviterUid: undefined, agencyUsername: undefined, inviterLevel: 1, dateRange: nextRange });
     setSearchType('手機號');
     setFilters({ searchType: '手機號', inviterLevel: 1, dateRange: nextRange });
     setPagination(prev => ({ ...prev, current: 1 }));
@@ -460,6 +487,18 @@ function PersonalStatsTab() {
           </Space>
         );
       },
+    },
+    {
+      title: '所屬代理',
+      dataIndex: 'agencyUsername',
+      width: 150,
+      sorter: (a, b) => (a.agencyUsername ?? '').localeCompare(b.agencyUsername ?? ''),
+      render: (_, record) => record.agencyUsername ? (
+        <div>
+          <div>{record.agencyUsername}</div>
+          <Text type="secondary" style={{ fontSize: 12 }}>{record.agencyUid}</Text>
+        </div>
+      ) : '-',
     },
     {
       title: 'UID',
@@ -723,6 +762,11 @@ function PersonalStatsTab() {
                 </Space.Compact>
               </Form.Item>
             </Col>
+            <Col span={6}>
+              <Form.Item label="所屬代理" name="agencyUsername">
+                <Input data-e2e-id="member-stats-filter-agent-input" placeholder="輸入代理帳號" allowClear />
+              </Form.Item>
+            </Col>
             <Col span={8}>
               <Form.Item label="統計時間" name="dateRange">
                 <RangePicker data-e2e-id="member-stats-filter-date-range" style={{ width: '100%' }} allowClear={false} />
@@ -782,13 +826,15 @@ function PersonalStatsTab() {
             icon={<DownloadOutlined />}
             onClick={() => exportCsv(
               `member-personal-stats-${queryStart}-${queryEnd}.csv`,
-              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '達標', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR', '總彩金', '總佣金'],
+              ['統計日期', '會員 UID', '會員帳號', '邀請人 UID', '邀請人帳號', '所屬代理 UID', '所屬代理帳號', '達標', '存款次數', '總存款', '提款次數', '總提款', '存款手續費', '提款手續費', '總投注', '排除投注額', '有效流水', '總派獎', 'GGR', 'FS 投注額', 'FS GGR', 'JP 投注額', 'JP GGR', '總彩金', '總佣金'],
               aggregatedRows.map(row => [
                 dateRangeText,
                 row.uid,
                 row.username,
                 row.inviterUid || '',
                 row.inviterUsername || '',
+                row.agencyUid || '',
+                row.agencyUsername || '',
                 row.achievedInvitation ? '是' : '否',
                 row.depositCount,
                 formatAmount(row.totalDeposit),
@@ -1283,7 +1329,7 @@ function InviteStatsTab() {
   );
 }
 
-export default function MemberStatsPage() {
+function MemberStatsPageContent() {
   const tabItems = [
     { key: 'personal', label: <span data-e2e-id="member-stats-tab-personal">個人統計</span>, children: <PersonalStatsTab /> },
     { key: 'invite', label: <span data-e2e-id="member-stats-tab-invite">邀請統計</span>, children: <InviteStatsTab /> },
@@ -1299,5 +1345,13 @@ export default function MemberStatsPage() {
         <Tabs data-e2e-id="member-stats-tab" items={tabItems} />
       </Space>
     </div>
+  );
+}
+
+export default function MemberStatsPage() {
+  return (
+    <Suspense fallback={<div><Title level={4} style={{ margin: 0 }}>會員日統計</Title></div>}>
+      <MemberStatsPageContent />
+    </Suspense>
   );
 }

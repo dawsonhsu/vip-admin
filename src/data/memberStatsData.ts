@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+import { adminMemberAgentAssignments, agencyAdminPersonalStats } from './agency/adminAssignments';
 
 export type GameType = 'Slots' | 'Fishing' | 'Sports' | 'Table' | 'Live' | 'Arcade' | 'Bingo';
 
@@ -9,6 +10,8 @@ export interface PersonalStat {
   phone: string;
   inviterUid?: string;
   inviterUsername?: string;
+  agencyUid?: string;
+  agencyUsername?: string;
   depositCount: number;
   totalDeposit: number;
   withdrawCount: number;
@@ -186,6 +189,7 @@ export function getInviterChain(uid: string): { chain: Array<{ uid: string; user
 const dates = Array.from({ length: TOTAL_DAYS }, (_, index) => dayjs().subtract(index, 'day').format('YYYY-MM-DD'));
 
 const createPersonalStat = (member: MockMember, date: string): PersonalStat => {
+  const agency = adminMemberAgentAssignments[member.uid];
   const depositCount = pickInt(`${member.uid}-${date}-deposit-count`, 0, 6);
   const totalDeposit = depositCount === 0 ? 0 : pickAmountWithDecimal(`${member.uid}-${date}-deposit-amount`, 100, 50000);
   const withdrawCount = pickInt(`${member.uid}-${date}-withdraw-count`, 0, 4);
@@ -213,6 +217,8 @@ const createPersonalStat = (member: MockMember, date: string): PersonalStat => {
     phone: member.phone,
     inviterUid: member.inviterUid,
     inviterUsername: member.inviterUsername,
+    agencyUid: agency?.uid,
+    agencyUsername: agency?.username,
     depositCount,
     totalDeposit,
     withdrawCount,
@@ -333,7 +339,10 @@ const createGameStat = (member: MockMember, date: string, gameType: GameType): G
   };
 };
 
-export const personalStats: PersonalStat[] = mockMembers.flatMap((member) => dates.map(date => createPersonalStat(member, date)));
+export const personalStats: PersonalStat[] = [
+  ...mockMembers.flatMap((member) => dates.map(date => createPersonalStat(member, date))),
+  ...agencyAdminPersonalStats,
+];
 
 export const inviteStats: InviteStat[] = mockMembers.flatMap((member) => dates.map(date => createInviteStat(member, date)));
 

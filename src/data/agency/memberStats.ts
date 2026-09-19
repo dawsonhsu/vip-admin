@@ -18,6 +18,20 @@ export interface AgencyMemberDailyStat {
   totalBonus: number;
 }
 
+export interface AgencyMemberDailyCents {
+  uid: string;
+  username: string;
+  phone: string;
+  date: string;
+  depositCount: number;
+  totalDepositCents: number;
+  withdrawCount: number;
+  totalWithdrawCents: number;
+  validBetCents: number;
+  ggrCents: number;
+  totalBonusCents: number;
+}
+
 export type AgencyMemberMetrics = Omit<AgencyMemberDailyStat, 'uid' | 'username' | 'phone' | 'date'>;
 export type AgencyMemberStat = Omit<AgencyMemberDailyStat, 'date'>;
 
@@ -33,9 +47,9 @@ const emptyMetrics = (): AgencyMemberMetrics => ({
 });
 
 /** 只切既有事件；建列、推導及加總時，所有金額都使用整數分。 */
-export function agencyMemberDailyStats(): AgencyMemberDailyStat[] {
+export function agencyMemberDailyCents(): AgencyMemberDailyCents[] {
   const members = new Map(agencyMembers.map((member) => [member.uid, member]));
-  const grouped = new Map<string, AgencyMemberDailyStat>();
+  const grouped = new Map<string, AgencyMemberDailyCents>();
   const rowFor = (uid: string, createdAt: number) => {
     const date = dayjs.unix(createdAt).format('YYYY-MM-DD');
     const key = `${uid}:${date}`;
@@ -43,7 +57,11 @@ export function agencyMemberDailyStats(): AgencyMemberDailyStat[] {
     if (!row) {
       const member = members.get(uid);
       if (!member) throw new Error(`Unknown agency member: ${uid}`);
-      row = { uid, username: member.username, phone: member.phone, date, ...emptyMetrics() };
+      row = {
+        uid, username: member.username, phone: member.phone, date,
+        depositCount: 0, totalDepositCents: 0, withdrawCount: 0, totalWithdrawCents: 0,
+        validBetCents: 0, ggrCents: 0, totalBonusCents: 0,
+      };
       grouped.set(key, row);
     }
     return row;
@@ -52,29 +70,42 @@ export function agencyMemberDailyStats(): AgencyMemberDailyStat[] {
   for (const event of agencyDailyEvents.deposits) {
     const row = rowFor(event.uid, event.created_at);
     row.depositCount += 1;
-    row.totalDeposit += event.amount_cents;
+    row.totalDepositCents += event.amount_cents;
   }
   for (const event of agencyDailyEvents.withdrawals) {
     const row = rowFor(event.uid, event.created_at);
     row.withdrawCount += 1;
-    row.totalWithdraw += event.amount_cents;
+    row.totalWithdrawCents += event.amount_cents;
   }
   for (const event of agencyDailyEvents.bets) {
     const row = rowFor(event.uid, event.created_at);
-    row.validBet += event.valid_bet_cents;
-    row.ggr += event.ggr_cents;
+    row.validBetCents += event.valid_bet_cents;
+    row.ggrCents += event.ggr_cents;
   }
   for (const event of agencyDailyEvents.bonuses) {
-    rowFor(event.uid, event.created_at).totalBonus += Math.round(Number(event.bonus) * 100);
+    rowFor(event.uid, event.created_at).totalBonusCents += Math.round(Number(event.bonus) * 100);
   }
 
-  return Array.from(grouped.values()).filter((row) => agencyMemberMetricKeys.some((key) => row[key] !== 0))
-    .map((row) => {
-      for (const key of agencyMemberMetricKeys) {
-        if (!isCount(key)) row[key] /= 100;
-      }
-      return row;
-    }).sort((a, b) => b.date.localeCompare(a.date) || a.uid.localeCompare(b.uid));
+  return Array.from(grouped.values()).filter((row) => (
+    row.depositCount !== 0 || row.totalDepositCents !== 0 || row.withdrawCount !== 0 ||
+    row.totalWithdrawCents !== 0 || row.validBetCents !== 0 || row.ggrCents !== 0 || row.totalBonusCents !== 0
+  )).sort((a, b) => b.date.localeCompare(a.date) || a.uid.localeCompare(b.uid));
+}
+
+export function agencyMemberDailyStats(): AgencyMemberDailyStat[] {
+  return agencyMemberDailyCents().map((row) => ({
+    uid: row.uid,
+    username: row.username,
+    phone: row.phone,
+    date: row.date,
+    depositCount: row.depositCount,
+    totalDeposit: row.totalDepositCents / 100,
+    withdrawCount: row.withdrawCount,
+    totalWithdraw: row.totalWithdrawCents / 100,
+    validBet: row.validBetCents / 100,
+    ggr: row.ggrCents / 100,
+    totalBonus: row.totalBonusCents / 100,
+  }));
 }
 
 /** 主表、當頁小計與總計共用，禁止直接累加浮點元金額。 */

@@ -69,7 +69,14 @@ const menuItems: MenuItem[] = [
       { key: '/admin/vip-config', icon: <SettingOutlined />, label: <span data-e2e-id="layout-menu-vip-config">VIP 配置</span> },
     ],
   },
-  { key: 'agent', icon: <TeamOutlined />, label: <span data-e2e-id="layout-menu-agent">代理管理</span> },
+  {
+    key: 'agent',
+    icon: <TeamOutlined />,
+    label: <span data-e2e-id="layout-menu-agent">代理管理</span>,
+    children: [
+      { key: '/admin/agency-report', icon: <BarChartOutlined />, label: <span data-e2e-id="layout-menu-agency-report">代理統計報表</span> },
+    ],
+  },
   {
     key: 'report',
     icon: <BarChartOutlined />,
@@ -150,6 +157,7 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/vip-rewards': 'VIP 獎勵表',
   '/admin/vip-checkin-log': 'VIP 簽到日誌',
   '/admin/vip-config': 'VIP 配置',
+  '/admin/agency-report': '代理統計報表',
   '/admin/freespin-grants': 'FS 派發管理',
   '/admin/freespin-batch-log': 'FS 批量派發紀錄',
   '/admin/freebet-campaign': 'FreeBet 活動管理',
@@ -181,6 +189,7 @@ const parentBreadcrumbMap: Record<string, string> = {
   '/admin/vip-rewards': '會員管理',
   '/admin/vip-checkin-log': '會員管理',
   '/admin/vip-config': '會員管理',
+  '/admin/agency-report': '代理管理',
   '/admin/freespin-grants': '遊戲管理',
   '/admin/freespin-batch-log': '遊戲管理',
   '/admin/freebet-campaign': '遊戲管理',
@@ -288,7 +297,7 @@ export default function AdminLayout({ children, isDark, onThemeChange }: AdminLa
           theme={isDark ? 'dark' : 'light'}
           mode="inline"
           selectedKeys={[pathname]}
-          defaultOpenKeys={['member-mgmt', 'kyc']}
+          defaultOpenKeys={['member-mgmt', 'kyc', ...(pathname === '/admin/agency-report' ? ['agent'] : [])]}
           items={menuItems}
           onClick={onClick}
           style={{ background: 'transparent', borderRight: 0 }}
