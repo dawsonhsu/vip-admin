@@ -8,7 +8,7 @@ import {
 import { ColumnHeightOutlined, FolderOpenOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
-import { agencyAccount, agencyMembers, type AgencyMember } from '@/data/agency/shared';
+import { agencyMembers, type AgencyMember } from '@/data/agency/shared';
 import { downloadCsv, formatTs, maskName, maskPhone, memberStateLabels, toCsvCell } from '@/lib/agencyUtils';
 
 const { Title, Text } = Typography;
@@ -19,8 +19,6 @@ const stateColors: Record<number, string> = { 1: '#52c41a', 2: '#fa8c16', 3: '#f
 interface MemberListFd {
   username?: string;
   phone?: string;
-  parent_name?: string;
-  parent_phone?: string;
   start_time?: number;
   end_time?: number;
 }
@@ -32,7 +30,6 @@ type MemberFilterForm = Omit<MemberListFd, 'start_time' | 'end_time'> & {
 function memberFilters(values: MemberFilterForm): MemberListFd {
   return {
     username: values.username?.trim(), phone: values.phone?.trim(),
-    parent_name: values.parent_name?.trim(), parent_phone: values.parent_phone?.trim(),
     start_time: values.created_at?.[0].startOf('day').unix(),
     end_time: values.created_at?.[1].endOf('day').unix(),
   };
@@ -74,8 +71,6 @@ export default function AgencyMembersPage() {
 
   const rows = useMemo(() => allRows.filter((row) => {
     if (!matches(row.username, filters.username) || !matches(row.phone, filters.phone)) return false;
-    // 此示範的所有會員都屬於登入代理，代理條件因此會全數符合或全數排除。
-    if (!matches(agencyAccount.username, filters.parent_name) || !matches(agencyAccount.phone, filters.parent_phone)) return false;
     if (filters.start_time !== undefined && row.created_at < filters.start_time) return false;
     if (filters.end_time !== undefined && row.created_at > filters.end_time) return false;
     return true;
@@ -126,7 +121,8 @@ export default function AgencyMembersPage() {
         <Form form={form} onFinish={search} layout="horizontal" colon={false} labelCol={{ flex: '0 0 84px' }} wrapperCol={{ flex: 1 }}>
           <Row gutter={[16, 0]}>
             {([
-              ['username', '會員帳號'], ['phone', '會員手機'], ['parent_name', '代理帳號'], ['parent_phone', '代理手機'],
+              // 代理端固定只看自己的下線，代理帳號／代理手機篩選沒有意義，故不提供。
+              ['username', '會員帳號'], ['phone', '會員手機'],
             ] as const).map(([name, label]) => (
               <Col key={name} xs={24} sm={12} xl={6}>
                 <Form.Item name={name} label={label}><Input allowClear placeholder={`請輸入${label}`} data-e2e-id={`agency-members-filter-${name}-input`} /></Form.Item>
