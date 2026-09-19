@@ -15,8 +15,8 @@ export interface LeaderboardProviderCatalogItem {
 export interface LeaderboardProviderRow {
   key: string;
   providerCode: string;
-  logoUrl: string;
-  logoFileName?: string;
+  minBet: number;
+  excludedGameTypes: GameType[];
   excludedGames: string[];
 }
 
@@ -87,40 +87,21 @@ export const LEADERBOARD_FREE_SPIN_GAME_OPTIONS = gameOptions.some(
       },
     ];
 
-export function providerLogoDataUri(name: string): string {
-  let hash = 0;
-  for (let index = 0; index < name.length; index += 1) {
-    hash = (hash * 31 + name.charCodeAt(index)) >>> 0;
-  }
-  const color = `hsl(${hash % 360} 68% 42%)`;
-  const escapedName = name
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="120" viewBox="0 0 360 120"><rect width="360" height="120" rx="18" fill="${color}"/><rect x="5" y="5" width="350" height="110" rx="14" fill="none" stroke="rgba(255,255,255,.28)"/><text x="180" y="63" text-anchor="middle" dominant-baseline="middle" fill="#fff" font-family="Arial,sans-serif" font-size="30" font-weight="700">${escapedName}</text></svg>`;
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
 const providerByCode = (code: string) =>
   LEADERBOARD_PROVIDER_CATALOG.find((provider) => provider.code === code);
 
 export const DEFAULT_LEADERBOARD_PROVIDERS: LeaderboardProviderRow[] = [
-  { key: 'provider-pg', providerCode: 'PG', excludedGames: [] },
-  { key: 'provider-jili', providerCode: 'JILI', excludedGames: ['golden_empire'] },
-  { key: 'provider-pp', providerCode: 'PP', excludedGames: [] },
-  { key: 'provider-fc', providerCode: 'FC', excludedGames: [] },
-].map((row) => ({
-  ...row,
-  logoUrl: providerLogoDataUri(providerByCode(row.providerCode)?.name ?? row.providerCode),
-}));
+  { key: 'provider-pg', providerCode: 'PG', minBet: 1000, excludedGameTypes: [], excludedGames: [] },
+  { key: 'provider-jili', providerCode: 'JILI', minBet: 1000, excludedGameTypes: ['Arcade'], excludedGames: ['golden_empire'] },
+  { key: 'provider-pp', providerCode: 'PP', minBet: 2000, excludedGameTypes: [], excludedGames: [] },
+  { key: 'provider-fc', providerCode: 'FC', minBet: 500, excludedGameTypes: [], excludedGames: [] },
+];
 
 const defaultPgGame = LEADERBOARD_FREE_SPIN_GAME_OPTIONS.find(
   (game) => game.provider === 'PG SOFT',
 );
 
 export const DEFAULT_RANK_COUNT = 100;
-export const DEFAULT_MIN_BET = 1000;
 export const DEFAULT_ROLLOVER_MULTIPLIER = 1;
 export const DEFAULT_DISPATCH_TIME = '04:30:00';
 export const DEFAULT_POPUP_TEXT = 'Congratulations! You received a Daily Leaderboard reward!';
@@ -202,6 +183,9 @@ export function validateProviders(rows: LeaderboardProviderRow[] = []): string[]
   if (rows.length === 0) return ['請至少選擇一家參與廠商'];
   const used = new Set<string>();
   rows.forEach((row, index) => {
+    if (!Number.isFinite(row.minBet) || row.minBet < 0) {
+      errors.push(`第 ${index + 1} 列請輸入上榜門檻`);
+    }
     if (!row.providerCode) {
       errors.push(`第 ${index + 1} 列請選擇廠商`);
       return;
@@ -209,42 +193,14 @@ export function validateProviders(rows: LeaderboardProviderRow[] = []): string[]
     if (used.has(row.providerCode)) errors.push('參與廠商不可重複');
     used.add(row.providerCode);
     const provider = providerByCode(row.providerCode);
-    if (provider && provider.games.length > 0 && row.excludedGames.length >= provider.games.length) {
+    const hasIncludedGame = provider?.games.some(
+      (game) => !row.excludedGameTypes.includes(game.gameType) && !row.excludedGames.includes(game.code),
+    );
+    if (provider && provider.games.length > 0 && !hasIncludedGame) {
       errors.push(`${provider.name} 不可排除旗下全部遊戲`);
     }
   });
   return Array.from(new Set(errors));
 }
 
-export interface LeaderboardBudget {
-  perBoard: { cash: number; freeSpinSpins: number; freeSpinFaceValue: number; mallCoin: number };
-  allProviders: { cash: number; freeSpinSpins: number; freeSpinFaceValue: number; mallCoin: number };
-}
-
-export function calcBudget(rows: RankRewardRow[], providerCount: number): LeaderboardBudget {
-  const perBoard = rows.reduce(
-    (total, row) => {
-      const count = Math.max(0, row.end - row.start + 1);
-      if (row.rewardType === 'cash') total.cash += count * Number(row.amount ?? 0);
-      if (row.rewardType === 'mallCoin') total.mallCoin += count * Number(row.amount ?? 0);
-      if (row.rewardType === 'freeSpin') {
-        const spins = count * Number(row.freeSpin?.spins ?? 0);
-        total.freeSpinSpins += spins;
-        total.freeSpinFaceValue += spins * Number(row.freeSpin?.betAmount ?? 0);
-      }
-      return total;
-    },
-    { cash: 0, freeSpinSpins: 0, freeSpinFaceValue: 0, mallCoin: 0 },
-  );
-  return {
-    perBoard,
-    allProviders: {
-      cash: perBoard.cash * providerCount,
-      freeSpinSpins: perBoard.freeSpinSpins * providerCount,
-      freeSpinFaceValue: perBoard.freeSpinFaceValue * providerCount,
-      mallCoin: perBoard.mallCoin * providerCount,
-    },
-  };
-}
-
-export const DEFAULT_LEADERBOARD_RULES = `<h3>Provider Daily Leaderboard Rules</h3><ol><li>Each selected provider has its own independent daily leaderboard. A member is ranked by cumulative valid bet on that provider's games for the statistical day; each bet belongs to exactly one provider board.</li><li>The statistical day is 00:00:00–23:59:59 GMT+8. Bets are attributed by settlement time.</li><li>A member must reach the configured minimum valid-bet threshold (greater than or equal to) to qualify. Unfilled reward slots are not paid, carried over, or backfilled.</li><li>If valid bets are equal, the member who reached the final score first by settlement time ranks higher. Ranks are not shared.</li><li>Rewards are credited automatically at 04:30 (GMT+8) the next day. One reward table is shared by all provider boards, and a member may win on multiple boards on the same day.</li><li>Cash rollover equals reward multiplied by the activity multiplier; Free Spin rollover equals winnings multiplied by the multiplier; mall coins have no rollover. A multiplier of 0 means no rollover requirement. Venue scope follows the activity configuration.</li><li>Bets on excluded games do not count. Newly listed games under a selected provider are included automatically.</li></ol><p>Filbet reserves the right of final interpretation.</p>`;
+export const DEFAULT_LEADERBOARD_RULES = `<h3>Provider Daily Leaderboard Rules</h3><ol><li>Each selected provider has its own independent daily leaderboard. A member is ranked by cumulative valid bet on that provider's games for the statistical day; each bet belongs to exactly one provider board.</li><li>The statistical day is 00:00:00–23:59:59 GMT+8. Bets are attributed by settlement time.</li><li>Each provider has its own configured minimum valid-bet threshold. A member's cumulative valid bet for that provider must be greater than or equal to (≥) its threshold to qualify. Unfilled reward slots are not paid, carried over, or backfilled.</li><li>If valid bets are equal, the member who reached the final score first by settlement time ranks higher. Ranks are not shared.</li><li>Rewards are credited automatically at 04:30 (GMT+8) the next day. One reward table is shared by all provider boards, and a member may win on multiple boards on the same day.</li><li>Cash rollover equals reward multiplied by the activity multiplier; Free Spin rollover equals winnings multiplied by the multiplier; mall coins have no rollover. A multiplier of 0 means no rollover requirement. Venue scope follows the activity configuration.</li><li>Bets on excluded game types or specific games do not count. Newly listed games under a selected provider are included automatically unless their game type is excluded.</li></ol><p>Filbet reserves the right of final interpretation.</p>`;

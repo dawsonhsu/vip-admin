@@ -6,9 +6,7 @@ import {
   Button,
   Card,
   Col,
-  Descriptions,
   Form,
-  Image,
   Input,
   InputNumber,
   Modal,
@@ -16,17 +14,16 @@ import {
   Row,
   Select,
   Space,
-  Statistic,
+  Tag,
   Table,
   Tooltip,
+  TreeSelect,
   Typography,
-  Upload,
-  message,
 } from 'antd';
-import { DeleteOutlined, PlusOutlined, QuestionCircleOutlined, UploadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, FolderOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import type { FormInstance } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs, { type Dayjs } from 'dayjs';
+import dayjs from 'dayjs';
 import ActivityConfigWizardShell, {
   type WizardStepDef,
 } from './activityConfigShared/ActivityConfigWizardShell';
@@ -45,7 +42,6 @@ import RichTextEditor, { isRichTextEmpty, richTextToPlainText } from './RichText
 import {
   DEFAULT_LEADERBOARD_PROVIDERS,
   DEFAULT_LEADERBOARD_RULES,
-  DEFAULT_MIN_BET,
   DEFAULT_POPUP_TEXT,
   DEFAULT_RANK_COUNT,
   DEFAULT_RANK_REWARD_ROWS,
@@ -54,9 +50,7 @@ import {
   LEADERBOARD_PROVIDER_CATALOG,
   PROVIDER_LEADERBOARD_ACTIVITY_ID,
   PROVIDER_LEADERBOARD_ACTIVITY_NAME,
-  calcBudget,
   normalizeRankRows,
-  providerLogoDataUri,
   validateProviders,
   validateRankRows,
   type FreeSpinReward,
@@ -74,9 +68,6 @@ interface Props {
   open: boolean;
   onClose: () => void;
 }
-
-const formatCurrency = (value: number) =>
-  `₱ ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const catalogProvider = (code?: string) =>
   LEADERBOARD_PROVIDER_CATALOG.find((provider) => provider.code === code);
@@ -100,55 +91,9 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
 
   const columns: ColumnsType<LeaderboardProviderRow> = [
     {
-      title: 'Logo',
-      key: 'logo',
-      width: 210,
-      render: (_, row) => (
-        <Space direction="vertical" size={4}>
-          <Image
-            src={row.logoUrl}
-            alt={`${catalogProvider(row.providerCode)?.name ?? '廠商'} Logo`}
-            width={120}
-            height={40}
-            preview={false}
-            style={{ objectFit: 'contain', borderRadius: 4 }}
-          />
-          <Upload
-            data-e2e-id={`${e2ePrefix}-provider-logo-upload-${row.key}`}
-            accept=".png,.webp"
-            showUploadList={false}
-            beforeUpload={(file) => {
-              if (file.size > 1024 * 1024) {
-                message.error('Logo 檔案不可超過 1MB');
-                return false;
-              }
-              updateRow(row.key, {
-                logoUrl: URL.createObjectURL(file),
-                logoFileName: file.name,
-              });
-              return false;
-            }}
-          >
-            <Button
-              data-e2e-id={`${e2ePrefix}-provider-logo-btn-${row.key}`}
-              size="small"
-              icon={<UploadOutlined />}
-            >
-              上傳 / 替換
-            </Button>
-          </Upload>
-          {row.logoFileName ? (
-            <Text type="secondary" style={{ fontSize: 11, maxWidth: 190 }} ellipsis={{ tooltip: row.logoFileName }}>
-              {row.logoFileName}
-            </Text>
-          ) : null}
-        </Space>
-      ),
-    },
-    {
       title: '廠商',
       dataIndex: 'providerCode',
-      width: 175,
+      width: 180,
       render: (providerCode: string, row) => (
         <Select
           data-e2e-id={`${e2ePrefix}-provider-select-${row.key}`}
@@ -161,57 +106,129 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
             disabled: provider.code !== providerCode && usedCodes.has(provider.code),
           }))}
           onChange={(nextCode) => {
-            const provider = catalogProvider(nextCode);
             updateRow(row.key, {
               providerCode: nextCode,
+              excludedGameTypes: [],
               excludedGames: [],
-              logoUrl: providerLogoDataUri(provider?.name ?? nextCode),
-              logoFileName: undefined,
             });
           }}
         />
       ),
     },
     {
-      title: '遊戲類型',
-      key: 'gameTypes',
-      width: 125,
-      render: (_, row) => catalogProvider(row.providerCode)?.gameTypes.join('、') ?? '—',
+      title: (
+        <Space size={4}>
+          上榜門檻
+          <Tooltip title="當日該廠商累計有效投注 ≥ 門檻才進入該廠商排名；未達標不排名，名額不遞補；0 = 不設門檻">
+            <QuestionCircleOutlined />
+          </Tooltip>
+        </Space>
+      ),
+      dataIndex: 'minBet',
+      width: 190,
+      render: (minBet: number, row) => (
+        <InputNumber
+          data-e2e-id={`${e2ePrefix}-provider-min-bet-input-${row.key}`}
+          value={minBet}
+          min={0}
+          precision={2}
+          addonBefore="₱"
+          style={{ width: '100%' }}
+          onChange={(nextValue) => updateRow(row.key, { minBet: nextValue as number })}
+        />
+      ),
     },
     {
-      title: '排除遊戲',
-      dataIndex: 'excludedGames',
-      width: 250,
-      render: (excludedGames: string[], row) => {
+      title: (
+        <Space size={4}>
+          排除遊戲
+          <Tooltip title="勾選「遊戲類型」= 排除該廠商此類型全部遊戲（含之後新上架的該類型遊戲）；勾選「遊戲」= 只排除該款遊戲">
+            <QuestionCircleOutlined />
+          </Tooltip>
+        </Space>
+      ),
+      key: 'exclusions',
+      width: 420,
+      render: (_, row) => {
         const provider = catalogProvider(row.providerCode);
-        const options = provider?.gameTypes.map((gameType) => ({
-          label: gameType,
-          options: provider.games
+        const selectedTypes = row.excludedGameTypes ?? [];
+        const selectedValues = [
+          ...selectedTypes.map((gameType) => ({
+            value: `type:${gameType}`,
+            label: `${gameType}・整個類型`,
+          })),
+          ...row.excludedGames.map((gameCode) => ({
+            value: `game:${gameCode}`,
+            label: provider?.games.find((game) => game.code === gameCode)?.name ?? gameCode,
+          })),
+        ];
+        const treeData = provider?.gameTypes.map((gameType) => ({
+          value: `type:${gameType}`,
+          searchText: gameType,
+          title: (
+            <Space size={6}>
+              <FolderOutlined />
+              <Text strong>{gameType}</Text>
+            </Space>
+          ),
+          children: provider.games
             .filter((game) => game.gameType === gameType)
-            .map((game) => ({ value: game.code, label: game.name })),
+            .map((game) => ({
+              value: `game:${game.code}`,
+              searchText: game.name,
+              title: game.name,
+              disabled: selectedTypes.includes(gameType),
+            })),
         }));
         return (
-          <Select
+          <TreeSelect
             data-e2e-id={`${e2ePrefix}-excluded-games-select-${row.key}`}
-            mode="multiple"
-            value={excludedGames}
+            treeCheckable
+            treeCheckStrictly
+            showSearch
+            treeNodeFilterProp="searchText"
+            value={selectedValues}
             disabled={!row.providerCode}
-            placeholder="選擇不計入的遊戲"
+            placeholder="選擇要排除的遊戲類型或遊戲"
             maxTagCount="responsive"
-            options={options}
+            treeData={treeData}
             style={{ width: '100%' }}
-            onChange={(nextValue) => updateRow(row.key, { excludedGames: nextValue })}
+            tagRender={({ value: selectedValue, closable, onClose }) => {
+              const selectedValueText = String(selectedValue);
+              const isType = selectedValueText.startsWith('type:');
+              const tagText = isType
+                ? `${selectedValueText.slice('type:'.length)}・整個類型`
+                : provider?.games.find(
+                    (game) => game.code === selectedValueText.slice('game:'.length),
+                  )?.name ?? selectedValueText.slice('game:'.length);
+              return (
+                <Tag
+                  color={isType ? 'processing' : undefined}
+                  closable={closable}
+                  onClose={onClose}
+                  icon={isType ? <FolderOutlined /> : undefined}
+                  style={{ marginInlineEnd: 4 }}
+                >
+                  {tagText}
+                </Tag>
+              );
+            }}
+            onChange={(nextValue) => {
+              const values = (nextValue as Array<{ value: string }>).map((item) => item.value);
+              const excludedGameTypes = values
+                .filter((item) => item.startsWith('type:'))
+                .map((item) => item.slice('type:'.length)) as LeaderboardProviderRow['excludedGameTypes'];
+              const excludedGames = values
+                .filter((item) => item.startsWith('game:'))
+                .map((item) => item.slice('game:'.length))
+                .filter((gameCode) => {
+                  const gameType = provider?.games.find((game) => game.code === gameCode)?.gameType;
+                  return !gameType || !excludedGameTypes.includes(gameType);
+                });
+              updateRow(row.key, { excludedGameTypes, excludedGames });
+            }}
           />
         );
-      },
-    },
-    {
-      title: '計入遊戲數',
-      key: 'includedGames',
-      width: 110,
-      render: (_, row) => {
-        const total = catalogProvider(row.providerCode)?.games.length ?? 0;
-        return `${Math.max(0, total - row.excludedGames.length)} / ${total}`;
       },
     },
     {
@@ -242,7 +259,7 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
         dataSource={value}
         pagination={false}
         size="small"
-        scroll={{ x: 940 }}
+        scroll={{ x: 860 }}
       />
       <Button
         data-e2e-id={`${e2ePrefix}-provider-add-btn`}
@@ -255,7 +272,8 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
             {
               key: `provider-${Date.now()}`,
               providerCode: '',
-              logoUrl: providerLogoDataUri('廠商'),
+              minBet: 1000,
+              excludedGameTypes: [],
               excludedGames: [],
             },
           ])
@@ -295,14 +313,11 @@ function ProviderConfigStep({ form }: { form: FormInstance }) {
             <Tooltip title="NetEnt、Red Tiger、BTG 等 Evolution 旗下子品牌均合併計入 Evolution 榜。">
               <QuestionCircleOutlined data-e2e-id={`${e2ePrefix}-evolution-tooltip`} />
             </Tooltip>
-            ）；活動期間新上架遊戲自動納入；排除遊戲的投注不計入。
+            ）；活動期間新上架遊戲自動納入（排除類型下的新遊戲除外）；排除遊戲類型／遊戲的投注不計入。
           </span>
         }
       />
       <Alert type="warning" showIcon message={CHANGE_WARNING} style={{ marginBottom: 12 }} />
-      <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-        Logo 建議 360×120，png / webp，≤ 1MB；未上傳沿用廠商管理的 Logo
-      </Text>
       <Form.Item
         name="providers"
         hidden
@@ -445,15 +460,12 @@ interface RankRewardTableProps {
   value?: RankRewardRow[];
   onChange?: (value: RankRewardRow[]) => void;
   rankCount: number;
-  providerCount: number;
-  activityDays: number;
 }
 
-function RankRewardTable({ value = [], onChange, rankCount, providerCount, activityDays }: RankRewardTableProps) {
+function RankRewardTable({ value = [], onChange, rankCount }: RankRewardTableProps) {
   const [editingKey, setEditingKey] = useState<string>();
   const editingRow = value.find((row) => row.key === editingKey);
   const validationMessages = validateRankRows(value, rankCount);
-  const budget = calcBudget(value, providerCount);
 
   const emit = (nextRows: RankRewardRow[]) => onChange?.(normalizeRankRows(nextRows));
   const updateRow = (key: string, patch: Partial<RankRewardRow>) =>
@@ -534,16 +546,6 @@ function RankRewardTable({ value = [], onChange, rankCount, providerCount, activ
       },
     },
     {
-      title: '單列預算', width: 190,
-      render: (_, row) => {
-        const count = Math.max(0, row.end - row.start + 1);
-        if (row.rewardType === 'cash') return formatCurrency(count * Number(row.amount ?? 0));
-        if (row.rewardType === 'mallCoin') return `${(count * Number(row.amount ?? 0)).toLocaleString()} 幣`;
-        const spins = count * Number(row.freeSpin?.spins ?? 0);
-        return `${spins.toLocaleString()} 次（面額 ${formatCurrency(spins * Number(row.freeSpin?.betAmount ?? 0))}）`;
-      },
-    },
-    {
       title: '操作', width: 75,
       render: (_, row) => (
         <Button data-e2e-id={`${e2ePrefix}-rank-delete-btn-${row.key}`} type="link" danger size="small" icon={<DeleteOutlined />} onClick={() => emit(value.filter((item) => item.key !== row.key))}>刪除</Button>
@@ -569,18 +571,6 @@ function RankRewardTable({ value = [], onChange, rankCount, providerCount, activ
           {validationMessages.map((item) => <li key={item}>{item}</li>)}
         </ul>
       ) : null}
-      <Card type="inner" size="small" style={{ marginTop: 16 }}>
-        <Text strong>預算估算（預設獎勵金額為示意）</Text>
-        <Row gutter={[12, 16]} style={{ marginTop: 12 }}>
-          <Col span={6}><Statistic title="每個廠商榜每日最高現金" value={budget.perBoard.cash} prefix="₱" precision={2} /></Col>
-          <Col span={6}><Statistic title="每個廠商榜 Free Spin" value={budget.perBoard.freeSpinSpins} suffix={`次（面額 ${formatCurrency(budget.perBoard.freeSpinFaceValue)}）`} /></Col>
-          <Col span={6}><Statistic title="每個廠商榜商城幣" value={budget.perBoard.mallCoin} suffix="幣" /></Col>
-          <Col span={6}><Statistic title={`全部廠商每日最高（×${providerCount} 家廠商）`} value={budget.allProviders.cash} prefix="現金 ₱" precision={2} /></Col>
-          <Col span={8}><Statistic title="全部廠商 Free Spin" value={budget.allProviders.freeSpinSpins} suffix={`次（面額 ${formatCurrency(budget.allProviders.freeSpinFaceValue)}）`} /></Col>
-          <Col span={8}><Statistic title="全部廠商商城幣" value={budget.allProviders.mallCoin} suffix="幣" /></Col>
-          <Col span={8}><Text type="secondary">活動期間最高 = 每日最高 × 活動天數（{activityDays} 天）</Text></Col>
-        </Row>
-      </Card>
       <FreeSpinRewardModal
         open={Boolean(editingKey)}
         value={editingRow?.freeSpin}
@@ -596,10 +586,7 @@ function RankRewardTable({ value = [], onChange, rankCount, providerCount, activ
 
 function RankRewardStep({ form }: { form: FormInstance }) {
   const rankCount = Form.useWatch('rankCount', form) ?? DEFAULT_RANK_COUNT;
-  const providers = (Form.useWatch('providers', form) ?? []) as LeaderboardProviderRow[];
   const rankRows = (Form.useWatch('rankRows', form) ?? []) as RankRewardRow[];
-  const timeRange = Form.useWatch('timeRange', form) as [Dayjs, Dayjs] | undefined;
-  const activityDays = timeRange?.length === 2 ? Math.max(1, timeRange[1].startOf('day').diff(timeRange[0].startOf('day'), 'day') + 1) : 0;
 
   const updateRankRows = (nextRows: RankRewardRow[]) => {
     const shouldRevalidate = form.getFieldError('rankRows').length > 0;
@@ -611,7 +598,6 @@ function RankRewardStep({ form }: { form: FormInstance }) {
 
   return (
     <Card title="排名獎勵表（所有廠商共用）" size="small">
-      <Alert type="info" showIcon style={{ marginBottom: 12 }} message="所有廠商共用同一張獎勵表，各廠商榜各自依此發獎；同一會員可同時在多個廠商榜得獎。名次區間金額為「每人」獎勵，不是區間總額。" />
       <Alert type="warning" showIcon message={CHANGE_WARNING} style={{ marginBottom: 16 }} />
       <Form.Item name="rankCount" label="排名人數" rules={[{ required: true, message: '請輸入排名人數' }]}>
         <InputNumber
@@ -642,8 +628,6 @@ function RankRewardStep({ form }: { form: FormInstance }) {
         value={rankRows}
         onChange={updateRankRows}
         rankCount={Number(rankCount)}
-        providerCount={providers.length}
-        activityDays={activityDays}
       />
     </Card>
   );
@@ -653,29 +637,12 @@ function DispatchRulesStep() {
   return (
     <Card title="派發設定與文案" size="small">
       <Alert type="warning" showIcon message="活動進行中修改將於次一統計日 00:00:00 生效，不回溯；當日仍依原配置計算與派發。" style={{ marginBottom: 16 }} />
-      <Form.Item name="minBet" label="最低投注（上榜門檻）" rules={[{ required: true, message: '請輸入最低投注' }]} extra="當日該廠商累計有效投注 ≥ 此金額才進入該廠商排名；未達標不排名，名額不遞補">
-        <InputNumber data-e2e-id={`${e2ePrefix}-min-bet-input`} min={0} precision={2} addonBefore="₱" style={{ width: '100%' }} />
-      </Form.Item>
       <Form.Item name="rolloverMultiplier" label="流水倍數" rules={[{ required: true, message: '請輸入流水倍數' }]} extra="現金：獎金 × 倍數；Free Spin：贏得金額 × 倍數；商城幣不設流水；0 = 無流水要求">
         <InputNumber data-e2e-id={`${e2ePrefix}-rollover-input`} min={0} step={0.5} addonAfter="倍" style={{ width: '100%' }} />
-      </Form.Item>
-      <Form.Item name="settleCycle" label="統計週期" rules={[{ required: true }]}>
-        <Radio.Group data-e2e-id={`${e2ePrefix}-settle-cycle-radio`} disabled options={[{ value: 'daily', label: '每日' }]} />
       </Form.Item>
       <Form.Item label="派發時間" extra="每日固定時間自動派發前一統計日獎勵，不需審核">
         <Text data-e2e-id={`${e2ePrefix}-dispatch-time-text`}>隔日 04:30:00（GMT+8，固定）</Text>
       </Form.Item>
-      <Descriptions title="規則說明" column={1} bordered size="small" style={{ marginBottom: 20 }}>
-        <Descriptions.Item label="排名依據">每個廠商各自獨立每日榜，依會員於該廠商遊戲的累計有效投注排名；一筆注單只計入其遊戲所屬廠商。廠商包含旗下所有遊戲類型，新上架遊戲自動納入；排除遊戲不計入。</Descriptions.Item>
-        <Descriptions.Item label="計分歸日">每日 00:00:00–23:59:59（GMT+8），依注單結算時間歸屬；日終後才結算的注單計入其實際結算日。</Descriptions.Item>
-        <Descriptions.Item label="上榜門檻">當日該廠商有效投注必須 ≥ 門檻；未達標者不排名。合格人數少於獎勵名額時，剩餘名額不派發、不累積、不遞補。</Descriptions.Item>
-        <Descriptions.Item label="同分排序">有效投注相同時，較早達到最終分數者（使其達標的該筆注單之結算時間較早）排名較前，不並列。</Descriptions.Item>
-        <Descriptions.Item label="獎勵表">所有廠商榜共用同一張獎勵表；每列可獨立選擇現金、Free Spin 或商城幣，區間金額為每人獎勵。</Descriptions.Item>
-        <Descriptions.Item label="多榜得獎">同一會員可於同一天在多個廠商榜得獎。</Descriptions.Item>
-        <Descriptions.Item label="派發">隔日 04:30:00（GMT+8）自動派發，不需人工審核。現金流水 = 獎勵 × 倍數；Free Spin 流水 = 贏得金額 × 倍數；商城幣無流水；0 為無流水要求。流水場館範圍沿用第 1 步限制。</Descriptions.Item>
-        <Descriptions.Item label="修改生效">活動進行中可修改，儲存後於次一統計日 00:00:00 生效且不回溯；當日仍依原配置計算與派發。</Descriptions.Item>
-        <Descriptions.Item label="不處理事項">① 日終後結算的注單依實際結算日計入；② 派獎後的取消／重新結算不追回；③ 不設帳號排除，所有會員均可參加；④ 不排除對沖投注。</Descriptions.Item>
-      </Descriptions>
       <Form.Item
         name="popupText"
         label="彈窗文案"
@@ -715,12 +682,14 @@ export default function ProviderLeaderboardConfigModal({ open, onClose }: Props)
       '2026-12-31 23:59:59',
     ),
     wagerVenueRestriction: ALL_RESTRICTION_PATHS,
-    providers: DEFAULT_LEADERBOARD_PROVIDERS.map((row) => ({ ...row, excludedGames: [...row.excludedGames] })),
+    providers: DEFAULT_LEADERBOARD_PROVIDERS.map((row) => ({
+      ...row,
+      excludedGameTypes: [...row.excludedGameTypes],
+      excludedGames: [...row.excludedGames],
+    })),
     rankCount: DEFAULT_RANK_COUNT,
     rankRows: DEFAULT_RANK_REWARD_ROWS.map((row) => ({ ...row, freeSpin: row.freeSpin ? { ...row.freeSpin } : undefined })),
-    minBet: DEFAULT_MIN_BET,
     rolloverMultiplier: DEFAULT_ROLLOVER_MULTIPLIER,
-    settleCycle: 'daily',
     popupText: DEFAULT_POPUP_TEXT,
     activityRules: DEFAULT_LEADERBOARD_RULES,
   };
@@ -729,16 +698,11 @@ export default function ProviderLeaderboardConfigModal({ open, onClose }: Props)
     {
       title: '基础配置',
       validateFields: BASE_CONFIG_STEP_FIELDS.filter((field) => !hiddenBaseFields.includes(field)),
-      render: () => (
-        <>
-          <BaseConfigStep e2ePrefix={e2ePrefix} activityId={PROVIDER_LEADERBOARD_ACTIVITY_ID} activityName={PROVIDER_LEADERBOARD_ACTIVITY_NAME} activityTypeDefault="leaderboard" hideFields={hiddenBaseFields} />
-          <Alert type="info" showIcon message="統計週期固定為「每日」（00:00:00–23:59:59 GMT+8），注單依「結算時間」歸屬統計日；隔日 04:30:00 自動派獎。" />
-        </>
-      ),
+      render: () => <BaseConfigStep e2ePrefix={e2ePrefix} activityId={PROVIDER_LEADERBOARD_ACTIVITY_ID} activityName={PROVIDER_LEADERBOARD_ACTIVITY_NAME} activityTypeDefault="leaderboard" hideFields={hiddenBaseFields} />,
     },
     { title: '廠商配置', validateFields: ['providers'], render: (form) => <ProviderConfigStep form={form} /> },
     { title: '排名與獎勵', validateFields: ['rankCount', 'rankRows'], render: (form) => <RankRewardStep form={form} /> },
-    { title: '派發設定與文案', validateFields: ['minBet', 'rolloverMultiplier', 'settleCycle', 'popupText', 'activityRules'], render: () => <DispatchRulesStep /> },
+    { title: '派發設定與文案', validateFields: ['rolloverMultiplier', 'popupText', 'activityRules'], render: () => <DispatchRulesStep /> },
   ];
 
   return (

@@ -2,7 +2,6 @@ import dayjs from 'dayjs';
 import {
   DEFAULT_DISPATCH_TIME,
   DEFAULT_LEADERBOARD_PROVIDERS,
-  DEFAULT_MIN_BET,
   DEFAULT_RANK_REWARD_ROWS,
   DEFAULT_ROLLOVER_MULTIPLIER,
   LEADERBOARD_FREE_SPIN_GAME_OPTIONS,
@@ -143,7 +142,7 @@ export function generateProviderLeaderboardReport(): ProviderLeaderboardReportRo
         const isTiePair = dateIndex === 0 && provider.providerCode === 'PG' && (rank === 5 || rank === 6);
         const baseValidBet = 620000 - rank * 4800 - dateIndex * 975 - providerIndex * 310;
         const validBet = Math.max(
-          DEFAULT_MIN_BET,
+          provider.minBet,
           isTiePair ? 596000 - dateIndex * 975 - providerIndex * 310 : baseValidBet,
         );
         // 同分第 5 名比第 6 名早 20 分鐘達到最終分數。
