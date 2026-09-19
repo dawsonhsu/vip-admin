@@ -27,6 +27,7 @@ export interface GameManagementRecord {
   sortWeight: number;
   weightedTags: WeightTag[];
   finalWeight: number;
+  recommendWeight: number;
   hot: boolean;
   isNew: boolean;
   updatedAt: string;
@@ -38,6 +39,7 @@ export const providerOptions: ProviderName[] = ['FC Game', 'JDB', 'JILI', 'PG SO
 export const gameTypeOptions: GameType[] = ['Slot', 'Live', 'Fishing', 'Sport', 'Card'];
 export const weightTagOptions: WeightTag[] = ['A', 'B', 'C', 'S'];
 export const gameStatusOptions: GameStatus[] = ['上架', '下架', '維護中'];
+export const pagcorCategoryOptions: PagcorCategory[] = ['Slot Machine', 'Live Casino', 'Bingo', 'Sports'];
 export const yesNoOptions = ['是', '否'] as const;
 
 const providerPrefixes: Record<ProviderName, string> = {
@@ -53,6 +55,16 @@ const weightFactors: Record<WeightTag, number> = {
   A: 1.3,
   B: 1.15,
   C: 1.05,
+};
+
+const recommendWeights: Record<number, number> = {
+  2: 900,
+  3: 800,
+  5: 300,
+  7: 600,
+  8: 300,
+  12: 500,
+  20: 400,
 };
 
 const maintainerOptions = ['Ariel', 'Bianca', 'Carlos', 'Darren', 'Elaine', 'Felix', 'Harper'];
@@ -116,7 +128,7 @@ const getTags = (index: number): WeightTag[] => {
   return ['B', 'C'];
 };
 
-const getFinalWeight = (sortWeight: number, tags: WeightTag[]) => {
+export const getFinalWeight = (sortWeight: number, tags: WeightTag[]) => {
   const factor = tags.reduce((max, tag) => Math.max(max, weightFactors[tag]), 1);
   return Number((sortWeight * factor).toFixed(2));
 };
@@ -159,6 +171,7 @@ export const gameManagementData: GameManagementRecord[] = Array.from({ length: 6
     sortWeight,
     weightedTags,
     finalWeight: getFinalWeight(sortWeight, weightedTags),
+    recommendWeight: recommendWeights[index] ?? 0,
     hot: index % 5 === 0,
     isNew: index % 20 < 3,
     updatedAt,
