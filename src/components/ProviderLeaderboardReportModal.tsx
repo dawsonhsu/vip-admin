@@ -2,7 +2,6 @@
 
 import React, { useMemo, useState } from 'react';
 import {
-  Alert,
   Button,
   Card,
   Col,
@@ -31,9 +30,6 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import {
   PROVIDER_LEADERBOARD_REPORT_END_DATE,
-  PROVIDER_LEADERBOARD_SHORTAGE_DATE,
-  PROVIDER_LEADERBOARD_SHORTAGE_PROVIDER_CODE,
-  PROVIDER_LEADERBOARD_SHORTAGE_QUALIFIED_COUNT,
   providerLeaderboardReportData,
   type ProviderLeaderboardReportRow,
 } from '@/data/providerLeaderboardReportData';
@@ -166,8 +162,6 @@ export default function ProviderLeaderboardReportModal({
     { title: '派發狀態', dataIndex: 'dispatchStatus', width: 95 },
   ];
 
-  const shortageProvider = LEADERBOARD_PROVIDER_CATALOG.find((item) => item.code === PROVIDER_LEADERBOARD_SHORTAGE_PROVIDER_CODE)?.name ?? PROVIDER_LEADERBOARD_SHORTAGE_PROVIDER_CODE;
-
   const resetFilters = () => {
     form.resetFields();
     form.setFieldValue('statisticalRange', initialDateRange);
@@ -242,12 +236,6 @@ export default function ProviderLeaderboardReportModal({
       </Row>
 
       <Card>
-        <Alert
-          type="info"
-          showIcon
-          style={{ marginBottom: 12 }}
-          message={`僅列出獲獎會員；未達上榜門檻者不排名、名額不遞補（例：${PROVIDER_LEADERBOARD_SHORTAGE_DATE} ${shortageProvider} 僅 ${PROVIDER_LEADERBOARD_SHORTAGE_QUALIFIED_COUNT} 人達標，38–100 名無人派發）。注單依結算時間歸日，派獎後的取消/重新結算不追回。`}
-        />
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           <Space wrap>
             <Button data-e2e-id={`${E2E}-toolbar-export-btn`} icon={<DownloadOutlined />} onClick={() => downloadCsv(filteredRows)}>匯出 CSV</Button>
