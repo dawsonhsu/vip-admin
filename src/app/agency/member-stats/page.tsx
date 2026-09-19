@@ -23,9 +23,11 @@ interface Filters extends FilterValues {
   searchType: MemberSearchType;
 }
 
-// 代理端只留「能據以行動」的指標：資金進出、佣金基礎（有效流水）、平台輸贏（GGR）、
-// 成本（彩金）與自身收益（佣金）。手續費為平台成本、FS/JP 屬遊戲營運細節、
+// 代理端只留「能據以行動」的指標：資金進出、佣金基礎（有效流水）、平台輸贏（GGR）
+// 與成本（彩金）。手續費為平台成本、FS/JP 屬遊戲營運細節、
 // 總投注／排除投注額／總派獎皆可由有效流水與 GGR 推得，一律不在代理端呈現。
+// 佣金是代理層級按週期結算（GGR 扣稅、場館費、彩金並結轉上期結餘後乘階梯比例），
+// 無法拆到單一會員單日，故不列。
 const metrics: Array<{ key: keyof AgencyMemberMetrics; title: string; count?: boolean; signed?: boolean }> = [
   { key: 'depositCount', title: '存款次數', count: true },
   { key: 'totalDeposit', title: '總存款' },
@@ -34,7 +36,6 @@ const metrics: Array<{ key: keyof AgencyMemberMetrics; title: string; count?: bo
   { key: 'validBet', title: '有效流水' },
   { key: 'ggr', title: 'GGR', signed: true },
   { key: 'totalBonus', title: '總彩金' },
-  { key: 'totalCommission', title: '總佣金' },
 ];
 
 function metricColumns<T extends AgencyMemberMetrics>(sortable = true): ColumnsType<T> {

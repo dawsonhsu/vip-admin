@@ -2,8 +2,8 @@ import dayjs from 'dayjs';
 import { agencyDailyEvents } from './daily';
 import { agencyMembers } from './shared';
 
-// 代理端只需要資金進出、佣金基礎（有效流水）、平台輸贏（GGR）、彩金成本與自身佣金。
-// 手續費、總投注／排除投注額／總派獎、FS／JP 明細都不在代理端呈現，因此不再產生。
+// 代理端只需要資金進出、佣金基礎（有效流水）、平台輸贏（GGR）與彩金成本。
+// 手續費、總投注／排除投注額／總派獎、FS／JP 明細、佣金都不在代理端呈現，因此不再產生。
 export interface AgencyMemberDailyStat {
   uid: string;
   username: string;
@@ -16,7 +16,6 @@ export interface AgencyMemberDailyStat {
   validBet: number;
   ggr: number;
   totalBonus: number;
-  totalCommission: number;
 }
 
 export type AgencyMemberMetrics = Omit<AgencyMemberDailyStat, 'uid' | 'username' | 'phone' | 'date'>;
@@ -24,13 +23,13 @@ export type AgencyMemberStat = Omit<AgencyMemberDailyStat, 'date'>;
 
 export const agencyMemberMetricKeys = [
   'depositCount', 'totalDeposit', 'withdrawCount', 'totalWithdraw',
-  'validBet', 'ggr', 'totalBonus', 'totalCommission',
+  'validBet', 'ggr', 'totalBonus',
 ] as const satisfies readonly (keyof AgencyMemberMetrics)[];
 
 const isCount = (key: keyof AgencyMemberMetrics) => key === 'depositCount' || key === 'withdrawCount';
 const emptyMetrics = (): AgencyMemberMetrics => ({
   depositCount: 0, totalDeposit: 0, withdrawCount: 0, totalWithdraw: 0,
-  validBet: 0, ggr: 0, totalBonus: 0, totalCommission: 0,
+  validBet: 0, ggr: 0, totalBonus: 0,
 });
 
 /** 只切既有事件；建列、推導及加總時，所有金額都使用整數分。 */
@@ -71,8 +70,6 @@ export function agencyMemberDailyStats(): AgencyMemberDailyStat[] {
 
   return Array.from(grouped.values()).filter((row) => agencyMemberMetricKeys.some((key) => row[key] !== 0))
     .map((row) => {
-      // 佣金只在平台贏錢時產生；輸的日子不倒扣代理。
-      row.totalCommission = Math.round(Math.max(0, row.ggr) * 35 / 100);
       for (const key of agencyMemberMetricKeys) {
         if (!isCount(key)) row[key] /= 100;
       }
