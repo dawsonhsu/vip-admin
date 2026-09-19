@@ -136,7 +136,7 @@ export const dashboardMetrics: MetricDef[] = [
     tooltip: '有效投注金額 / 充值金額',
   },
   { key: 'fsGgr', label: 'FS GGR', group: 'betting', format: 'money', icon: 'gift' },
-  { key: 'jackpotGgr', label: 'JACKPOT GGR', group: 'betting', format: 'money', icon: 'gift' },
+  { key: 'jackpotGgr', label: 'Jackpot winning', group: 'betting', format: 'money', icon: 'gift' },
   ...(
     [
       ['slotsGgr', 'SLOTS GGR'],
