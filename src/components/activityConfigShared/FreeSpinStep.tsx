@@ -17,7 +17,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import type { FormInstance } from 'antd';
 import { gameOptions, providerOptions } from '@/data/newMemberTriDepositData';
 
-const LEVEL_OPTIONS = [
+export const LEVEL_OPTIONS = [
   { value: 'OPEN', label: 'OPEN' },
   { value: 'PROVIDER', label: 'PROVIDER' },
   { value: 'GAME', label: 'GAME' },
@@ -25,8 +25,8 @@ const LEVEL_OPTIONS = [
 
 // Gemini is scoped to Free Spin config only (do NOT add to the shared providerOptions,
 // which also feeds the game-management provider filter).
-const GEMINI_PROVIDER_VALUE = 'Gemini';
-const freeSpinProviderOptions = [...providerOptions, { value: GEMINI_PROVIDER_VALUE, label: 'Gemini' }];
+export const GEMINI_PROVIDER_VALUE = 'Gemini';
+export const freeSpinProviderOptions = [...providerOptions, { value: GEMINI_PROVIDER_VALUE, label: 'Gemini' }];
 
 const uploadButton = (e2eId: string, label = '上传') => (
   <button

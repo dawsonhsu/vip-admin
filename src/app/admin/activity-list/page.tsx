@@ -49,6 +49,7 @@ import ReactivationMysteryBoxGrantModal from '@/components/ReactivationMysteryBo
 import ReactivationMysteryBoxReportModal from '@/components/ReactivationMysteryBoxReportModal';
 import CashbackConfigModal from '@/components/CashbackConfigModal';
 import LossRebateConfigModal from '@/components/LossRebateConfigModal';
+import ProviderLeaderboardConfigModal from '@/components/ProviderLeaderboardConfigModal';
 
 // 识别哪些活动是 FreeBet 类型（可拆独立配置 + 报表）
 const FREEBET_ACTIVITY_IDS = new Set<number>([29]);
@@ -60,6 +61,7 @@ const KYC_FREESPIN_ID = 19;
 const DAILY_MULTI_DEPOSIT_ID = 22;
 const CASHBACK_ID = 32;
 const LOSS_REBATE_ID = 33;
+const PROVIDER_LEADERBOARD_ID = 34;
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -88,8 +90,13 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const [dailyMultiDepositConfigOpen, setDailyMultiDepositConfigOpen] = useState(false);
   const [cashbackConfigOpen, setCashbackConfigOpen] = useState(false);
   const [lossRebateConfigOpen, setLossRebateConfigOpen] = useState(false);
+  const [providerLeaderboardConfigOpen, setProviderLeaderboardConfigOpen] = useState(false);
 
   const handleEditConfig = (record: ActivityRecord) => {
+    if (record.id === PROVIDER_LEADERBOARD_ID) {
+      setProviderLeaderboardConfigOpen(true);
+      return;
+    }
     if (record.id === LOSS_REBATE_ID) {
       setLossRebateConfigOpen(true);
       return;
@@ -130,6 +137,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   };
 
   const handleViewReport = (record: ActivityRecord) => {
+    if (record.id === PROVIDER_LEADERBOARD_ID) {
+      router.push('/admin/provider-leaderboard-report');
+      return;
+    }
     if (record.id === LOSS_REBATE_ID) {
       router.push('/admin/loss-rebate-report');
       return;
@@ -307,7 +318,8 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
             record.id === NEW_MEMBER_TRI_DEPOSIT_ID ||
             record.id === RECALL_MYSTERY_BOX_ID ||
             record.id === CASHBACK_ID ||
-            record.id === LOSS_REBATE_ID) && (
+            record.id === LOSS_REBATE_ID ||
+            record.id === PROVIDER_LEADERBOARD_ID) && (
             <Button
               data-e2e-id={`activity-list-table-view-report-btn-${record.id}`}
               type="link"
@@ -471,6 +483,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <LossRebateConfigModal
         open={lossRebateConfigOpen}
         onClose={() => setLossRebateConfigOpen(false)}
+      />
+      <ProviderLeaderboardConfigModal
+        open={providerLeaderboardConfigOpen}
+        onClose={() => setProviderLeaderboardConfigOpen(false)}
       />
     </>
   );
