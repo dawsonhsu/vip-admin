@@ -123,6 +123,7 @@ export const DEFAULT_RANK_COUNT = 100;
 export const DEFAULT_MIN_BET = 1000;
 export const DEFAULT_ROLLOVER_MULTIPLIER = 1;
 export const DEFAULT_DISPATCH_TIME = '04:30:00';
+export const DEFAULT_POPUP_TEXT = 'Congratulations! You received a Daily Leaderboard reward!';
 
 export const DEFAULT_RANK_REWARD_ROWS: RankRewardRow[] = [
   { key: 'rank-1', start: 1, end: 1, rewardType: 'cash', amount: 20000 },
@@ -176,14 +177,13 @@ export function validateRankRows(rows: RankRewardRow[] = [], rankCount: number):
       if (!reward || reward.spins < 1 || reward.betAmount <= 0 || reward.validityDays < 1) {
         errors.push(`${label}的 Free Spin 次數、單次投注額與有效期必須完整且大於 0`);
       }
-      if (
-        reward &&
-        (reward.dispatchLevel === 'PROVIDER' || reward.dispatchLevel === 'GAME') &&
-        !reward.provider
-      ) {
+      if (reward && reward.dispatchLevel !== 'GAME') {
+        errors.push(`${label}的 Free Spin 目前僅支援 GAME 層級`);
+      }
+      if (reward && !reward.provider) {
         errors.push(`${label}的 Free Spin 派發層級必須選擇廠商`);
       }
-      if (reward?.dispatchLevel === 'GAME' && !reward.gameId) {
+      if (reward && !reward.gameId) {
         errors.push(`${label}的 Free Spin GAME 層級必須選擇贈送遊戲`);
       }
       if (reward?.provider === 'Gemini' && !reward.activityCode?.trim()) {
@@ -247,4 +247,4 @@ export function calcBudget(rows: RankRewardRow[], providerCount: number): Leader
   };
 }
 
-export const DEFAULT_LEADERBOARD_RULES = `<h3>Provider Daily Leaderboard Rules</h3><ol><li>Each selected provider has its own independent daily leaderboard. A member is ranked by cumulative valid bet on that provider's games for the statistical day; each bet belongs to exactly one provider board.</li><li>The statistical day is 00:00:00–23:59:59 GMT+8. Bets are attributed by settlement time.</li><li>A member must reach the configured minimum valid-bet threshold (greater than or equal to) to qualify. Unfilled reward slots are not paid, carried over, or backfilled.</li><li>If valid bets are equal, the member who reached the final score first by settlement time ranks higher. Ranks are not shared.</li><li>Rewards are credited automatically on the next day at the configured dispatch time. One reward table is shared by all provider boards, and a member may win on multiple boards on the same day.</li><li>Cash rollover equals reward multiplied by the activity multiplier; Free Spin rollover equals winnings multiplied by the multiplier; mall coins have no rollover. A multiplier of 0 means no rollover requirement. Venue scope follows the activity configuration.</li><li>Bets on excluded games do not count. Newly listed games under a selected provider are included automatically.</li></ol><p>Filbet reserves the right of final interpretation.</p>`;
+export const DEFAULT_LEADERBOARD_RULES = `<h3>Provider Daily Leaderboard Rules</h3><ol><li>Each selected provider has its own independent daily leaderboard. A member is ranked by cumulative valid bet on that provider's games for the statistical day; each bet belongs to exactly one provider board.</li><li>The statistical day is 00:00:00–23:59:59 GMT+8. Bets are attributed by settlement time.</li><li>A member must reach the configured minimum valid-bet threshold (greater than or equal to) to qualify. Unfilled reward slots are not paid, carried over, or backfilled.</li><li>If valid bets are equal, the member who reached the final score first by settlement time ranks higher. Ranks are not shared.</li><li>Rewards are credited automatically at 04:30 (GMT+8) the next day. One reward table is shared by all provider boards, and a member may win on multiple boards on the same day.</li><li>Cash rollover equals reward multiplied by the activity multiplier; Free Spin rollover equals winnings multiplied by the multiplier; mall coins have no rollover. A multiplier of 0 means no rollover requirement. Venue scope follows the activity configuration.</li><li>Bets on excluded games do not count. Newly listed games under a selected provider are included automatically.</li></ol><p>Filbet reserves the right of final interpretation.</p>`;

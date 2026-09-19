@@ -18,7 +18,6 @@ import {
   Space,
   Statistic,
   Table,
-  TimePicker,
   Tooltip,
   Typography,
   Upload,
@@ -44,10 +43,10 @@ import {
 import { ALL_RESTRICTION_PATHS } from './GameRestrictionCascader';
 import RichTextEditor, { isRichTextEmpty, richTextToPlainText } from './RichTextEditor';
 import {
-  DEFAULT_DISPATCH_TIME,
   DEFAULT_LEADERBOARD_PROVIDERS,
   DEFAULT_LEADERBOARD_RULES,
   DEFAULT_MIN_BET,
+  DEFAULT_POPUP_TEXT,
   DEFAULT_RANK_COUNT,
   DEFAULT_RANK_REWARD_ROWS,
   DEFAULT_ROLLOVER_MULTIPLIER,
@@ -334,7 +333,6 @@ interface FreeSpinRewardModalProps {
 
 function FreeSpinRewardModal({ open, value, onCancel, onSave }: FreeSpinRewardModalProps) {
   const [form] = Form.useForm<FreeSpinReward>();
-  const level = Form.useWatch('dispatchLevel', form);
   const provider = Form.useWatch('provider', form);
   const isGemini = provider === GEMINI_PROVIDER_VALUE;
   const filteredGames = useMemo(
@@ -350,34 +348,35 @@ function FreeSpinRewardModal({ open, value, onCancel, onSave }: FreeSpinRewardMo
       destroyOnClose
       onCancel={onCancel}
       afterOpenChange={(isOpen) => {
-        if (isOpen && value) form.setFieldsValue(value);
+        if (isOpen && value) form.setFieldsValue({ ...value, dispatchLevel: 'GAME' });
       }}
       onOk={() => form.validateFields().then(onSave)}
       okButtonProps={{ 'data-e2e-id': `${e2ePrefix}-freespin-modal-ok-btn` }}
       cancelButtonProps={{ 'data-e2e-id': `${e2ePrefix}-freespin-modal-cancel-btn` }}
     >
-      <Form form={form} layout="vertical" initialValues={value} preserve={false}>
-        <Form.Item name="dispatchLevel" label="派發層級" rules={[{ required: true }]}>
+      <Form form={form} layout="vertical" initialValues={{ ...value, dispatchLevel: 'GAME' }} preserve={false}>
+        <Form.Item
+          name="dispatchLevel"
+          label="派發層級"
+          rules={[{ required: true }]}
+          extra={<Text type="secondary" style={{ fontSize: 12 }}>目前僅開放 GAME（指定廠商＋指定遊戲）</Text>}
+        >
           <Radio.Group
             data-e2e-id={`${e2ePrefix}-freespin-level-radio`}
-            options={LEVEL_OPTIONS}
-            onChange={(event) => {
-              const nextLevel = event.target.value as FreeSpinReward['dispatchLevel'];
-              if (nextLevel === 'OPEN') form.setFieldsValue({ provider: undefined, gameId: undefined, activityCode: undefined });
-              if (nextLevel === 'PROVIDER') form.setFieldValue('gameId', undefined);
-            }}
+            options={LEVEL_OPTIONS.map((option) => ({
+              ...option,
+              disabled: option.value === 'OPEN' || option.value === 'PROVIDER',
+            }))}
           />
         </Form.Item>
         <Form.Item
           name="provider"
           label="廠商"
-          rules={[{ required: level !== 'OPEN', message: '請選擇廠商' }]}
-          extra={level === 'OPEN' ? '玩家自選廠商與遊戲' : level === 'PROVIDER' ? '玩家於該廠商內自選遊戲' : undefined}
+          rules={[{ required: true, message: '請選擇廠商' }]}
         >
           <Select
             data-e2e-id={`${e2ePrefix}-freespin-provider-select`}
             allowClear
-            disabled={level === 'OPEN'}
             placeholder="請選擇廠商"
             options={freeSpinProviderOptions}
             onChange={(nextProvider) => {
@@ -389,12 +388,12 @@ function FreeSpinRewardModal({ open, value, onCancel, onSave }: FreeSpinRewardMo
         <Form.Item
           name="gameId"
           label="贈送遊戲"
-          rules={[{ required: level === 'GAME', message: '請選擇贈送遊戲' }]}
+          rules={[{ required: true, message: '請選擇贈送遊戲' }]}
         >
           <Select
             data-e2e-id={`${e2ePrefix}-freespin-game-select`}
             allowClear
-            disabled={level !== 'GAME' || !provider}
+            disabled={!provider}
             placeholder={provider ? '請選擇遊戲' : '請先選擇廠商'}
             options={filteredGames}
           />
@@ -652,7 +651,7 @@ function RankRewardStep({ form }: { form: FormInstance }) {
 
 function DispatchRulesStep() {
   return (
-    <Card title="派發設定與規則" size="small">
+    <Card title="派發設定與文案" size="small">
       <Alert type="warning" showIcon message="活動進行中修改將於次一統計日 00:00:00 生效，不回溯；當日仍依原配置計算與派發。" style={{ marginBottom: 16 }} />
       <Form.Item name="minBet" label="最低投注（上榜門檻）" rules={[{ required: true, message: '請輸入最低投注' }]} extra="當日該廠商累計有效投注 ≥ 此金額才進入該廠商排名；未達標不排名，名額不遞補">
         <InputNumber data-e2e-id={`${e2ePrefix}-min-bet-input`} min={0} precision={2} addonBefore="₱" style={{ width: '100%' }} />
@@ -663,8 +662,8 @@ function DispatchRulesStep() {
       <Form.Item name="settleCycle" label="統計週期" rules={[{ required: true }]}>
         <Radio.Group data-e2e-id={`${e2ePrefix}-settle-cycle-radio`} disabled options={[{ value: 'daily', label: '每日' }]} />
       </Form.Item>
-      <Form.Item name="dispatchTime" label="派發時間（隔日）" rules={[{ required: true, message: '請選擇派發時間' }]} extra="隔日自動派發，不需審核">
-        <TimePicker data-e2e-id={`${e2ePrefix}-dispatch-time-picker`} format="HH:mm:ss" style={{ width: '100%' }} />
+      <Form.Item label="派發時間" extra="每日固定時間自動派發前一統計日獎勵，不需審核">
+        <Text data-e2e-id={`${e2ePrefix}-dispatch-time-text`}>隔日 04:30:00（GMT+8，固定）</Text>
       </Form.Item>
       <Descriptions title="規則說明" column={1} bordered size="small" style={{ marginBottom: 20 }}>
         <Descriptions.Item label="排名依據">每個廠商各自獨立每日榜，依會員於該廠商遊戲的累計有效投注排名；一筆注單只計入其遊戲所屬廠商。廠商包含旗下所有遊戲類型，新上架遊戲自動納入；排除遊戲不計入。</Descriptions.Item>
@@ -673,13 +672,22 @@ function DispatchRulesStep() {
         <Descriptions.Item label="同分排序">有效投注相同時，較早達到最終分數者（使其達標的該筆注單之結算時間較早）排名較前，不並列。</Descriptions.Item>
         <Descriptions.Item label="獎勵表">所有廠商榜共用同一張獎勵表；每列可獨立選擇現金、Free Spin 或商城幣，區間金額為每人獎勵。</Descriptions.Item>
         <Descriptions.Item label="多榜得獎">同一會員可於同一天在多個廠商榜得獎。</Descriptions.Item>
-        <Descriptions.Item label="派發">隔日於設定時間自動派發，不需人工審核。現金流水 = 獎勵 × 倍數；Free Spin 流水 = 贏得金額 × 倍數；商城幣無流水；0 為無流水要求。流水場館範圍沿用第 1 步限制。</Descriptions.Item>
+        <Descriptions.Item label="派發">隔日 04:30:00（GMT+8）自動派發，不需人工審核。現金流水 = 獎勵 × 倍數；Free Spin 流水 = 贏得金額 × 倍數；商城幣無流水；0 為無流水要求。流水場館範圍沿用第 1 步限制。</Descriptions.Item>
         <Descriptions.Item label="修改生效">活動進行中可修改，儲存後於次一統計日 00:00:00 生效且不回溯；當日仍依原配置計算與派發。</Descriptions.Item>
         <Descriptions.Item label="不處理事項">① 日終後結算的注單依實際結算日計入；② 派獎後的取消／重新結算不追回；③ 不設帳號排除，所有會員均可參加；④ 不排除對沖投注。</Descriptions.Item>
       </Descriptions>
       <Form.Item
+        name="popupText"
+        label="彈窗文案"
+        tooltip="派獎後通知得獎會員的彈窗標題文案"
+        rules={[{ required: true, message: '請輸入彈窗文案' }]}
+      >
+        <Input data-e2e-id={`${e2ePrefix}-popup-text-input`} />
+      </Form.Item>
+      <Form.Item
         name="activityRules"
         label="活動規則"
+        tooltip="前台 Standard T&C 與彈窗下方顯示的活動規則"
         required
         rules={[{
           validator: (_, value) => {
@@ -713,7 +721,7 @@ export default function ProviderLeaderboardConfigModal({ open, onClose }: Props)
     minBet: DEFAULT_MIN_BET,
     rolloverMultiplier: DEFAULT_ROLLOVER_MULTIPLIER,
     settleCycle: 'daily',
-    dispatchTime: dayjs(`2026-01-01 ${DEFAULT_DISPATCH_TIME}`),
+    popupText: DEFAULT_POPUP_TEXT,
     activityRules: DEFAULT_LEADERBOARD_RULES,
   };
 
@@ -724,13 +732,13 @@ export default function ProviderLeaderboardConfigModal({ open, onClose }: Props)
       render: () => (
         <>
           <BaseConfigStep e2ePrefix={e2ePrefix} activityId={PROVIDER_LEADERBOARD_ACTIVITY_ID} activityName={PROVIDER_LEADERBOARD_ACTIVITY_NAME} activityTypeDefault="leaderboard" hideFields={hiddenBaseFields} />
-          <Alert type="info" showIcon message="統計週期固定為「每日」（00:00:00–23:59:59 GMT+8），注單依「結算時間」歸屬統計日；隔日於派發時間自動派獎。" />
+          <Alert type="info" showIcon message="統計週期固定為「每日」（00:00:00–23:59:59 GMT+8），注單依「結算時間」歸屬統計日；隔日 04:30:00 自動派獎。" />
         </>
       ),
     },
     { title: '廠商配置', validateFields: ['providers'], render: (form) => <ProviderConfigStep form={form} /> },
     { title: '排名與獎勵', validateFields: ['rankCount', 'rankRows'], render: (form) => <RankRewardStep form={form} /> },
-    { title: '派發設定與規則', validateFields: ['minBet', 'rolloverMultiplier', 'settleCycle', 'dispatchTime', 'activityRules'], render: () => <DispatchRulesStep /> },
+    { title: '派發設定與文案', validateFields: ['minBet', 'rolloverMultiplier', 'settleCycle', 'popupText', 'activityRules'], render: () => <DispatchRulesStep /> },
   ];
 
   return (
