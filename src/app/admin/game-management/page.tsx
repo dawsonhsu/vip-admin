@@ -29,9 +29,12 @@ import {
   ReloadOutlined,
   SearchOutlined,
   SettingOutlined,
+  StarFilled,
+  StarOutlined,
   ToolOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
+import SearchRecommendDrawer from '@/components/SearchRecommendDrawer';
 import dayjs, { type Dayjs } from 'dayjs';
 import {
   gameManagementData,
@@ -44,6 +47,12 @@ import {
   type GameManagementRecord,
   type WeightTag,
 } from '@/data/gameManagementData';
+import {
+  getClientHiddenReason,
+  initialSearchRecommendIds,
+  isSearchClientVisible,
+  SEARCH_RECOMMEND_LIMIT,
+} from '@/data/searchRecommendData';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -55,6 +64,7 @@ interface GameManagementFilters {
   weightTags?: WeightTag[];
   gameIds?: string;
   gameNameEn?: string;
+  recommended?: '是' | '否';
   status?: string;
   maintainer?: string;
   updatedRange?: [Dayjs, Dayjs];
@@ -197,6 +207,25 @@ const filterFieldConfigs = [
     ),
   },
   {
+    key: 'recommended',
+    node: (
+      <Form.Item name="recommended" label="搜尋頁推薦">
+        <Select
+          data-e2e-id="game-management-filter-recommended-select"
+          placeholder="請選擇"
+          allowClear
+          style={{ width: 140 }}
+        >
+          {yesNoOptions.map((item) => (
+            <Select.Option key={item} value={item}>
+              {item}
+            </Select.Option>
+          ))}
+        </Select>
+      </Form.Item>
+    ),
+  },
+  {
     key: 'status',
     node: (
       <Form.Item name="status" label="遊戲狀態">
@@ -285,6 +314,8 @@ export default function GameManagementPage() {
   const [filters, setFilters] = useState<GameManagementFilters>({});
   const [collapsed, setCollapsed] = useState(true);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [recommendIds, setRecommendIds] = useState<string[]>(initialSearchRecommendIds);
+  const [recommendDrawerOpen, setRecommendDrawerOpen] = useState(false);
   const [tableSize, setTableSize] = useState<'small' | 'middle'>('small');
   const [pagination, setPagination] = useState<TablePaginationConfig>({
     current: 1,
@@ -304,6 +335,7 @@ export default function GameManagementPage() {
       if (filters.weightTags?.length && !filters.weightTags.some((tag) => item.weightedTags.includes(tag))) return false;
       if (selectedGameIds.length && !selectedGameIds.includes(item.gameId.toLowerCase())) return false;
       if (lowerGameNameEn && !item.gameNameEn.toLowerCase().includes(lowerGameNameEn)) return false;
+      if (filters.recommended && recommendIds.includes(item.gameId) !== (filters.recommended === '是')) return false;
       if (filters.status && item.status !== filters.status) return false;
       if (lowerMaintainer && !item.maintainer.toLowerCase().includes(lowerMaintainer)) return false;
       if (filters.updatedRange?.length === 2) {
@@ -316,7 +348,29 @@ export default function GameManagementPage() {
       if (filters.compliant && item.compliant !== (filters.compliant === '是')) return false;
       return true;
     });
-  }, [filters]);
+  }, [filters, recommendIds]);
+
+  const toggleRecommendation = (record: GameManagementRecord) => {
+    const currentIndex = recommendIds.indexOf(record.gameId);
+    if (currentIndex >= 0) {
+      setRecommendIds((current) => current.filter((gameId) => gameId !== record.gameId));
+      message.success('已取消搜尋頁推薦');
+      return;
+    }
+
+    if (record.status !== '上架') {
+      message.warning('僅「上架」遊戲可設為搜尋頁推薦');
+      return;
+    }
+    if (recommendIds.length >= SEARCH_RECOMMEND_LIMIT) {
+      message.warning('搜尋頁推薦最多 10 款，請先移除後再加入');
+      return;
+    }
+
+    const position = recommendIds.length + 1;
+    setRecommendIds((current) => [...current, record.gameId]);
+    message.success(`已加入搜尋頁推薦（第 ${position} 位）`);
+  };
 
   const columns: ColumnsType<GameManagementRecord> = [
     {
@@ -458,6 +512,30 @@ export default function GameManagementPage() {
       render: (value: boolean) => renderBooleanTag(value, '是', '否', 'lime', 'default'),
     },
     {
+      title: '搜尋頁推薦',
+      key: 'searchRecommended',
+      width: 150,
+      sorter: (a, b) => {
+        const aIndex = recommendIds.indexOf(a.gameId);
+        const bIndex = recommendIds.indexOf(b.gameId);
+        const aPosition = aIndex >= 0 ? aIndex : Number.MAX_SAFE_INTEGER;
+        const bPosition = bIndex >= 0 ? bIndex : Number.MAX_SAFE_INTEGER;
+        return aPosition - bPosition;
+      },
+      render: (_, record) => {
+        const index = recommendIds.indexOf(record.gameId);
+        if (index < 0) return '-';
+        if (isSearchClientVisible(record)) return `第 ${index + 1} 位`;
+
+        const reason = getClientHiddenReason(record);
+        return (
+          <Tooltip title={`客戶端不顯示：${reason}`}>
+            <Text type="warning">第 {index + 1} 位（不顯示）</Text>
+          </Tooltip>
+        );
+      },
+    },
+    {
       title: '更新時間',
       dataIndex: 'updatedAt',
       width: 180,
@@ -471,25 +549,37 @@ export default function GameManagementPage() {
     {
       title: '操作',
       key: 'actions',
-      width: 180,
+      width: 260,
       fixed: 'right',
-      render: (_, record) => (
-        <Space size={0} split={<span style={{ color: '#d9d9d9' }}>|</span>}>
-          <Button data-e2e-id={`game-management-table-edit-btn-${record.gameId}`} type="link" size="small" icon={<EditOutlined />}>
-            編輯
-          </Button>
-          <Button data-e2e-id={`game-management-table-config-btn-${record.gameId}`} type="link" size="small" icon={<ToolOutlined />}>
-            配置
-          </Button>
-          <Button data-e2e-id={`game-management-table-log-btn-${record.gameId}`} type="link" size="small" icon={<FileTextOutlined />}>
-            日誌
-          </Button>
-        </Space>
-      ),
+      render: (_, record) => {
+        const recommended = recommendIds.includes(record.gameId);
+        return (
+          <Space size={0} split={<span style={{ color: '#d9d9d9' }}>|</span>}>
+            <Button data-e2e-id={`game-management-table-edit-btn-${record.gameId}`} type="link" size="small" icon={<EditOutlined />}>
+              編輯
+            </Button>
+            <Button data-e2e-id={`game-management-table-config-btn-${record.gameId}`} type="link" size="small" icon={<ToolOutlined />}>
+              配置
+            </Button>
+            <Button
+              data-e2e-id={`game-management-table-recommend-btn-${record.gameId}`}
+              type="link"
+              size="small"
+              icon={recommended ? <StarFilled /> : <StarOutlined />}
+              onClick={() => toggleRecommendation(record)}
+            >
+              {recommended ? '取消推薦' : '推薦'}
+            </Button>
+            <Button data-e2e-id={`game-management-table-log-btn-${record.gameId}`} type="link" size="small" icon={<FileTextOutlined />}>
+              日誌
+            </Button>
+          </Space>
+        );
+      },
     },
   ];
 
-  const visibleFields = collapsed ? filterFieldConfigs.slice(0, 6) : filterFieldConfigs;
+  const visibleFields = collapsed ? filterFieldConfigs.slice(0, 7) : filterFieldConfigs;
 
   const runBatchAction = (actionName: string) => {
     if (!selectedRowKeys.length) {
@@ -497,6 +587,65 @@ export default function GameManagementPage() {
       return;
     }
     message.success(`已選擇 ${selectedRowKeys.length} 筆，準備${actionName}`);
+  };
+
+  const batchAddRecommendations = () => {
+    if (!selectedRowKeys.length) {
+      message.warning('請先勾選要批量設為推薦的遊戲');
+      return;
+    }
+
+    const selectedKeySet = new Set(selectedRowKeys);
+    const selectedGames = gameManagementData.filter((game) => selectedKeySet.has(game.key));
+    const nextIds = [...recommendIds];
+    let added = 0;
+    let nonListedStatus = 0;
+    let alreadyListed = 0;
+    let overLimit = 0;
+
+    selectedGames.forEach((game) => {
+      if (game.status !== '上架') {
+        nonListedStatus += 1;
+        return;
+      }
+      if (nextIds.includes(game.gameId)) {
+        alreadyListed += 1;
+        return;
+      }
+      if (nextIds.length >= SEARCH_RECOMMEND_LIMIT) {
+        overLimit += 1;
+        return;
+      }
+      nextIds.push(game.gameId);
+      added += 1;
+    });
+
+    setRecommendIds(nextIds);
+    const skipped = nonListedStatus + alreadyListed + overLimit;
+    const skipReasons = [
+      nonListedStatus ? `非上架 ${nonListedStatus} 款` : '',
+      alreadyListed ? `已在清單 ${alreadyListed} 款` : '',
+      overLimit ? `超出上限 ${overLimit} 款（上限 10 款）` : '',
+    ].filter(Boolean);
+    message.success(
+      `已加入 ${added} 款${skipped ? `；略過 ${skipped} 款（${skipReasons.join(' / ')}）` : ''}`,
+    );
+  };
+
+  const batchRemoveRecommendations = () => {
+    if (!selectedRowKeys.length) {
+      message.warning('請先勾選要批量取消推薦的遊戲');
+      return;
+    }
+
+    const selectedKeySet = new Set(selectedRowKeys);
+    const idsToRemove = new Set(
+      gameManagementData
+        .filter((game) => selectedKeySet.has(game.key) && recommendIds.includes(game.gameId))
+        .map((game) => game.gameId),
+    );
+    setRecommendIds((current) => current.filter((gameId) => !idsToRemove.has(gameId)));
+    message.success(`已取消 ${idsToRemove.size} 款搜尋頁推薦`);
   };
 
   const handleSearch = () => {
@@ -515,7 +664,7 @@ export default function GameManagementPage() {
     <div>
       <div style={{ marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>遊戲管理</Title>
-        <Text type="secondary">對應 FAT 遊戲列表管理原型，包含合規篩選、加權標籤與批量操作工具列。</Text>
+        <Text type="secondary">對應 FAT 遊戲列表管理原型，包含合規篩選、加權標籤、搜尋頁推薦與批量操作工具列。</Text>
       </div>
 
       <Card size="small" style={{ marginBottom: 16 }}>
@@ -547,6 +696,19 @@ export default function GameManagementPage() {
             </Button>
             <Button data-e2e-id="game-management-toolbar-batch-weight-btn" onClick={() => runBatchAction('批量設置排序標籤')}>
               批量設置排序標籤
+            </Button>
+            <Button data-e2e-id="game-management-toolbar-batch-recommend-btn" onClick={batchAddRecommendations}>
+              批量設為推薦
+            </Button>
+            <Button data-e2e-id="game-management-toolbar-batch-unrecommend-btn" onClick={batchRemoveRecommendations}>
+              批量取消推薦
+            </Button>
+            <Button
+              data-e2e-id="game-management-toolbar-search-recommend-btn"
+              icon={<StarOutlined />}
+              onClick={() => setRecommendDrawerOpen(true)}
+            >
+              搜尋頁推薦配置
             </Button>
             <Button data-e2e-id="game-management-toolbar-type-directory-btn" icon={<AppstoreOutlined />} onClick={() => message.info('類型目錄')}>
               類型目錄
@@ -601,6 +763,18 @@ export default function GameManagementPage() {
           }}
         />
       </Card>
+
+      <SearchRecommendDrawer
+        open={recommendDrawerOpen}
+        games={gameManagementData}
+        recommendIds={recommendIds}
+        onClose={() => setRecommendDrawerOpen(false)}
+        onSave={(ids) => {
+          setRecommendIds(ids);
+          setRecommendDrawerOpen(false);
+          message.success('已保存搜尋頁推薦遊戲');
+        }}
+      />
     </div>
   );
 }
