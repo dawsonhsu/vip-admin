@@ -50,6 +50,7 @@ import ReactivationMysteryBoxReportModal from '@/components/ReactivationMysteryB
 import CashbackConfigModal from '@/components/CashbackConfigModal';
 import LossRebateConfigModal from '@/components/LossRebateConfigModal';
 import ProviderLeaderboardConfigModal from '@/components/ProviderLeaderboardConfigModal';
+import ProviderLeaderboardReportModal from '@/components/ProviderLeaderboardReportModal';
 
 // 识别哪些活动是 FreeBet 类型（可拆独立配置 + 报表）
 const FREEBET_ACTIVITY_IDS = new Set<number>([29]);
@@ -91,6 +92,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const [cashbackConfigOpen, setCashbackConfigOpen] = useState(false);
   const [lossRebateConfigOpen, setLossRebateConfigOpen] = useState(false);
   const [providerLeaderboardConfigOpen, setProviderLeaderboardConfigOpen] = useState(false);
+  const [providerLeaderboardReportOpen, setProviderLeaderboardReportOpen] = useState(false);
 
   const handleEditConfig = (record: ActivityRecord) => {
     if (record.id === PROVIDER_LEADERBOARD_ID) {
@@ -138,7 +140,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
 
   const handleViewReport = (record: ActivityRecord) => {
     if (record.id === PROVIDER_LEADERBOARD_ID) {
-      router.push('/admin/provider-leaderboard-report');
+      setProviderLeaderboardReportOpen(true);
       return;
     }
     if (record.id === LOSS_REBATE_ID) {
@@ -487,6 +489,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <ProviderLeaderboardConfigModal
         open={providerLeaderboardConfigOpen}
         onClose={() => setProviderLeaderboardConfigOpen(false)}
+      />
+      <ProviderLeaderboardReportModal
+        open={providerLeaderboardReportOpen}
+        onClose={() => setProviderLeaderboardReportOpen(false)}
       />
     </>
   );

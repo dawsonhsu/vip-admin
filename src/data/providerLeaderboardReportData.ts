@@ -4,7 +4,6 @@ import {
   DEFAULT_LEADERBOARD_PROVIDERS,
   DEFAULT_RANK_REWARD_ROWS,
   DEFAULT_ROLLOVER_MULTIPLIER,
-  LEADERBOARD_FREE_SPIN_GAME_OPTIONS,
   LEADERBOARD_PROVIDER_CATALOG,
   type RewardType,
 } from './providerLeaderboardConfig';
@@ -164,13 +163,12 @@ export function generateProviderLeaderboardReport(): ProviderLeaderboardReportRo
         if (reward.rewardType === 'cash') {
           cashAmount = Number(reward.amount ?? 0);
           rewardContent = `₱${cashAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          rolloverRequirement = `₱${cashAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × ${DEFAULT_ROLLOVER_MULTIPLIER} = ₱${(cashAmount * DEFAULT_ROLLOVER_MULTIPLIER).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          rolloverRequirement = `${DEFAULT_ROLLOVER_MULTIPLIER} 倍`;
         } else if (reward.rewardType === 'freeSpin') {
           rewardTypeLabel = 'Free Spin';
           freeSpinSpins = reward.freeSpin?.spins ?? 0;
-          const gameName = LEADERBOARD_FREE_SPIN_GAME_OPTIONS.find((game) => game.value === reward.freeSpin?.gameId)?.label ?? reward.freeSpin?.gameId ?? '—';
-          rewardContent = `${reward.freeSpin?.provider ?? '—'} · ${gameName} · ${freeSpinSpins} 次 · ₱${Number(reward.freeSpin?.betAmount ?? 0).toFixed(2)}/次 · ${reward.freeSpin?.validityDays ?? 0} 天`;
-          rolloverRequirement = `贏得金額 × ${DEFAULT_ROLLOVER_MULTIPLIER} 倍`;
+          rewardContent = `${freeSpinSpins} 次`;
+          rolloverRequirement = `${DEFAULT_ROLLOVER_MULTIPLIER} 倍`;
         } else {
           rewardTypeLabel = '商城幣';
           mallCoinAmount = Number(reward.amount ?? 0);

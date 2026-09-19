@@ -86,7 +86,6 @@ const menuItems: MenuItem[] = [
       { key: '/admin/member-game-stats', icon: <PlayCircleOutlined />, label: <span data-e2e-id="layout-menu-member-game-stats">會員遊戲日統計</span> },
       { key: '/admin/cashback-report', icon: <GiftOutlined />, label: <span data-e2e-id="layout-menu-cashback-report">投注返利報表</span> },
       { key: '/admin/loss-rebate-report', icon: <GiftOutlined />, label: <span data-e2e-id="layout-menu-loss-rebate-report">輸值返利報表</span> },
-      { key: '/admin/provider-leaderboard-report', icon: <GiftOutlined />, label: <span data-e2e-id="layout-menu-provider-leaderboard-report">廠商排行榜報表</span> },
     ],
   },
   {
@@ -176,7 +175,6 @@ const breadcrumbMap: Record<string, string> = {
   '/admin/member-game-stats': '會員遊戲日統計',
   '/admin/cashback-report': '投注返利報表',
   '/admin/loss-rebate-report': '輸值返利報表',
-  '/admin/provider-leaderboard-report': '廠商排行榜報表',
   '/admin/bet-monitor': '注單監控',
   '/admin/sms-otp': '短信驗證碼',
 };
@@ -208,7 +206,6 @@ const parentBreadcrumbMap: Record<string, string> = {
   '/admin/member-game-stats': '報表管理',
   '/admin/cashback-report': '報表管理',
   '/admin/loss-rebate-report': '報表管理',
-  '/admin/provider-leaderboard-report': '報表管理',
   '/admin/bet-monitor': '系統',
   '/admin/sms-otp': '系統',
 };

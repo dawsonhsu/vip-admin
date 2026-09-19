@@ -10,6 +10,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
   Row,
   Select,
   Space,
@@ -38,9 +39,14 @@ import {
 } from '@/data/providerLeaderboardReportData';
 import { DEFAULT_LEADERBOARD_PROVIDERS, LEADERBOARD_PROVIDER_CATALOG, type RewardType } from '@/data/providerLeaderboardConfig';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 const { RangePicker } = DatePicker;
-const E2E = 'provider-leaderboard-report';
+const E2E = 'provider-leaderboard-report-modal';
+
+interface ProviderLeaderboardReportModalProps {
+  open: boolean;
+  onClose: () => void;
+}
 
 interface ReportFilters {
   statisticalRange?: [Dayjs, Dayjs];
@@ -101,7 +107,10 @@ function downloadCsv(rows: ProviderLeaderboardReportRow[]) {
   URL.revokeObjectURL(objectUrl);
 }
 
-export default function ProviderLeaderboardReportPage() {
+export default function ProviderLeaderboardReportModal({
+  open,
+  onClose,
+}: ProviderLeaderboardReportModalProps) {
   const [form] = Form.useForm<ReportFilters>();
   const [filters, setFilters] = useState<ReportFilters>({ statisticalRange: initialDateRange });
 
@@ -122,17 +131,9 @@ export default function ProviderLeaderboardReportPage() {
   }), [filters]);
 
   const stats = useMemo(() => {
-    const memberBoards = new Map<string, Set<string>>();
-    filteredRows.forEach((row) => {
-      const key = `${row.statisticalDate}/${row.account}`;
-      const boards = memberBoards.get(key) ?? new Set<string>();
-      boards.add(row.providerCode);
-      memberBoards.set(key, boards);
-    });
     return {
       entries: filteredRows.length,
       uniqueWinners: new Set(filteredRows.map((row) => row.account)).size,
-      multiBoardWinners: Array.from(memberBoards.values()).filter((providers) => providers.size > 1).length,
       cash: filteredRows.reduce((sum, row) => sum + row.cashAmount, 0),
       freeSpins: filteredRows.reduce((sum, row) => sum + row.freeSpinSpins, 0),
       mallCoins: filteredRows.reduce((sum, row) => sum + row.mallCoinAmount, 0),
@@ -174,12 +175,22 @@ export default function ProviderLeaderboardReportPage() {
   };
 
   return (
-    <div data-e2e-id={`${E2E}-page`}>
-      <div style={{ marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0, color: '#e8e8e8' }}>廠商排行榜報表</Title>
-        <Text type="secondary">報表管理 / 廠商排行榜報表</Text>
-      </div>
-
+    <Modal
+      title="廠商排行榜 - 報表"
+      open={open}
+      onCancel={onClose}
+      footer={
+        <div style={{ textAlign: 'right' }}>
+          <Button data-e2e-id={`${E2E}-footer-close-btn`} onClick={onClose}>
+            關閉
+          </Button>
+        </div>
+      }
+      width="94%"
+      style={{ top: 20 }}
+      styles={{ body: { maxHeight: '78vh', overflowY: 'auto', padding: 16 } }}
+    >
+      <div data-e2e-id={`${E2E}-modal`}>
       <Card style={{ marginBottom: 16 }}>
         <Form form={form} layout="inline" initialValues={{ statisticalRange: initialDateRange }} style={{ gap: 10, rowGap: 12, flexWrap: 'wrap' }}>
           <Form.Item name="statisticalRange" label="統計日期">
@@ -223,12 +234,11 @@ export default function ProviderLeaderboardReportPage() {
       </Card>
 
       <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-        <Col span={4}><Card style={statisticCardStyle}><Statistic title="得獎人次" value={stats.entries} valueStyle={statisticValueStyle} /></Card></Col>
-        <Col span={4}><Card style={statisticCardStyle}><Statistic title="不重複得獎人數" value={stats.uniqueWinners} valueStyle={statisticValueStyle} /></Card></Col>
-        <Col span={4}><Card style={statisticCardStyle}><Statistic title="多榜得獎人數" value={stats.multiBoardWinners} valueStyle={statisticValueStyle} /></Card></Col>
-        <Col span={4}><Card style={statisticCardStyle}><Statistic title="現金派發總額" value={stats.cash} formatter={() => formatCurrency(stats.cash)} valueStyle={statisticValueStyle} /></Card></Col>
-        <Col span={4}><Card style={statisticCardStyle}><Statistic title="Free Spin 總次數" value={stats.freeSpins} suffix="次" valueStyle={statisticValueStyle} /></Card></Col>
-        <Col span={4}><Card style={statisticCardStyle}><Statistic title="商城幣總額" value={stats.mallCoins} suffix="幣" valueStyle={statisticValueStyle} /></Card></Col>
+        <Col flex="1" style={{ minWidth: 0 }}><Card style={statisticCardStyle}><Statistic title="得獎人次" value={stats.entries} valueStyle={statisticValueStyle} /></Card></Col>
+        <Col flex="1" style={{ minWidth: 0 }}><Card style={statisticCardStyle}><Statistic title="不重複得獎人數" value={stats.uniqueWinners} valueStyle={statisticValueStyle} /></Card></Col>
+        <Col flex="1" style={{ minWidth: 0 }}><Card style={statisticCardStyle}><Statistic title="現金派發總額" value={stats.cash} formatter={() => formatCurrency(stats.cash)} valueStyle={statisticValueStyle} /></Card></Col>
+        <Col flex="1" style={{ minWidth: 0 }}><Card style={statisticCardStyle}><Statistic title="Free Spin 總次數" value={stats.freeSpins} suffix="次" valueStyle={statisticValueStyle} /></Card></Col>
+        <Col flex="1" style={{ minWidth: 0 }}><Card style={statisticCardStyle}><Statistic title="商城幣總額" value={stats.mallCoins} suffix="幣" valueStyle={statisticValueStyle} /></Card></Col>
       </Row>
 
       <Card>
@@ -259,6 +269,7 @@ export default function ProviderLeaderboardReportPage() {
           onRow={(row) => ({ 'data-e2e-id': `${E2E}-table-row-${row.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
         />
       </Card>
-    </div>
+      </div>
+    </Modal>
   );
 }
