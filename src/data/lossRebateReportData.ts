@@ -2,12 +2,11 @@ import dayjs from 'dayjs';
 import type { GameType } from './memberStatsData';
 import { freeSpinRestrictionCatalog } from './mockData';
 import {
-  DEFAULT_LOSS_CAPS,
   DEFAULT_LOSS_REBATE_SETTINGS,
-  DEFAULT_MIN_NET_LOSS,
   DEFAULT_OVERRIDE_GROUPS,
   DEFAULT_VIP_RATE_MATRIX,
   LOSS_REBATE_GAME_TYPES,
+  LOSS_REBATE_DISPATCH_TIME,
   vipTierOfLevel,
 } from './lossRebateConfig';
 
@@ -23,13 +22,9 @@ export interface LossRebateBreakdownRow {
   groupGames?: string[];      // 僅 game：組內參與遊戲（廠商 + 遊戲名）
   effectiveBet: number;       // 該規則有效投注額
   payout: number;             // 該規則派彩金額
-  netLoss: number;            // = effectiveBet - payout；僅通過門檻的規則產列
+  netLoss: number;            // = effectiveBet - payout，包含玩家淨贏
   rate: number;               // 命中的返利比例 %
-  minNetLoss: number;         // 淨輸需嚴格超過此門檻，達標後以整筆淨輸計算
-  rebateBeforeCap: number;    // = netLoss * rate / 100（通過門檻後）
-  cap: number;                // 該規則上限；0 = 不限
-  capped: boolean;            // 該規則是否觸及上限
-  rebate: number;             // 該規則封頂後實派
+  rebate: number;             // = max(netLoss, 0) * rate / 100，四捨五入至分
 }
 
 export interface LossRebateReportRow {
@@ -39,32 +34,34 @@ export interface LossRebateReportRow {
   phone: string;
   vipLevel: number;           // 0-30 數字等級
   vipTier: string;            // Bronze/Silver/Gold/Platinum/Diamond（由 vipLevel 推導）
-  statPeriod: string;         // 統計週期標籤，如 '2026-09-14'
+  statDate: string;           // 統計日期，如 '2026-09-14'
   effectiveBet: number;       // = sum(breakdown.effectiveBet)
   payout: number;             // = sum(breakdown.payout)
   netLoss: number;            // = sum(breakdown.netLoss)
-  rebateBeforeCap: number;    // = sum(breakdown.rebateBeforeCap)
-  capped: boolean;            // 任一規則已封頂（無全活動上限）
-  rebateAmount: number;       // 實派 = sum(breakdown.rebate)
+  rebateBeforeCap: number;    // = sum(breakdown.rebate)
+  capped: boolean;            // 活動單日返利是否封頂
+  rebateAmount: number;       // 實派 = 活動單日封頂後返利
   rolloverRequired: number;   // = rebateAmount * rolloverMultiplier
-  settledAt: string;          // 結算時間 'YYYY-MM-DD HH:mm:ss'
+  dispatchedAt: string;       // 派發時間 'YYYY-MM-DD HH:mm:ss'
   breakdown: LossRebateBreakdownRow[];
 }
 
-// 全域流水倍數與派發時間取自 Modal Step3 共用預設值；各列門檻 / 上限同樣引用配置。
-const ROLLOVER_MULTIPLIER = DEFAULT_LOSS_REBATE_SETTINGS.rolloverMultiplier; // 1 倍
-const SETTLE_TIME = DEFAULT_LOSS_REBATE_SETTINGS.dispatchTime;         // '04:00:00'
+const { minNetLoss, rebateCap, rolloverMultiplier } = DEFAULT_LOSS_REBATE_SETTINGS;
 
-// mock 以「日結」情境產出：統計週期 = 投注日，結算時間 = T+1 的派發時間。
+// mock 統計日期為投注日，派發時間為隔日固定時間。
 const MEMBER_COUNT = 14;
-const STAT_PERIODS_COUNT = 5;
-const FIRST_STAT_PERIOD = '2026-09-10';
+const STAT_DATES_COUNT = 5;
+const FIRST_STAT_DATE = '2026-09-10';
 
-const STAT_PERIODS = Array.from({ length: STAT_PERIODS_COUNT }, (_, periodIndex) =>
-  dayjs(FIRST_STAT_PERIOD).add(periodIndex, 'day').format('YYYY-MM-DD')
+const STAT_DATES = Array.from({ length: STAT_DATES_COUNT }, (_, dateIndex) =>
+  dayjs(FIRST_STAT_DATE).add(dateIndex, 'day').format('YYYY-MM-DD')
 );
 
-const roundCurrency = (value: number) => Math.round(value * 100) / 100;
+const roundCurrency = (value: number) => {
+  // 避免浮點誤差讓半分邊界少算一分。
+  const cents = value * 100;
+  return Math.round(cents + Number.EPSILON * Math.abs(cents)) / 100;
+};
 
 // Deterministic seeded hash (same helper style as cashbackReportData / memberStatsData)
 // so the mock data set is byte-identical on every render / build.
@@ -97,9 +94,9 @@ const gameLabelOf = (game: LossRebateGameActivity) => {
   return `${provider?.name ?? game.providerCode} ${name ?? game.gameCode}`;
 };
 
-// 大額淨輸 mock 用來呈現各規則獨立封頂的案例。
-const isWhale = (uid: string, statPeriod: string) =>
-  hashString(`${uid}-${statPeriod}-whale`) % 4 === 0;
+// 大額淨輸 mock 用來呈現活動單日封頂的案例。
+const isWhale = (uid: string, statDate: string) =>
+  hashString(`${uid}-${statDate}-whale`) % 4 === 0;
 
 const betOf = (seed: string, whale: boolean) =>
   roundCurrency(
@@ -115,18 +112,12 @@ const buildBreakdownRow = (
   ruleTier: LossRebateRuleTier,
   games: LossRebateGameActivity[],
   rate: number,
-  minNetLoss: number,
-  cap: number,
   groupName?: string
 ): LossRebateBreakdownRow[] => {
+  if (games.length === 0) return [];
   const effectiveBet = roundCurrency(games.reduce((sum, game) => sum + game.effectiveBet, 0));
   const payout = roundCurrency(games.reduce((sum, game) => sum + game.payout, 0));
   const netLoss = roundCurrency(effectiveBet - payout);
-
-  // 同場館 / 同組先合計（含贏錢遊戲），嚴格超過門檻後，整筆淨輸乘以比例。
-  if (netLoss <= 0 || netLoss <= minNetLoss) return [];
-  const rebateBeforeCap = roundCurrency((netLoss * rate) / 100);
-  const capped = cap > 0 && rebateBeforeCap > cap;
 
   return [{
     key,
@@ -140,15 +131,11 @@ const buildBreakdownRow = (
     payout,
     netLoss,
     rate,
-    minNetLoss,
-    rebateBeforeCap,
-    cap,
-    capped,
-    rebate: capped ? cap : rebateBeforeCap,
+    rebate: roundCurrency((Math.max(netLoss, 0) * rate) / 100),
   }];
 };
 
-// 先按完整遊戲路徑分配覆蓋組，再將剩餘遊戲分配場館；組未達門檻也不回流基準層。
+// 先按完整遊戲路徑分配覆蓋組，再將剩餘遊戲分配場館；淨贏組也不回流基準層。
 // 排除遊戲的 demo 預設為空，因此輸入包含所有參與遊戲。
 export function calculateLossRebateBreakdown(
   games: LossRebateGameActivity[],
@@ -163,7 +150,7 @@ export function calculateLossRebateBreakdown(
     });
     groupGames.forEach((game) => assignedPaths.add(gamePathOf(game)));
     return buildBreakdownRow(
-      `group-${group.key}`, 'game', groupGames, group.rate, group.minNetLoss, group.cap, group.groupName
+      `group-${group.key}`, 'game', groupGames, group.rate, group.groupName
     );
   });
 
@@ -173,9 +160,7 @@ export function calculateLossRebateBreakdown(
       `type-${gameType}`,
       'type',
       games.filter((game) => game.gameType === gameType && !assignedPaths.has(gamePathOf(game))),
-      DEFAULT_VIP_RATE_MATRIX[tier][gameType],
-      DEFAULT_MIN_NET_LOSS[gameType],
-      DEFAULT_LOSS_CAPS[gameType]
+      DEFAULT_VIP_RATE_MATRIX[tier][gameType]
     )
   );
   return [...groupRows, ...typeRows];
@@ -201,7 +186,7 @@ const buildGameActivity = (
 // 產生逐款遊戲 mock，再統一走分組 / 場館路由與門檻計算。
 const buildGameActivities = (
   uid: string,
-  statPeriod: string,
+  statDate: string,
   whale: boolean
 ): LossRebateGameActivity[] => {
   const overridePaths = Array.from(new Set(
@@ -210,15 +195,15 @@ const buildGameActivities = (
   ));
   const overrideGames = overridePaths.flatMap((path) => {
     const [gameType, providerCode, gameCode] = path.split('/');
-    if (hashString(`${uid}-${statPeriod}-${gameCode}-join`) % 10 >= 5) return [];
+    if (hashString(`${uid}-${statDate}-${gameCode}-join`) % 10 >= 5) return [];
     return [buildGameActivity(
-      gameType as GameType, providerCode, gameCode, `${uid}-${statPeriod}-game-${gameCode}`, whale
+      gameType as GameType, providerCode, gameCode, `${uid}-${statDate}-game-${gameCode}`, whale
     )];
   });
-  const typeCount = 2 + (hashString(`${uid}-${statPeriod}-type-count`) % 3); // 2 ~ 4
-  const startIndex = hashString(`${uid}-${statPeriod}-type-start`) % LOSS_REBATE_GAME_TYPES.length;
+  const typeCount = 2 + (hashString(`${uid}-${statDate}-type-count`) % 3); // 2 ~ 4
+  const startIndex = hashString(`${uid}-${statDate}-type-start`) % LOSS_REBATE_GAME_TYPES.length;
   // LOSS_REBATE_GAME_TYPES.length is prime and stride < length, so the picked types never repeat.
-  const stride = 1 + (hashString(`${uid}-${statPeriod}-type-stride`) % 3);
+  const stride = 1 + (hashString(`${uid}-${statDate}-type-stride`) % 3);
 
   const typeGames = Array.from({ length: typeCount }, (_, index) => {
     const gameType =
@@ -230,9 +215,9 @@ const buildGameActivities = (
         .map((game) => ({ providerCode: provider.code, gameCode: game.code }))
     );
     if (candidates.length === 0) return [];
-    const game = candidates[hashString(`${uid}-${statPeriod}-${gameType}-game`) % candidates.length];
+    const game = candidates[hashString(`${uid}-${statDate}-${gameType}-game`) % candidates.length];
     return [buildGameActivity(
-      gameType, game.providerCode, game.gameCode, `${uid}-${statPeriod}-type-${gameType}`, whale
+      gameType, game.providerCode, game.gameCode, `${uid}-${statDate}-type-${gameType}`, whale
     )];
   }).flat();
   return [...overrideGames, ...typeGames];
@@ -246,33 +231,30 @@ export function generateLossRebateReport(): LossRebateReportRow[] {
     // (memberIndex * 7 + 3) % 31 掃過 0~30，五個 VIP 分級都有樣本。
     const vipLevel = (memberIndex * 7 + 3) % 31;
     const vipTier = vipTierOfLevel(vipLevel);
-    const activePeriods = STAT_PERIODS.filter(
-      (statPeriod) => hashString(`${uid}-${statPeriod}-active`) % 10 < 8
+    const activeDates = STAT_DATES.filter(
+      (statDate) => hashString(`${uid}-${statDate}-active`) % 10 < 8
     );
-    // Every member must stay visible in the demo: fall back to the first period
-    // when the skip rule happened to drop all of them.
-    const memberPeriods = activePeriods.length > 0 ? activePeriods : [STAT_PERIODS[0]];
+    // 無活躍日期時仍產生首日投注樣本，是否派發依活動門檻判斷。
+    const memberDates = activeDates.length > 0 ? activeDates : [STAT_DATES[0]];
 
-    memberPeriods.forEach((statPeriod) => {
-      const whale = isWhale(uid, statPeriod);
+    memberDates.forEach((statDate) => {
+      const whale = isWhale(uid, statDate);
       // 覆蓋層在前，對應 指定遊戲 > VIP × 遊戲類型 的命中優先級。
       // 排除遊戲（預設為空）完全不產列，因此這裡沒有對應的 breakdown。
       const breakdown = calculateLossRebateBreakdown(
-        buildGameActivities(uid, statPeriod, whale), vipLevel
+        buildGameActivities(uid, statDate, whale), vipLevel
       );
       if (breakdown.length === 0) return;
 
       const netLoss = roundCurrency(
         breakdown.reduce((sum, item) => sum + item.netLoss, 0)
       );
+      if (netLoss <= minNetLoss) return;
       const rebateBeforeCap = roundCurrency(
-        breakdown.reduce((sum, item) => sum + item.rebateBeforeCap, 0)
-      );
-      // 各規則封頂後直接加總，不再套全域門檻或上限。
-      const capped = breakdown.some((item) => item.capped);
-      const rebateAmount = roundCurrency(
         breakdown.reduce((sum, item) => sum + item.rebate, 0)
       );
+      const capped = rebateCap > 0 && rebateBeforeCap > rebateCap;
+      const rebateAmount = capped ? rebateCap : rebateBeforeCap;
 
       rows.push({
         account: `member${uid}`,
@@ -280,7 +262,7 @@ export function generateLossRebateReport(): LossRebateReportRow[] {
         phone: buildPhone(uid),
         vipLevel,
         vipTier,
-        statPeriod,
+        statDate,
         effectiveBet: roundCurrency(
           breakdown.reduce((sum, item) => sum + item.effectiveBet, 0)
         ),
@@ -289,9 +271,9 @@ export function generateLossRebateReport(): LossRebateReportRow[] {
         rebateBeforeCap,
         capped,
         rebateAmount,
-        rolloverRequired: roundCurrency(rebateAmount * ROLLOVER_MULTIPLIER),
+        rolloverRequired: roundCurrency(rebateAmount * rolloverMultiplier),
         // 日結：T+1 的派發時間統一批次結算。
-        settledAt: dayjs(`${statPeriod} ${SETTLE_TIME}`)
+        dispatchedAt: dayjs(`${statDate} ${LOSS_REBATE_DISPATCH_TIME}`)
           .add(1, 'day')
           .format('YYYY-MM-DD HH:mm:ss'),
         breakdown,
@@ -301,7 +283,7 @@ export function generateLossRebateReport(): LossRebateReportRow[] {
 
   return rows
     .sort((a, b) =>
-      b.settledAt.localeCompare(a.settledAt) || a.uid.localeCompare(b.uid)
+      b.dispatchedAt.localeCompare(a.dispatchedAt) || a.uid.localeCompare(b.uid)
     )
     .map((row, index) => ({ id: index + 1, ...row }));
 }

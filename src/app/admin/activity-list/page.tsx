@@ -49,6 +49,7 @@ import ReactivationMysteryBoxGrantModal from '@/components/ReactivationMysteryBo
 import ReactivationMysteryBoxReportModal from '@/components/ReactivationMysteryBoxReportModal';
 import CashbackConfigModal from '@/components/CashbackConfigModal';
 import LossRebateConfigModal from '@/components/LossRebateConfigModal';
+import LossRebateReportModal from '@/components/LossRebateReportModal';
 import ProviderLeaderboardConfigModal from '@/components/ProviderLeaderboardConfigModal';
 import ProviderLeaderboardReportModal from '@/components/ProviderLeaderboardReportModal';
 
@@ -91,6 +92,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const [dailyMultiDepositConfigOpen, setDailyMultiDepositConfigOpen] = useState(false);
   const [cashbackConfigOpen, setCashbackConfigOpen] = useState(false);
   const [lossRebateConfigOpen, setLossRebateConfigOpen] = useState(false);
+  const [lossRebateReportOpen, setLossRebateReportOpen] = useState(false);
   const [providerLeaderboardConfigOpen, setProviderLeaderboardConfigOpen] = useState(false);
   const [providerLeaderboardReportOpen, setProviderLeaderboardReportOpen] = useState(false);
 
@@ -144,7 +146,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       return;
     }
     if (record.id === LOSS_REBATE_ID) {
-      router.push('/admin/loss-rebate-report');
+      setLossRebateReportOpen(true);
       return;
     }
     if (record.id === CASHBACK_ID) {
@@ -485,6 +487,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <LossRebateConfigModal
         open={lossRebateConfigOpen}
         onClose={() => setLossRebateConfigOpen(false)}
+      />
+      <LossRebateReportModal
+        open={lossRebateReportOpen}
+        onClose={() => setLossRebateReportOpen(false)}
       />
       <ProviderLeaderboardConfigModal
         open={providerLeaderboardConfigOpen}
