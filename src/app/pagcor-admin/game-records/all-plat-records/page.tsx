@@ -185,7 +185,7 @@ export default function AllPlatRecordsPage() {
     <div>
       {/* Filter Card */}
       <Card style={{ marginBottom: 16 }} data-e2e-id="all-plat-records-filter-card">
-        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: 1 }}>
+        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: '1 1 0', style: { minWidth: 0 } }}>
           <Row gutter={[16, 0]}>
             <Col xs={24} sm={12} xl={6}>
               <Form.Item name="uid" label="UID">
@@ -280,9 +280,9 @@ export default function AllPlatRecordsPage() {
                 <Select data-e2e-id="all-plat-records-filter-time-type-select" options={pagcorTimeTypes} />
               </Form.Item>
             </Col>
-            <Col xs={24} xl={18}>
-              <Form.Item label="选择日期" labelCol={{ flex: '0 0 88px' }}>
-                <Space wrap size={8}>
+            <Col xs={24}>
+              <Form.Item label="选择日期" labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: '1 1 0', style: { minWidth: 0 } }}>
+                <Space wrap={false} size={8}>
                   <Form.Item name="dateRange" noStyle>
                     <RangePicker
                       data-e2e-id="all-plat-records-filter-date-range"

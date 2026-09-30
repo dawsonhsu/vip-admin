@@ -158,7 +158,7 @@ export default function PagcorTaxReportPage() {
   return (
     <div>
       <Card data-e2e-id="report-pagcor-filter-card" style={{ marginBottom: 16 }}>
-        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 96px' }} wrapperCol={{ flex: 1 }}>
+        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 96px' }} wrapperCol={{ flex: '1 1 0', style: { minWidth: 0 } }}>
           <Row gutter={[16, 0]}>
             <Col xs={24} sm={12} xl={6}>
               <Form.Item name="site" label="业务归属">
@@ -182,7 +182,7 @@ export default function PagcorTaxReportPage() {
             </Col>
             <Col xs={24}>
               <Form.Item label="选择日期">
-                <Space wrap size={8}>
+                <Space wrap={false} size={8}>
                   <Form.Item name="dateRange" noStyle>
                     <RangePicker data-e2e-id="report-pagcor-filter-date-range" format="YYYY-MM-DD" placeholder={['开始日期', '结束日期']} style={{ width: 280 }} onChange={() => setActiveQuick(null)} />
                   </Form.Item>

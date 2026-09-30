@@ -93,8 +93,15 @@ export default function DepositRecordsPage() {
   };
 
   const onBrandChange = (nextBrand: PagcorBrand) => {
+    const nextOptions = pagcorDepositChannels[nextBrand];
+    const value = form.getFieldValue('channel');
+    if (value !== undefined && !nextOptions.includes(value)) {
+      form.setFieldsValue({ channel: undefined });
+    }
+    setFilters((previous) => previous.channel !== undefined && !nextOptions.includes(previous.channel)
+      ? { ...previous, channel: undefined } : previous);
     setBrand(nextBrand);
-    onReset();
+    setCurrent(1);
   };
 
   const filteredData = useMemo(() => allRecords[brand].filter((record) => {
@@ -129,9 +136,8 @@ export default function DepositRecordsPage() {
 
   return (
     <div>
-      <PagcorBrandTabs value={brand} onChange={onBrandChange} e2ePrefix="deposit-records" />
       <Card style={{ marginBottom: 16 }} data-e2e-id="deposit-records-filter-card">
-        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: 1 }}>
+        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: '1 1 0', style: { minWidth: 0 } }}>
           <Row gutter={[16, 0]}>
             <Col xs={24} sm={12} xl={6}>
               <Form.Item name="username" label="用户名">
@@ -160,9 +166,9 @@ export default function DepositRecordsPage() {
                   options={pagcorDepositChannels[brand].map((value) => ({ value, label: value }))} />
               </Form.Item>
             </Col>
-            <Col xs={24} xl={18}>
+            <Col xs={24}>
               <Form.Item label="选择日期">
-                <Space wrap size={8}>
+                <Space wrap={false} size={8}>
                   <Form.Item name="dateRange" noStyle>
                     <RangePicker data-e2e-id="deposit-records-filter-date-range"
                       format="YYYY-MM-DD" placeholder={['开始日期', '结束日期']} style={{ width: 280 }}
@@ -189,6 +195,7 @@ export default function DepositRecordsPage() {
           </div>
         </Form>
       </Card>
+      <PagcorBrandTabs value={brand} onChange={onBrandChange} e2ePrefix="deposit-records" />
       <Card data-e2e-id="deposit-records-table-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Title level={5} style={{ margin: 0 }}>存款记录 · {pagcorBrandLabels[brand]}</Title>

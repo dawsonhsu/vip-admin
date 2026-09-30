@@ -23,7 +23,7 @@ export default function PagcorBrandTabs({ value, onChange, e2ePrefix }: PagcorBr
       size="middle"
       activeKey={value}
       style={{ marginBottom: 0 }}
-      tabBarStyle={{ marginBottom: 12 }}
+      tabBarStyle={{ marginBottom: 0 }}
       onChange={(key) => {
         if (key === 'filbet' || key === 'filplay') onChange(key);
       }}

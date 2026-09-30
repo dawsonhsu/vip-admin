@@ -136,7 +136,7 @@ export default function ShopTaxReportPage() {
   return (
     <div>
       <Card data-e2e-id="report-shop-filter-card" style={{ marginBottom: 16 }}>
-        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 112px' }} wrapperCol={{ flex: 1 }}>
+        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 112px' }} wrapperCol={{ flex: '1 1 0', style: { minWidth: 0 } }}>
           <Row gutter={[16, 0]}>
             <Col xs={24} sm={12} xl={6}>
               <Form.Item name="provider" label="游戏厂商">
@@ -148,9 +148,9 @@ export default function ShopTaxReportPage() {
                 <Select data-e2e-id="report-shop-filter-category-select" placeholder="请选择" allowClear options={pagcorCategories.map((v) => ({ label: v, value: v }))} />
               </Form.Item>
             </Col>
-            <Col xs={24} xl={12}>
+            <Col xs={24}>
               <Form.Item label="时间范围">
-                <Space wrap size={8}>
+                <Space wrap={false} size={8}>
                   <Form.Item name="dateRange" noStyle>
                     <RangePicker data-e2e-id="report-shop-filter-date-range" format="YYYY-MM-DD" placeholder={['开始日期', '结束日期']} style={{ width: 280 }} onChange={() => setActiveQuick(null)} />
                   </Form.Item>

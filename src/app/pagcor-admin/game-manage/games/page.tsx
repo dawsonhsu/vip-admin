@@ -54,8 +54,16 @@ export default function GamesPage() {
   };
 
   const onBrandChange = (nextBrand: PagcorBrand) => {
+    const nextOptions = games[nextBrand].map((game) => game.provider);
+    const value = form.getFieldValue('provider');
+    if (value !== undefined && !nextOptions.includes(value)) {
+      form.setFieldsValue({ provider: undefined });
+    }
+    setFilters((previous) => previous.provider !== undefined && !nextOptions.includes(previous.provider)
+      ? { ...previous, provider: undefined } : previous);
     setBrand(nextBrand);
-    onReset();
+    setCurrent(1);
+    setSelectedRowKeys([]);
   };
 
   const providers = useMemo(() => Array.from(new Set(games[brand].map((game) => game.provider))).sort(), [games, brand]);
@@ -131,9 +139,8 @@ export default function GamesPage() {
     <div>
       {modalContextHolder}
       {messageContextHolder}
-      <PagcorBrandTabs value={brand} onChange={onBrandChange} e2ePrefix="games" />
       <Card style={{ marginBottom: 16 }} data-e2e-id="games-filter-card">
-        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: 1 }}>
+        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: '1 1 0', style: { minWidth: 0 } }}>
           <Row gutter={[16, 0]}>
             <Col xs={24} sm={12} xl={6}>
               <Form.Item name="keyword" label="关键字">
@@ -176,6 +183,7 @@ export default function GamesPage() {
           </div>
         </Form>
       </Card>
+      <PagcorBrandTabs value={brand} onChange={onBrandChange} e2ePrefix="games" />
       <Card data-e2e-id="games-table-card" styles={{ body: { paddingInline: 8 } }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Title level={5} style={{ margin: 0 }}>游戏列表 · {pagcorBrandLabels[brand]}</Title>

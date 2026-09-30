@@ -88,7 +88,7 @@ export default function TransactionRecordsPage() {
 
   const onBrandChange = (nextBrand: PagcorBrand) => {
     setBrand(nextBrand);
-    onReset();
+    setCurrent(1);
   };
 
   const filteredData = useMemo(() => allRecords[brand].filter((record) => {
@@ -117,9 +117,8 @@ export default function TransactionRecordsPage() {
 
   return (
     <div>
-      <PagcorBrandTabs value={brand} onChange={onBrandChange} e2ePrefix="transaction-records" />
       <Card style={{ marginBottom: 16 }} data-e2e-id="transaction-records-filter-card">
-        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: 1 }}>
+        <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: '1 1 0', style: { minWidth: 0 } }}>
           <Row gutter={[16, 0]}>
             <Col xs={24} sm={12} xl={6}>
               <Form.Item name="username" label="用户名">
@@ -137,9 +136,9 @@ export default function TransactionRecordsPage() {
                   options={pagcorTransactionTypes.map((value) => ({ value, label: value }))} />
               </Form.Item>
             </Col>
-            <Col xs={24} xl={18}>
+            <Col xs={24}>
               <Form.Item label="交易时间">
-                <Space wrap size={8}>
+                <Space wrap={false} size={8}>
                   <Form.Item name="dateRange" noStyle>
                     <RangePicker data-e2e-id="transaction-records-filter-date-range" showTime
                       format="YYYY-MM-DD HH:mm:ss" placeholder={['开始日期', '结束日期']} style={{ width: 380 }}
@@ -166,6 +165,7 @@ export default function TransactionRecordsPage() {
           </div>
         </Form>
       </Card>
+      <PagcorBrandTabs value={brand} onChange={onBrandChange} e2ePrefix="transaction-records" />
       <Card data-e2e-id="transaction-records-table-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Title level={5} style={{ margin: 0 }}>交易记录 · {pagcorBrandLabels[brand]}</Title>

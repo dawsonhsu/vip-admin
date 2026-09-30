@@ -123,7 +123,7 @@ export default function MemberListPage() {
 
   return <div>
     <Card data-e2e-id="member-list-filter-card" style={{ marginBottom: 16 }}>
-      <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: 1 }}>
+      <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: '1 1 0', style: { minWidth: 0 } }}>
         <Row gutter={[16, 0]}>
           <Col xs={24} sm={12} xl={6}><Form.Item name="brandOwner" label="品牌归属"><Select data-e2e-id="member-list-filter-brand-owner-select" mode="multiple" placeholder="请选择品牌归属" allowClear options={brands.map((value) => ({ value, label: value }))} /></Form.Item></Col>
           {(['uid', 'username', 'phone'] as const).map((key, index) => <Col key={key} xs={24} sm={12} xl={6}><Form.Item name={key} label={['UID', '用户名', '手机号'][index]}><Input data-e2e-id={`member-list-filter-${key}-input`} placeholder={`请输入${['UID', '用户名', '手机号'][index]}`} allowClear /></Form.Item></Col>)}
@@ -133,8 +133,8 @@ export default function MemberListPage() {
             { key: 'kycStatus', id: 'kyc-status', label: 'KYC状态', options: pagcorMemberKycStatuses },
           ].map((field) => <Col key={field.key} xs={24} sm={12} xl={6}><Form.Item name={field.key} label={field.label}><Select data-e2e-id={`member-list-filter-${field.id}-select`} placeholder="请选择" allowClear options={field.options.map((value) => ({ value, label: value }))} /></Form.Item></Col>)}
           <Col xs={24} sm={12} xl={6}><Form.Item name="site" label="门店"><Select data-e2e-id="member-list-filter-site-select" placeholder="请选择" allowClear showSearch optionFilterProp="label" options={pagcorSites.map((value) => ({ value, label: value }))} /></Form.Item></Col>
-          <Col xs={24} xl={18}>
-            <Form.Item label="注册时间"><Space wrap size={8}>
+          <Col xs={24}>
+            <Form.Item label="注册时间"><Space wrap={false} size={8}>
               <Form.Item name="dateRange" noStyle><RangePicker data-e2e-id="member-list-filter-date-range" showTime format="YYYY-MM-DD HH:mm:ss" placeholder={['开始日期', '结束日期']} style={{ width: 380 }} onChange={() => setActiveQuick(null)} /></Form.Item>
               {quickButtons.map((button) => <Button key={button.key} data-e2e-id={`member-list-filter-quick-${button.id}-btn`} type={activeQuick === button.key ? 'primary' : 'text'} onClick={() => { setActiveQuick(button.key); form.setFieldsValue({ dateRange: rangeOf(button.key) }); }}>{button.label}</Button>)}
             </Space></Form.Item>

@@ -108,14 +108,14 @@ export default function MerchantPage() {
   return <div>
     {contextHolder}
     <Card data-e2e-id="merchant-filter-card" style={{ marginBottom: 16 }}>
-      <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: 1 }}>
+      <Form form={form} layout="horizontal" colon={false} labelCol={{ flex: '0 0 88px' }} wrapperCol={{ flex: '1 1 0', style: { minWidth: 0 } }}>
         <Row gutter={[16, 0]}>
           <Col xs={24} sm={12} xl={6}><Form.Item name="name" label="门店名称"><Input data-e2e-id="merchant-filter-name-input" placeholder="请输入门店名称" allowClear /></Form.Item></Col>
           <Col xs={24} sm={12} xl={6}><Form.Item name="state" label="状态"><Select data-e2e-id="merchant-filter-state-select" placeholder="请选择" allowClear options={[{ label: '正常', value: 1 }, { label: '关闭', value: 2 }]} /></Form.Item></Col>
           <Col xs={24} sm={12} xl={6}><Form.Item name="operator" label="操作人"><Input data-e2e-id="merchant-filter-operator-input" placeholder="请输入操作人" allowClear /></Form.Item></Col>
           <Col xs={24} sm={12} xl={6}><Form.Item name="note" label="备注"><Input data-e2e-id="merchant-filter-note-input" placeholder="请输入备注" allowClear /></Form.Item></Col>
-          <Col xs={24} xl={18}>
-            <Form.Item label="创建时间"><Space wrap size={8}>
+          <Col xs={24}>
+            <Form.Item label="创建时间"><Space wrap={false} size={8}>
               <Form.Item name="dateRange" noStyle><RangePicker data-e2e-id="merchant-filter-date-range" showTime format="YYYY-MM-DD HH:mm:ss" placeholder={['开始日期', '结束日期']} style={{ width: 380 }} onChange={() => setActiveQuick(null)} /></Form.Item>
               {quickButtons.map((button) => <Button key={button.key} data-e2e-id={`merchant-filter-quick-${button.id}-btn`} type={activeQuick === button.key ? 'primary' : 'text'} onClick={() => { setActiveQuick(button.key); form.setFieldsValue({ dateRange: rangeOf(button.key) }); }}>{button.label}</Button>)}
             </Space></Form.Item>
