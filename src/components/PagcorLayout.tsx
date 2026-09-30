@@ -30,21 +30,47 @@ type MenuItem = Required<MenuProps>['items'][number];
 // 選單結構 1:1 對應 admin-pagcor-fat.filbet2025.com（2026-08-31 擷取）
 // 尚未實作的模組保留為選單項目，點擊不導頁。
 const menuItems: MenuItem[] = [
-  { key: 'member', icon: <TeamOutlined />, label: <span data-e2e-id="pagcor-menu-member">会员管理</span> },
-  { key: 'backend', icon: <DesktopOutlined />, label: <span data-e2e-id="pagcor-menu-backend">后台管理</span> },
-  { key: 'finance', icon: <DollarOutlined />, label: <span data-e2e-id="pagcor-menu-finance">财务管理</span> },
+  {
+    key: 'member', icon: <TeamOutlined />, label: <span data-e2e-id="pagcor-menu-member">会员管理</span>,
+    children: [
+      { key: '/pagcor-admin/member/member-list', label: <span data-e2e-id="pagcor-menu-member-list">会员列表</span> },
+    ],
+  },
+  {
+    key: 'backend', icon: <DesktopOutlined />, label: <span data-e2e-id="pagcor-menu-backend">后台管理</span>,
+    children: [
+      { key: '/pagcor-admin/backend/merchant', label: <span data-e2e-id="pagcor-menu-merchant">门店管理</span> },
+    ],
+  },
+  {
+    key: 'finance', icon: <DollarOutlined />, label: <span data-e2e-id="pagcor-menu-finance">财务管理</span>,
+    children: [
+      { key: '/pagcor-admin/finance/deposit-records', label: <span data-e2e-id="pagcor-menu-deposit-records">存款记录</span> },
+      { key: '/pagcor-admin/finance/withdraw-records', label: <span data-e2e-id="pagcor-menu-withdraw-records">提款记录</span> },
+    ],
+  },
   {
     key: 'report-center',
     icon: <BarChartOutlined />,
     label: <span data-e2e-id="pagcor-menu-report-center">报表中心</span>,
     children: [
-      { key: 'report-pagcor', icon: <FileTextOutlined />, label: <span data-e2e-id="pagcor-menu-report-pagcor">Pagcor税收报表</span> },
-      { key: 'report-shop', icon: <FileTextOutlined />, label: <span data-e2e-id="pagcor-menu-report-shop">门店税收报表</span> },
-      { key: 'report-summary', icon: <FileTextOutlined />, label: <span data-e2e-id="pagcor-menu-report-summary">报告摘要</span> },
+      { key: '/pagcor-admin/report-center/pagcor', icon: <FileTextOutlined />, label: <span data-e2e-id="pagcor-menu-report-pagcor">Pagcor税收报表</span> },
+      { key: '/pagcor-admin/report-center/shop', icon: <FileTextOutlined />, label: <span data-e2e-id="pagcor-menu-report-shop">门店税收报表</span> },
+      { key: '/pagcor-admin/report-center/summary', icon: <FileTextOutlined />, label: <span data-e2e-id="pagcor-menu-report-summary">报告摘要</span> },
     ],
   },
-  { key: 'transaction', icon: <SwapOutlined />, label: <span data-e2e-id="pagcor-menu-transaction">交易管理</span> },
-  { key: 'game-manage', icon: <PlayCircleOutlined />, label: <span data-e2e-id="pagcor-menu-game-manage">游戏管理</span> },
+  {
+    key: 'transaction', icon: <SwapOutlined />, label: <span data-e2e-id="pagcor-menu-transaction">交易管理</span>,
+    children: [
+      { key: '/pagcor-admin/transaction/transaction-records', label: <span data-e2e-id="pagcor-menu-transaction-records">交易记录</span> },
+    ],
+  },
+  {
+    key: 'game-manage', icon: <PlayCircleOutlined />, label: <span data-e2e-id="pagcor-menu-game-manage">游戏管理</span>,
+    children: [
+      { key: '/pagcor-admin/game-manage/games', label: <span data-e2e-id="pagcor-menu-games">游戏列表</span> },
+    ],
+  },
   {
     key: 'game-records',
     icon: <FileTextOutlined />,
@@ -61,7 +87,16 @@ const menuItems: MenuItem[] = [
 ];
 
 const breadcrumbMap: Record<string, string[]> = {
+  '/pagcor-admin/member/member-list': ['会员管理', '会员列表'],
+  '/pagcor-admin/backend/merchant': ['后台管理', '门店管理'],
+  '/pagcor-admin/finance/deposit-records': ['财务管理', '财务记录', '存款记录'],
+  '/pagcor-admin/finance/withdraw-records': ['财务管理', '财务记录', '提款记录'],
+  '/pagcor-admin/transaction/transaction-records': ['交易管理', '交易记录'],
+  '/pagcor-admin/game-manage/games': ['游戏管理', '游戏列表'],
   '/pagcor-admin/game-records/all-plat-records': ['游戏记录', '全平台投注记录'],
+  '/pagcor-admin/report-center/pagcor': ['报表中心', 'Pagcor税收报表'],
+  '/pagcor-admin/report-center/shop': ['报表中心', '门店税收报表'],
+  '/pagcor-admin/report-center/summary': ['报表中心', '报告摘要'],
 };
 
 interface PagcorLayoutProps {
@@ -137,7 +172,7 @@ export default function PagcorLayout({ children, isDark, onThemeChange }: Pagcor
           theme={isDark ? 'dark' : 'light'}
           mode="inline"
           selectedKeys={[pathname]}
-          defaultOpenKeys={['game-records']}
+          defaultOpenKeys={['member', 'backend', 'finance', 'report-center', 'transaction', 'game-manage', 'game-records']}
           items={menuItems}
           onClick={onClick}
           style={{ background: 'transparent', borderRight: 0 }}

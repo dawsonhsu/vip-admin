@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
+import { downloadCsv, rangeOf, toCsvCell, type PagcorQuickRange } from '@/lib/pagcorReportUtils';
 import {
   generatePagcorBetRecords,
   pagcorSites,
@@ -28,38 +29,7 @@ import {
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
 
-type QuickRange = 'today' | 'yesterday' | 'week' | 'month' | 'lastMonth';
-
-// 兩端各自從同一時間戳獨立建構 dayjs 實例。若改用 now.startOf()/now.endOf()，
-// 兩個 clone 會共用同一份內部物件參照，觸發 rc-util isEqual 的
-// "There may be circular references" 警告。
-function rangeOf(key: QuickRange): [Dayjs, Dayjs] {
-  const ts = Date.now();
-  const from = dayjs(ts);
-  const to = dayjs(ts);
-  switch (key) {
-    case 'today':
-      return [from.startOf('day'), to.endOf('day')];
-    case 'yesterday':
-      return [from.subtract(1, 'day').startOf('day'), to.subtract(1, 'day').endOf('day')];
-    case 'week':
-      return [from.startOf('week'), to.endOf('week')];
-    case 'month':
-      return [from.startOf('month'), to.endOf('month')];
-    case 'lastMonth':
-      return [from.subtract(1, 'month').startOf('month'), to.subtract(1, 'month').endOf('month')];
-  }
-}
-
-function downloadCsv(filename: string, content: string) {
-  const blob = new Blob([`\uFEFF${content}`], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
+type QuickRange = PagcorQuickRange;
 
 // 導出欄位與表格欄位完全一致（含 JP 四欄）；Multi 的 Seed Money 同列表留空，明細只在頁面展開看
 const exportColumns: Array<[string, (r: PagcorBetRecord) => string]> = [
@@ -88,10 +58,6 @@ const exportColumns: Array<[string, (r: PagcorBetRecord) => string]> = [
   ['结算时间', (r) => r.settleTime],
   ['投注时间', (r) => r.betTime],
 ];
-
-function toCsvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
-}
 
 export default function AllPlatRecordsPage() {
   const [form] = Form.useForm();

@@ -47,6 +47,12 @@ export const pagcorGameTypes = [
 export const pagcorBetTypes = ['Onsite', 'Online'];
 export const pagcorBrands = ['filbet', 'filplay'];
 export const pagcorOrderTypes = ['一般投注', '免费旋转', 'Jackpot'];
+export type PagcorBetTypeCode = 1 | 2 | 3;
+export const pagcorBetTypeLabels: Record<PagcorBetTypeCode, string> = {
+  1: '一般投注',
+  2: '免费旋转',
+  3: 'Jackpot',
+};
 export const pagcorTimeTypes = [
   { label: '投注时间', value: 'bet' },
   { label: '结算时间', value: 'settle' },
@@ -147,6 +153,7 @@ function catalogFor(provider: string) {
 
 export interface PagcorBetRecord {
   id: number;
+  betType: PagcorBetTypeCode; // bet_type：1 一般投注、2 免费旋转、3 Jackpot
   brandOwner: string;      // 品牌归属
   transactionId: string;   // Transaction ID
   gamingSite: string;      // Gaming Site
@@ -221,13 +228,19 @@ function makeJpDetail(tier: PagcorJpTier, rnd: () => number): PagcorJpDetail {
 export function generatePagcorBetRecords(count: number = 200): PagcorBetRecord[] {
   const rnd = mulberry32(20260831);
   const records: PagcorBetRecord[] = [];
+  // 多筆注單會由同一批使用者反覆投注；400 筆約落在 50 位使用者。
+  const uidPoolSize = Math.max(1, Math.min(count, Math.max(24, Math.ceil(count / 8))));
+  const uidPool = Array.from(
+    { length: uidPoolSize },
+    (_, index) => String(5021870000000000 + 104729 + index * 7919),
+  );
   // 注單落在「本月月初 ~ 現在」，預設篩選（本月）才看得到資料
   const base = Date.now();
   const monthStart = new Date(new Date(base).getFullYear(), new Date(base).getMonth(), 1).getTime();
   const span = Math.max(base - monthStart, 6 * 3600 * 1000);
 
   for (let i = 1; i <= count; i++) {
-    const uidNum = 5021870000000000 + Math.floor(rnd() * 999999999);
+    const uid = uidPool[Math.floor(rnd() * uidPool.length)];
     // op / mi 是唯二有獎池的廠商，提高抽中比例，否則 JP 樣本太少看不出效果
     const provider =
       rnd() > 0.78
@@ -236,15 +249,16 @@ export function generatePagcorBetRecords(count: number = 200): PagcorBetRecord[]
     const hasJackpotPool = pagcorJpProviders.includes(provider);
     const game = catalogFor(provider)[Math.floor(rnd() * catalogFor(provider).length)];
     const isOnline = rnd() > 0.35;
-    // 0=一般投注 1=免费旋转 2=Jackpot；Jackpot 僅出現在 op / mi
+    // bet_type 3 僅出現在 op / mi
     const orderRoll = rnd();
     const jackpotRoll = rnd();
-    const orderType =
+    const betType: PagcorBetTypeCode =
       hasJackpotPool && jackpotRoll > 0.72
-        ? pagcorOrderTypes[2]
+        ? 3
         : orderRoll > 0.82
-          ? pagcorOrderTypes[1]
-          : pagcorOrderTypes[0];
+          ? 2
+          : 1;
+    const orderType = pagcorBetTypeLabels[betType];
     const siteIdx = Math.floor(rnd() * pagcorSites.length);
 
     const betAmount = orderType === '免费旋转' ? 0 : [1, 5, 10, 50, 100, 500, 2500][Math.floor(rnd() * 7)];
@@ -288,6 +302,7 @@ export function generatePagcorBetRecords(count: number = 200): PagcorBetRecord[]
 
     records.push({
       id: i,
+      betType,
       brandOwner: pagcorBrands[rnd() > 0.82 ? 1 : 0],
       transactionId: hex(rnd() > 0.5 ? 33 : 24, rnd),
       gamingSite: pagcorSites[siteIdx],
@@ -295,8 +310,8 @@ export function generatePagcorBetRecords(count: number = 200): PagcorBetRecord[]
       onlineBet: isOnline ? 'YES' : 'NO',
       orderType,
       merchantNo: String(siteIdx + 2),
-      uid: String(uidNum),
-      username: `user${String(uidNum).slice(-6)}`,
+      uid,
+      username: `user${uid.slice(-6)}`,
       gameCode: game.code,
       gameName: game.name,
       gameType: game.type,
@@ -317,4 +332,144 @@ export function generatePagcorBetRecords(count: number = 200): PagcorBetRecord[]
     });
   }
   return records.sort((a, b) => b.betTime.localeCompare(a.betTime));
+}
+
+export const pagcorCategories = ['ECasino', 'Sports', 'E-bingo', 'Specialty games'] as const;
+export type PagcorCategory = (typeof pagcorCategories)[number];
+
+export interface PagcorTaxAmounts {
+  validBet: number;
+  payout: number;
+  fsBet: number;
+  fsPayout: number;
+  jpContribution: number;
+  jpPayout: number;
+}
+
+export interface PagcorTaxReportRow {
+  id: string;
+  provider: string;
+  providerGameCategory: string;
+  pagcorCategory: PagcorCategory;
+  rate: number;
+  onsite: PagcorTaxAmounts;
+  online: PagcorTaxAmounts;
+  testValidBet: number;
+  testPayout: number;
+  testGgr: number;
+  lastOperator: string;
+  site: string;
+  brandOwner: string;
+}
+
+export interface PagcorShopReportRow {
+  id: string;
+  shop: string;
+  provider: string;
+  pagcorCategory: PagcorCategory;
+  onsite: PagcorTaxAmounts;
+  online: PagcorTaxAmounts;
+}
+
+const pagcorRates: Record<PagcorCategory, number> = {
+  ECasino: 0.3,
+  Sports: 0.15,
+  'E-bingo': 0.25,
+  'Specialty games': 0.3,
+};
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function emptyTaxAmounts(): PagcorTaxAmounts {
+  return { validBet: 0, payout: 0, fsBet: 0, fsPayout: 0, jpContribution: 0, jpPayout: 0 };
+}
+
+function generateTaxAmounts(
+  rnd: () => number,
+  scale: number,
+  hasJackpot: boolean,
+  jackpotHit: boolean,
+): PagcorTaxAmounts {
+  const validBet = roundMoney(scale * (0.85 + rnd() * 0.3));
+  const ordinaryPayout = roundMoney(validBet * (0.82 + rnd() * 0.1));
+  const jpContribution = hasJackpot ? roundMoney(validBet * 0.002) : 0;
+  const jpPayout = hasJackpot && jackpotHit ? roundMoney(validBet * (0.48 + rnd() * 0.16)) : 0;
+  return {
+    validBet,
+    payout: roundMoney(ordinaryPayout + jpPayout),
+    fsBet: roundMoney(validBet * (0.025 + rnd() * 0.015)),
+    fsPayout: roundMoney(validBet * (0.02 + rnd() * 0.012)),
+    jpContribution,
+    jpPayout,
+  };
+}
+
+function categoryForIndex(index: number): PagcorCategory {
+  if (index % 11 === 0) return 'Sports';
+  if (index % 7 === 0) return 'E-bingo';
+  if (index % 5 === 0) return 'Specialty games';
+  return 'ECasino';
+}
+
+function providerCategory(provider: string, category: PagcorCategory): string {
+  const suffix: Record<PagcorCategory, string> = {
+    ECasino: 'e-game',
+    Sports: 'sport',
+    'E-bingo': 'bingo',
+    'Specialty games': 'specialty',
+  };
+  return `${provider} ${suffix[category]}`;
+}
+
+export function generatePagcorTaxReport(seed: number = 20260907): PagcorTaxReportRow[] {
+  const rnd = mulberry32(seed);
+  return pagcorProviders.map((provider, index) => {
+    const pagcorCategory = categoryForIndex(index);
+    const hasJackpot = pagcorJpProviders.includes(provider);
+    // mi 展示「有提撥且中獎」，op 展示「有提撥但未中獎」；其餘廠商沒有 JP。
+    const jackpotHit = provider === 'mi';
+    const online = generateTaxAmounts(rnd, 720_000 + index * 43_000, hasJackpot, jackpotHit);
+    const onsite = index === 5 || index === 15
+      ? generateTaxAmounts(rnd, 185_000 + index * 11_000, hasJackpot, jackpotHit)
+      : emptyTaxAmounts();
+    const testValidBet = roundMoney(1_500 + rnd() * 8_500);
+    const testPayout = roundMoney(testValidBet * (0.75 + rnd() * 0.2));
+
+    return {
+      id: `pagcor-${index + 1}`,
+      provider,
+      providerGameCategory: providerCategory(provider, pagcorCategory),
+      pagcorCategory,
+      rate: pagcorRates[pagcorCategory],
+      onsite,
+      online,
+      testValidBet,
+      testPayout,
+      testGgr: roundMoney(testValidBet - testPayout),
+      lastOperator: 'system',
+      site: pagcorSites[index % pagcorSites.length],
+      brandOwner: pagcorBrands[index % pagcorBrands.length],
+    };
+  });
+}
+
+export function generatePagcorShopReport(seed: number = 20260908): PagcorShopReportRow[] {
+  const rnd = mulberry32(seed);
+  return pagcorSites.map((shop, index) => {
+    const provider = pagcorProviders[index % pagcorProviders.length];
+    const hasJackpot = pagcorJpProviders.includes(provider);
+    const jackpotHit = provider === 'mi';
+    return {
+      id: `shop-${index + 1}`,
+      shop,
+      provider,
+      pagcorCategory: categoryForIndex(index),
+      onsite: index === 2 || index === 15
+        ? generateTaxAmounts(rnd, 260_000 + index * 17_000, hasJackpot, jackpotHit)
+        : emptyTaxAmounts(),
+      online: generateTaxAmounts(rnd, 510_000 + index * 39_000, hasJackpot, jackpotHit),
+    };
+  });
 }
