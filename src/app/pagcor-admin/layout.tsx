@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { ConfigProvider, theme as antdTheme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import { PagcorSiteProvider } from '@/components/PagcorSiteContext';
 import PagcorLayout from '@/components/PagcorLayout';
 
 export default function PagcorRootLayout({ children }: { children: React.ReactNode }) {
@@ -48,9 +49,11 @@ export default function PagcorRootLayout({ children }: { children: React.ReactNo
         algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
       }}
     >
-      <PagcorLayout isDark={isDark} onThemeChange={handleThemeChange}>
-        {children}
-      </PagcorLayout>
+      <PagcorSiteProvider>
+        <PagcorLayout isDark={isDark} onThemeChange={handleThemeChange}>
+          {children}
+        </PagcorLayout>
+      </PagcorSiteProvider>
     </ConfigProvider>
   );
 }

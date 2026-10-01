@@ -1,13 +1,13 @@
 import type { Dayjs } from 'dayjs';
-import type { PagcorBrand } from '@/components/PagcorBrandTabs';
+import type { PagcorDataSite } from '@/components/PagcorSiteContext';
 import { pagcorSites } from '@/data/pagcorMockData';
 
-export const pagcorDepositChannels: Record<PagcorBrand, string[]> = {
+export const pagcorDepositChannels: Record<PagcorDataSite, string[]> = {
   filbet: ['GCash', 'Maya', 'QRPH', 'Bank Transfer', '7-Eleven'],
   filplay: ['GCash', 'Maya', 'QRPH'],
 };
 
-export const pagcorWithdrawAccountTypes: Record<PagcorBrand, string[]> = {
+export const pagcorWithdrawAccountTypes: Record<PagcorDataSite, string[]> = {
   filbet: ['GCash', 'Maya', 'Bank'],
   filplay: ['GCash', 'Maya'],
 };
@@ -66,7 +66,7 @@ function randomDigits(random: () => number, length: number): string {
   return String(1 + Math.floor(random() * 9)) + Array.from({ length: length - 1 }, () => Math.floor(random() * 10)).join('');
 }
 
-function usersFor(brand: PagcorBrand): FinanceUser[] {
+function usersFor(brand: PagcorDataSite): FinanceUser[] {
   const random = mulberry32(brand === 'filbet' ? 5501 : 5502);
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
   return Array.from({ length: 40 }, (_, index) => {
@@ -82,7 +82,7 @@ function usersFor(brand: PagcorBrand): FinanceUser[] {
   });
 }
 
-const financeUsers: Record<PagcorBrand, FinanceUser[]> = {
+const financeUsers: Record<PagcorDataSite, FinanceUser[]> = {
   filbet: usersFor('filbet'), filplay: usersFor('filplay'),
 };
 
@@ -97,7 +97,7 @@ function timestamps(anchor: Dayjs, random: () => number, index: number) {
   return { createdAt: created.format('YYYY-MM-DD HH:mm:ss'), updatedAt: updated.format('YYYY-MM-DD HH:mm:ss') };
 }
 
-export function generatePagcorDeposits(brand: PagcorBrand, anchor: Dayjs, count = brand === 'filbet' ? 260 : 90): PagcorDeposit[] {
+export function generatePagcorDeposits(brand: PagcorDataSite, anchor: Dayjs, count = brand === 'filbet' ? 260 : 90): PagcorDeposit[] {
   const random = mulberry32(brand === 'filbet' ? 1101 : 1102);
   const users = financeUsers[brand];
   const channels = pagcorDepositChannels[brand];
@@ -117,7 +117,7 @@ export function generatePagcorDeposits(brand: PagcorBrand, anchor: Dayjs, count 
   });
 }
 
-export function generatePagcorWithdrawals(brand: PagcorBrand, anchor: Dayjs, count = brand === 'filbet' ? 180 : 60): PagcorWithdrawal[] {
+export function generatePagcorWithdrawals(brand: PagcorDataSite, anchor: Dayjs, count = brand === 'filbet' ? 180 : 60): PagcorWithdrawal[] {
   const random = mulberry32(brand === 'filbet' ? 2201 : 2202);
   const users = financeUsers[brand];
   const accountTypes = pagcorWithdrawAccountTypes[brand];
@@ -135,7 +135,7 @@ export function generatePagcorWithdrawals(brand: PagcorBrand, anchor: Dayjs, cou
   });
 }
 
-export function generatePagcorTransactions(brand: PagcorBrand, anchor: Dayjs, count = brand === 'filbet' ? 400 : 150): PagcorTransaction[] {
+export function generatePagcorTransactions(brand: PagcorDataSite, anchor: Dayjs, count = brand === 'filbet' ? 400 : 150): PagcorTransaction[] {
   const random = mulberry32(brand === 'filbet' ? 3301 : 3302);
   const users = financeUsers[brand];
   return Array.from({ length: count }, (_, index) => {

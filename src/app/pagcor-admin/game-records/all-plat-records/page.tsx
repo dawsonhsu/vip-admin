@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
+import { usePagcorSite } from '@/components/PagcorSiteContext';
 import { downloadCsv, rangeOf, toCsvCell, type PagcorQuickRange } from '@/lib/pagcorReportUtils';
 import {
   generatePagcorBetRecords,
@@ -16,7 +17,6 @@ import {
   pagcorProviders,
   pagcorGameTypes,
   pagcorBetTypes,
-  pagcorBrands,
   pagcorOrderTypes,
   pagcorTimeTypes,
   pagcorJpTypeLabels,
@@ -60,6 +60,7 @@ const exportColumns: Array<[string, (r: PagcorBetRecord) => string]> = [
 ];
 
 export default function AllPlatRecordsPage() {
+  const { site } = usePagcorSite();
   const [form] = Form.useForm();
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [allRecords, setAllRecords] = useState<PagcorBetRecord[]>([]);
@@ -73,6 +74,8 @@ export default function AllPlatRecordsPage() {
     setFilters({ timeType: 'bet', dateRange: rangeOf('month') });
     setMounted(true);
   }, [form]);
+
+  useEffect(() => { setJpDetailRecord(null); }, [site]);
 
   const applyQuick = (key: QuickRange) => {
     setActiveQuick(key);
@@ -88,7 +91,7 @@ export default function AllPlatRecordsPage() {
       if (filters.betType === 'Onsite' && r.onsiteBet !== 'YES') return false;
       if (filters.betType === 'Online' && r.onlineBet !== 'YES') return false;
       if (filters.provider && r.provider.toLowerCase() !== String(filters.provider).toLowerCase()) return false;
-      if (filters.brandOwner?.length && !filters.brandOwner.includes(r.brandOwner)) return false;
+      if (r.brandOwner !== site) return false;
       if (filters.orderType && r.orderType !== filters.orderType) return false;
       if (filters.jpType && r.jpType !== filters.jpType) return false;
 
@@ -101,7 +104,7 @@ export default function AllPlatRecordsPage() {
       }
       return true;
     });
-  }, [filters, allRecords]);
+  }, [filters, allRecords, site]);
 
   const onSearch = () => setFilters(form.getFieldsValue());
 
@@ -239,17 +242,6 @@ export default function AllPlatRecordsPage() {
                   showSearch
                   optionFilterProp="label"
                   options={pagcorProviders.map((p) => ({ label: p, value: p }))}
-                />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <Form.Item name="brandOwner" label="品牌归属">
-                <Select
-                  data-e2e-id="all-plat-records-filter-brand-owner-select"
-                  mode="multiple"
-                  placeholder="请选择品牌归属"
-                  allowClear
-                  options={pagcorBrands.map((b) => ({ label: b, value: b }))}
                 />
               </Form.Item>
             </Col>

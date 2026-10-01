@@ -5,12 +5,20 @@ import { Button, Card, Checkbox, Col, DatePicker, Dropdown, Form, Input, Popover
 import { ColumnHeightOutlined, FolderOpenOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
-import PagcorBrandTabs, { pagcorBrandLabels, type PagcorBrand } from '@/components/PagcorBrandTabs';
+import { usePagcorSite, type PagcorDataSite } from '@/components/PagcorSiteContext';
 import { generatePagcorTransactions, pagcorTransactionTypes, type PagcorTransaction } from '@/data/pagcorFinanceData';
 import { downloadCsv, formatPagcorAmount, rangeOf, toCsvCell, type PagcorQuickRange } from '@/lib/pagcorReportUtils';
 
 const { Title } = Typography;
 const { RangePicker } = DatePicker;
+
+// Build each end independently to avoid shared Dayjs internals triggering rc-util isEqual warnings.
+function rangeLastDays(days: number): [Dayjs, Dayjs] {
+  const ts = Date.now();
+  const from = dayjs(ts);
+  const to = dayjs(ts);
+  return [from.subtract(days - 1, 'day').startOf('day'), to.endOf('day')];
+}
 
 interface Filters {
   username?: string;
@@ -55,10 +63,11 @@ const quickButtons: Array<{ key: PagcorQuickRange; label: string; id: string }> 
 
 export default function TransactionRecordsPage() {
   const [form] = Form.useForm<Filters>();
-  const [brand, setBrand] = useState<PagcorBrand>('filbet');
-  const [allRecords, setAllRecords] = useState<Record<PagcorBrand, PagcorTransaction[]>>({ filbet: [], filplay: [] });
+  const { site } = usePagcorSite();
+  const brand: PagcorDataSite = site === 'filplay' ? 'filplay' : 'filbet';
+  const [allRecords, setAllRecords] = useState<Record<PagcorDataSite, PagcorTransaction[]>>({ filbet: [], filplay: [] });
   const [filters, setFilters] = useState<Filters>({});
-  const [activeQuick, setActiveQuick] = useState<PagcorQuickRange | null>('month');
+  const [activeQuick, setActiveQuick] = useState<PagcorQuickRange | null>(null);
   const [mounted, setMounted] = useState(false);
   const [current, setCurrent] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -71,25 +80,24 @@ export default function TransactionRecordsPage() {
       filbet: generatePagcorTransactions('filbet', anchor, 400),
       filplay: generatePagcorTransactions('filplay', anchor, 150),
     });
-    const defaults = { dateRange: rangeOf('month') };
+    const defaults: { dateRange: [Dayjs, Dayjs] } = { dateRange: rangeLastDays(30) };
     form.setFieldsValue(defaults);
     setFilters(defaults);
     setMounted(true);
   }, [form]);
 
   const onReset = () => {
-    const defaults = { dateRange: rangeOf('month') };
+    const defaults: { dateRange: [Dayjs, Dayjs] } = { dateRange: rangeLastDays(30) };
     form.resetFields();
     form.setFieldsValue(defaults);
     setFilters(defaults);
-    setActiveQuick('month');
+    setActiveQuick(null);
     setCurrent(1);
   };
 
-  const onBrandChange = (nextBrand: PagcorBrand) => {
-    setBrand(nextBrand);
+  useEffect(() => {
     setCurrent(1);
-  };
+  }, [brand]);
 
   const filteredData = useMemo(() => allRecords[brand].filter((record) => {
     if (filters.username && !record.username.includes(filters.username.trim())) return false;
@@ -109,10 +117,10 @@ export default function TransactionRecordsPage() {
 
   const onExport = () => {
     const lines = [
-      ['品牌归属', ...exportColumns.map(([title]) => title)].map(toCsvCell).join(','),
-      ...filteredData.map((record) => [brand, ...exportColumns.map(([, get]) => get(record))].map(toCsvCell).join(',')),
+      exportColumns.map(([title]) => title).map(toCsvCell).join(','),
+      ...filteredData.map((record) => exportColumns.map(([, get]) => get(record)).map(toCsvCell).join(',')),
     ];
-    downloadCsv(`交易记录_${pagcorBrandLabels[brand]}_${dayjs().format('YYYYMMDD_HHmmss')}.csv`, lines.join('\n'));
+    downloadCsv(`交易记录_${dayjs().format('YYYYMMDD_HHmmss')}.csv`, lines.join('\n'));
   };
 
   return (
@@ -165,10 +173,9 @@ export default function TransactionRecordsPage() {
           </div>
         </Form>
       </Card>
-      <PagcorBrandTabs value={brand} onChange={onBrandChange} e2ePrefix="transaction-records" />
       <Card data-e2e-id="transaction-records-table-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Title level={5} style={{ margin: 0 }}>交易记录 · {pagcorBrandLabels[brand]}</Title>
+          <Title level={5} style={{ margin: 0 }}>交易记录</Title>
           <Space>
             <Button data-e2e-id="transaction-records-toolbar-export-btn" type="primary" icon={<FolderOpenOutlined />} onClick={onExport}>导 出</Button>
             <Button data-e2e-id="transaction-records-toolbar-refresh-btn" aria-label="刷新" icon={<ReloadOutlined />}

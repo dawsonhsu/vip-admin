@@ -1,5 +1,27 @@
 import dayjs, { Dayjs } from 'dayjs';
 import type { PagcorTaxAmounts } from '@/data/pagcorMockData';
+import type { PagcorSite } from '@/components/PagcorSiteContext';
+
+export function pagcorSiteShare(seed: number, rowKey: string): number {
+  const value = `${seed}:${rowKey}`;
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return 0.68 + ((hash >>> 0) / 4294967295) * 0.14;
+}
+
+export function scopePagcorAmounts(amounts: PagcorTaxAmounts, share: number, site: PagcorSite): PagcorTaxAmounts {
+  if (site === 'all') return amounts;
+  const result = { ...amounts };
+  for (const key of Object.keys(amounts) as Array<keyof PagcorTaxAmounts>) {
+    const cents = Math.round(amounts[key] * 100);
+    const filbetCents = Math.round(cents * share);
+    result[key] = (site === 'filbet' ? filbetCents : cents - filbetCents) / 100;
+  }
+  return result;
+}
 
 export type PagcorQuickRange = 'today' | 'yesterday' | 'week' | 'month' | 'lastMonth';
 

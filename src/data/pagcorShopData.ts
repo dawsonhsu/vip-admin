@@ -58,7 +58,7 @@ export function validatePagcorDomains(domains: string[], otherDomains: string[],
   const hostname = /^(?=.{1,253}$)[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?)+$/i;
   for (const domain of domains) {
     if (!hostname.test(domain)) return `域名格式不正确：${domain}`;
-    if (otherDomains.some((other) => other.toLowerCase() === domain.toLowerCase())) return `同一域名不能同时属于两个品牌：${domain}`;
+    if (otherDomains.some((other) => other.toLowerCase() === domain.toLowerCase())) return `域名已用于另一个站点：${domain}`;
     const owner = shops.find((shop) => shop.id !== editingId && [...shop.filbetDomains, ...shop.filplayDomains].some((existing) => existing.toLowerCase() === domain.toLowerCase()));
     if (owner) return `域名已被门店「${owner.name}」使用：${domain}`;
   }

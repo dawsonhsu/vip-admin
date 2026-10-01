@@ -1,5 +1,5 @@
 import dayjs, { type Dayjs } from 'dayjs';
-import type { PagcorBrand } from '@/components/PagcorBrandTabs';
+import type { PagcorDataSite } from '@/components/PagcorSiteContext';
 import { pagcorProviders } from '@/data/pagcorMockData';
 
 export const pagcorGameCategories = ['Live', 'Fish', 'E-game', 'Chess', 'Sport', 'Esport', 'Bingo'] as const;
@@ -48,7 +48,7 @@ const catalogueGroups: Array<{ provider: string; category: PagcorGame['category'
   { provider: 'jili', category: 'E-game', names: ['Fortune Gems', 'Super Ace', 'Golden Empire', 'Money Coming'] },
 ];
 
-export function generatePagcorGames(anchor: Dayjs = dayjs()): Record<PagcorBrand, PagcorGame[]> {
+export function generatePagcorGames(anchor: Dayjs = dayjs()): Record<PagcorDataSite, PagcorGame[]> {
   const base = catalogueGroups.flatMap((group, groupIndex) => {
     const provider = pagcorProviders.find((code) => code === group.provider) ?? pagcorProviders[groupIndex % pagcorProviders.length];
     return group.names.map((name, index) => ({
@@ -61,7 +61,7 @@ export function generatePagcorGames(anchor: Dayjs = dayjs()): Record<PagcorBrand
   const subset = new Set(base.map((game) => ({ id: game.id, rank: subsetRandom() }))
     .sort((a, b) => a.rank - b.rank).slice(0, 46).map((game) => game.id));
 
-  const buildBrand = (brand: PagcorBrand): PagcorGame[] => {
+  const buildBrand = (brand: PagcorDataSite): PagcorGame[] => {
     const random = mulberry32(brand === 'filbet' ? 4401 : 4402);
     return base.filter((game) => brand === 'filbet' || subset.has(game.id)).map((game) => {
       const createdOffset = Math.floor(random() * 45 * 86400);

@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import { usePagcorSite } from '@/components/PagcorSiteContext';
 import PagcorGgrInfo from '@/components/PagcorGgrInfo';
 import {
   generatePagcorShopReport,
@@ -16,6 +17,8 @@ import {
   type PagcorTaxAmounts,
 } from '@/data/pagcorMockData';
 import {
+  pagcorSiteShare,
+  scopePagcorAmounts,
   derivePagcorAmounts,
   downloadCsv,
   formatPagcorAmount,
@@ -76,6 +79,7 @@ function amountGroup(side: AmountSide, label: string): ColumnsType<PagcorShopRep
 }
 
 export default function ShopTaxReportPage() {
+  const { site } = usePagcorSite();
   const [form] = Form.useForm();
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [activeQuick, setActiveQuick] = useState<PagcorQuickRange | null>('month');
@@ -87,9 +91,17 @@ export default function ShopTaxReportPage() {
     setMounted(true);
   }, [form]);
 
-  const allRows = useMemo(() => generatePagcorShopReport(
-    seedForPagcorDateRange(filters.dateRange, 20260908),
-  ), [filters.dateRange]);
+  const allRows = useMemo(() => {
+    const seed = seedForPagcorDateRange(filters.dateRange, 20260908);
+    return generatePagcorShopReport(seed).map((row) => {
+      const share = pagcorSiteShare(seed, row.shop);
+      return {
+        ...row,
+        onsite: scopePagcorAmounts(row.onsite, share, site),
+        online: scopePagcorAmounts(row.online, share, site),
+      };
+    });
+  }, [filters.dateRange, site]);
 
   const filteredData = useMemo(() => allRows.filter((row) => {
     if (filters.provider && row.provider !== filters.provider) return false;

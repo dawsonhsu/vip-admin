@@ -7,16 +7,18 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
+import { usePagcorSite } from '@/components/PagcorSiteContext';
 import PagcorGgrInfo from '@/components/PagcorGgrInfo';
 import {
   generatePagcorTaxReport,
-  pagcorBrands,
   pagcorCategories,
   pagcorProviders,
   pagcorSites,
   type PagcorTaxReportRow,
 } from '@/data/pagcorMockData';
 import {
+  pagcorSiteShare,
+  scopePagcorAmounts,
   derivePagcorAmounts,
   downloadCsv,
   formatPagcorAmount,
@@ -62,6 +64,7 @@ const exportColumns: Array<[string, (r: PagcorTaxReportRow, index: number) => st
 ];
 
 export default function PagcorTaxReportPage() {
+  const { site } = usePagcorSite();
   const [form] = Form.useForm();
   const [filters, setFilters] = useState<Record<string, any>>({});
   const [activeQuick, setActiveQuick] = useState<PagcorQuickRange | null>('month');
@@ -73,15 +76,29 @@ export default function PagcorTaxReportPage() {
     setMounted(true);
   }, [form]);
 
-  const allRows = useMemo(() => generatePagcorTaxReport(
-    seedForPagcorDateRange(filters.dateRange, 20260907),
-  ), [filters.dateRange]);
+  const allRows = useMemo(() => {
+    const seed = seedForPagcorDateRange(filters.dateRange, 20260907);
+    return generatePagcorTaxReport(seed).map((row) => {
+      const share = pagcorSiteShare(seed, row.id);
+      const testAmounts = scopePagcorAmounts({
+        validBet: row.testValidBet, payout: row.testPayout,
+        fsBet: 0, fsPayout: 0, jpContribution: 0, jpPayout: 0,
+      }, share, site);
+      return {
+        ...row,
+        onsite: scopePagcorAmounts(row.onsite, share, site),
+        online: scopePagcorAmounts(row.online, share, site),
+        testValidBet: testAmounts.validBet,
+        testPayout: testAmounts.payout,
+        testGgr: Math.round(derivePagcorAmounts(testAmounts).ggr * 100) / 100,
+      };
+    });
+  }, [filters.dateRange, site]);
 
   const filteredData = useMemo(() => allRows.filter((row) => {
     if (filters.site && row.site !== filters.site) return false;
     if (filters.provider && row.provider !== filters.provider) return false;
     if (filters.category && row.pagcorCategory !== filters.category) return false;
-    if (filters.brandOwner && row.brandOwner !== filters.brandOwner) return false;
     return true;
   }), [allRows, filters]);
 
@@ -173,11 +190,6 @@ export default function PagcorTaxReportPage() {
             <Col xs={24} sm={12} xl={6}>
               <Form.Item name="category" label="Pagcor分类">
                 <Select data-e2e-id="report-pagcor-filter-category-select" placeholder="请选择" allowClear options={pagcorCategories.map((v) => ({ label: v, value: v }))} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <Form.Item name="brandOwner" label="品牌归属">
-                <Select data-e2e-id="report-pagcor-filter-brand-select" placeholder="请选择" allowClear options={pagcorBrands.map((v) => ({ label: v, value: v }))} />
               </Form.Item>
             </Col>
             <Col xs={24}>

@@ -5,6 +5,7 @@ import { Button, Card, Col, DatePicker, Form, Input, InputNumber, message, Modal
 import { ColumnHeightOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
+import { usePagcorSite, type PagcorDataSite } from '@/components/PagcorSiteContext';
 import { generatePagcorShops, normalizePagcorDomains, validatePagcorDomains, type PagcorShop } from '@/data/pagcorShopData';
 import { rangeOf, type PagcorQuickRange } from '@/lib/pagcorReportUtils';
 
@@ -21,8 +22,7 @@ interface ShopForm {
   id: number;
   name: string;
   address?: string;
-  filbetDomains?: string;
-  filplayDomains?: string;
+  domains?: string;
   enabled: boolean;
   note?: string;
 }
@@ -33,6 +33,10 @@ const quickButtons: Array<{ key: PagcorQuickRange; label: string; id: string }> 
 ];
 
 export default function MerchantPage() {
+  const { site } = usePagcorSite();
+  const brand: PagcorDataSite = site === 'filplay' ? 'filplay' : 'filbet';
+  const domainField = `${brand}Domains` as const;
+  const otherDomainField = brand === 'filbet' ? 'filplayDomains' : 'filbetDomains';
   const [form] = Form.useForm<ShopFilters>();
   const [editForm] = Form.useForm<ShopForm>();
   const [messageApi, contextHolder] = message.useMessage();
@@ -47,6 +51,8 @@ export default function MerchantPage() {
     setRecords(generatePagcorShops(dayjs()));
     setMounted(true);
   }, []);
+
+  useEffect(() => { setModalOpen(false); }, [brand]);
 
   const filteredData = useMemo(() => records.filter((record) => {
     for (const key of ['name', 'operator', 'note'] as const) {
@@ -77,8 +83,9 @@ export default function MerchantPage() {
       id: values.id,
       name: values.name.trim(),
       address: values.address?.trim() ?? '',
-      filbetDomains: normalizePagcorDomains(values.filbetDomains),
-      filplayDomains: normalizePagcorDomains(values.filplayDomains),
+      filbetDomains: editing?.filbetDomains ?? [],
+      filplayDomains: editing?.filplayDomains ?? [],
+      [domainField]: normalizePagcorDomains(values.domains),
       state: values.enabled ? 1 : 2,
       createdAt: editing?.createdAt ?? now,
       operator: 'darren@filbetph.com',
@@ -93,10 +100,10 @@ export default function MerchantPage() {
     { title: 'ID', dataIndex: 'id', width: 70 },
     { title: '门店名称', dataIndex: 'name', width: 260 },
     { title: '地址', dataIndex: 'address', width: 260, ellipsis: true },
-    ...(['filbet', 'filplay'] as const).map((brand) => ({
-      title: `${brand === 'filbet' ? 'Filbet' : 'Filplay'} 域名`, dataIndex: `${brand}Domains`, width: 220,
+    {
+      title: '域名', dataIndex: domainField, width: 220,
       render: (domains: string[]) => domains.length ? domains.map((domain) => <div key={domain}>{domain}</div>) : '-',
-    })),
+    },
     { title: '创建时间', dataIndex: 'createdAt', width: 190 },
     { title: '状态', dataIndex: 'state', width: 90, render: (state: 1 | 2) => state === 1 ? '正常' : '关闭' },
     { title: '操作人', dataIndex: 'operator', width: 210 },
@@ -137,28 +144,24 @@ export default function MerchantPage() {
           <Button data-e2e-id="merchant-toolbar-settings-btn" icon={<SettingOutlined />} />
         </Space>
       </div>
-      <Table data-e2e-id="merchant-table" columns={columns} dataSource={mounted ? filteredData : []} rowKey="id" size="small" scroll={{ x: 2070 }} onRow={(record) => ({ 'data-e2e-id': `merchant-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)} pagination={{ pageSize: 20, showSizeChanger: true, showQuickJumper: true, showTotal: (t, range) => `当前：第 ${Math.ceil(range[0] / 20)} 页, 共 ${t} 条数据` }} />
+      <Table data-e2e-id="merchant-table" columns={columns} dataSource={mounted ? filteredData : []} rowKey="id" size="small" scroll={{ x: 1850 }} onRow={(record) => ({ 'data-e2e-id': `merchant-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)} pagination={{ pageSize: 20, showSizeChanger: true, showQuickJumper: true, showTotal: (t, range) => `当前：第 ${Math.ceil(range[0] / 20)} 页, 共 ${t} 条数据` }} />
     </Card>
     <Modal data-e2e-id="merchant-edit-modal" title={editing ? '编辑门店' : '新增门店'} width={640} open={modalOpen} onOk={onSave} onCancel={() => setModalOpen(false)} okText="确 定" cancelText="取 消" okButtonProps={{ 'data-e2e-id': 'merchant-edit-confirm-btn' } as React.ComponentProps<typeof Button>} cancelButtonProps={{ 'data-e2e-id': 'merchant-edit-cancel-btn' } as React.ComponentProps<typeof Button>} closable={false} destroyOnHidden
       afterOpenChange={(open) => {
         if (!open) return;
         editForm.resetFields();
         editForm.setFieldsValue(editing ? {
-          ...editing, filbetDomains: editing.filbetDomains.join('\n'), filplayDomains: editing.filplayDomains.join('\n'), enabled: editing.state === 1,
+          ...editing, domains: editing[domainField].join('\n'), enabled: editing.state === 1,
         } : { enabled: true });
       }}>
       <Form form={editForm} layout="vertical" preserve={false} initialValues={{ enabled: true }}>
         <Form.Item name="id" label="ID" rules={[{ required: true, message: '请输入ID' }, { validator: (_, value: number | null | undefined) => value != null && records.some((record) => record.id === value && record.id !== editing?.id) ? Promise.reject(new Error('ID已存在')) : Promise.resolve() }]}><InputNumber data-e2e-id="merchant-edit-id-input" disabled={!!editing} precision={0} style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="name" label="门店名称" rules={[{ required: true, whitespace: true, message: '请输入门店名称' }]}><Input data-e2e-id="merchant-edit-name-input" /></Form.Item>
         <Form.Item name="address" label="地址"><Input data-e2e-id="merchant-edit-address-input" /></Form.Item>
-        {(['filbet', 'filplay'] as const).map((brand) => {
-          const field = `${brand}Domains` as const;
-          const otherField = brand === 'filbet' ? 'filplayDomains' : 'filbetDomains';
-          return <Form.Item key={brand} name={field} label={`${brand === 'filbet' ? 'Filbet' : 'Filplay'} 域名`} dependencies={[otherField]} rules={[{ validator: (_, value: string | undefined) => {
-            const error = validatePagcorDomains(normalizePagcorDomains(value), normalizePagcorDomains(editForm.getFieldValue(otherField)), records, editing?.id);
-            return error ? Promise.reject(new Error(error)) : Promise.resolve();
-          } }]}><Input.TextArea data-e2e-id={`merchant-edit-${brand}-domains-input`} rows={3} placeholder="每行一个域名" /></Form.Item>;
-        })}
+        <Form.Item name="domains" label="域名" rules={[{ validator: (_, value: string | undefined) => {
+          const error = validatePagcorDomains(normalizePagcorDomains(value), editing?.[otherDomainField] ?? [], records, editing?.id);
+          return error ? Promise.reject(new Error(error)) : Promise.resolve();
+        } }]}><Input.TextArea data-e2e-id={`merchant-edit-${brand}-domains-input`} rows={3} placeholder="每行一个域名" /></Form.Item>
         <Form.Item name="enabled" label="状态" valuePropName="checked"><Switch data-e2e-id="merchant-edit-state-switch" checkedChildren="正常" unCheckedChildren="关闭" /></Form.Item>
         <Form.Item name="note" label="备注"><Input.TextArea data-e2e-id="merchant-edit-note-input" rows={2} /></Form.Item>
       </Form>

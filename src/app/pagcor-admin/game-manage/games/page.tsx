@@ -5,7 +5,7 @@ import { Button, Card, Checkbox, Col, Dropdown, Form, Input, message, Modal, Pop
 import { ColumnHeightOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import PagcorBrandTabs, { pagcorBrandLabels, type PagcorBrand } from '@/components/PagcorBrandTabs';
+import { usePagcorSite, type PagcorDataSite, pagcorSiteLabels } from '@/components/PagcorSiteContext';
 import { generatePagcorGames, pagcorGameCategories, pagcorGameCategoryLabels, type PagcorGame } from '@/data/pagcorGameData';
 
 const { Title } = Typography;
@@ -31,8 +31,9 @@ export default function GamesPage() {
   const [form] = Form.useForm<Filters>();
   const [modal, modalContextHolder] = Modal.useModal();
   const [messageApi, messageContextHolder] = message.useMessage();
-  const [brand, setBrand] = useState<PagcorBrand>('filbet');
-  const [games, setGames] = useState<Record<PagcorBrand, PagcorGame[]>>({ filbet: [], filplay: [] });
+  const { site } = usePagcorSite();
+  const brand: PagcorDataSite = site === 'filplay' ? 'filplay' : 'filbet';
+  const [games, setGames] = useState<Record<PagcorDataSite, PagcorGame[]>>({ filbet: [], filplay: [] });
   const [filters, setFilters] = useState<Filters>({});
   const [mounted, setMounted] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -53,18 +54,20 @@ export default function GamesPage() {
     setSelectedRowKeys([]);
   };
 
-  const onBrandChange = (nextBrand: PagcorBrand) => {
-    const nextOptions = games[nextBrand].map((game) => game.provider);
+  useEffect(() => {
+    const nextOptions = games[brand].map((game) => game.provider);
     const value = form.getFieldValue('provider');
     if (value !== undefined && !nextOptions.includes(value)) {
       form.setFieldsValue({ provider: undefined });
     }
     setFilters((previous) => previous.provider !== undefined && !nextOptions.includes(previous.provider)
       ? { ...previous, provider: undefined } : previous);
-    setBrand(nextBrand);
+  }, [brand, form, games]);
+
+  useEffect(() => {
     setCurrent(1);
     setSelectedRowKeys([]);
-  };
+  }, [brand]);
 
   const providers = useMemo(() => Array.from(new Set(games[brand].map((game) => game.provider))).sort(), [games, brand]);
   const filteredData = useMemo(() => games[brand].filter((game) => {
@@ -84,7 +87,7 @@ export default function GamesPage() {
     const scope = singleGame ? `「${singleGame.name}」` : ` ${targetIds.size} 款游戏`;
     modal.confirm({
       title: `确认${label}`,
-      content: `确定将 ${pagcorBrandLabels[targetBrand]} 的${scope}${label}？`,
+      content: `确定将 ${pagcorSiteLabels[targetBrand]} 的${scope}${label}？`,
       okText: '确 定', cancelText: '取 消',
       okButtonProps: { ...{ 'data-e2e-id': `games-${targetBrand}-confirm-${action}-ok-btn` } },
       cancelButtonProps: { ...{ 'data-e2e-id': `games-${targetBrand}-confirm-${action}-cancel-btn` } },
@@ -183,10 +186,9 @@ export default function GamesPage() {
           </div>
         </Form>
       </Card>
-      <PagcorBrandTabs value={brand} onChange={onBrandChange} e2ePrefix="games" />
       <Card data-e2e-id="games-table-card" styles={{ body: { paddingInline: 8 } }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Title level={5} style={{ margin: 0 }}>游戏列表 · {pagcorBrandLabels[brand]}</Title>
+          <Title level={5} style={{ margin: 0 }}>游戏列表</Title>
           <Space>
             <Button data-e2e-id="games-toolbar-batch-online-btn" disabled={!selectedRowKeys.length}
               onClick={() => confirmAction('online', selectedRowKeys)}>批量上线</Button>

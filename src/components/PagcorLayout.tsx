@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Layout, Menu, Typography, Switch, Space, Avatar, Dropdown, Breadcrumb } from 'antd';
+import { Layout, Menu, Typography, Switch, Space, Avatar, Dropdown, Breadcrumb, Segmented, Divider, ConfigProvider } from 'antd';
 import {
   TeamOutlined,
   DesktopOutlined,
@@ -20,6 +20,7 @@ import {
   HomeOutlined,
   TrophyOutlined,
 } from '@ant-design/icons';
+import { usePagcorSite, pagcorSiteLabels, type PagcorSite } from '@/components/PagcorSiteContext';
 import type { MenuProps } from 'antd';
 
 const { Sider, Content, Header } = Layout;
@@ -106,12 +107,19 @@ interface PagcorLayoutProps {
 }
 
 export default function PagcorLayout({ children, isDark, onThemeChange }: PagcorLayoutProps) {
+  const { site, setSite } = usePagcorSite();
   const [collapsed, setCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => setMounted(true), []);
+
+  const reportOnly = site === 'all';
+  const blockedRoute = reportOnly && !pathname.startsWith('/pagcor-admin/report-center/');
+  useEffect(() => {
+    if (blockedRoute) router.replace('/pagcor-admin/report-center/pagcor');
+  }, [blockedRoute, pathname, router]);
 
   const onClick: MenuProps['onClick'] = ({ key }) => {
     if (key.startsWith('/pagcor-admin')) router.push(key);
@@ -172,8 +180,10 @@ export default function PagcorLayout({ children, isDark, onThemeChange }: Pagcor
           theme={isDark ? 'dark' : 'light'}
           mode="inline"
           selectedKeys={[pathname]}
+          key={reportOnly ? 'reports' : 'full'}
+          openKeys={reportOnly ? ['report-center'] : undefined}
           defaultOpenKeys={['member', 'backend', 'finance', 'report-center', 'transaction', 'game-manage', 'game-records']}
-          items={menuItems}
+          items={reportOnly ? menuItems.filter((item) => item?.key === 'report-center') : menuItems}
           onClick={onClick}
           style={{ background: 'transparent', borderRight: 0 }}
         />
@@ -195,17 +205,34 @@ export default function PagcorLayout({ children, isDark, onThemeChange }: Pagcor
             zIndex: 99,
           }}
         >
-          <Breadcrumb
-            data-e2e-id="pagcor-layout-breadcrumb"
-            items={[
-              { title: <HomeOutlined /> },
-              ...(breadcrumbMap[pathname] ?? []).map((t) => ({ title: t })),
-            ]}
-          />
+          <Space size={12}>
+            <Space size={8}>
+              <Text>站点</Text>
+              <ConfigProvider theme={{ components: { Segmented: { itemSelectedBg: '#1668dc', itemSelectedColor: '#fff' } } }}>
+                <Segmented
+                  size="middle"
+                  data-e2e-id="pagcor-site-switch"
+                  value={site}
+                  options={(['filbet', 'filplay', 'all'] as const).map((value) => ({
+                    value, label: <span data-e2e-id={`pagcor-site-option-${value}`}>{pagcorSiteLabels[value]}</span>,
+                  }))}
+                  onChange={(value) => setSite(value as PagcorSite)}
+                />
+              </ConfigProvider>
+            </Space>
+            <Divider type="vertical" style={{ margin: 0 }} />
+            <Breadcrumb
+              data-e2e-id="pagcor-layout-breadcrumb"
+              items={[
+                { title: <HomeOutlined /> },
+                ...(breadcrumbMap[pathname] ?? []).map((t) => ({ title: t })),
+              ]}
+            />
+          </Space>
           <Space size="middle">
             {mounted && (
               <span data-e2e-id="pagcor-online-count" style={{ fontSize: 13, color: headerTextColor, whiteSpace: 'nowrap' }}>
-                在线人数 <span style={{ color: '#52c41a' }}>47</span>
+                在线人数 <span style={{ color: '#52c41a' }}>{site === 'filbet' ? 47 : site === 'filplay' ? 12 : 59}</span>
               </span>
             )}
             <Switch
@@ -233,7 +260,7 @@ export default function PagcorLayout({ children, isDark, onThemeChange }: Pagcor
           </Space>
         </Header>
         <Content data-e2e-id="pagcor-layout-content" style={{ padding: 24, background: contentBg, minHeight: 'calc(100vh - 48px)' }}>
-          {children}
+          {!blockedRoute && children}
         </Content>
       </Layout>
     </Layout>

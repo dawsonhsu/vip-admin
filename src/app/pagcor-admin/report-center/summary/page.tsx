@@ -3,15 +3,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Col, DatePicker, Form, Row, Select, Space, Typography } from 'antd';
 import type { Dayjs } from 'dayjs';
+import { usePagcorSite, type PagcorDataSite } from '@/components/PagcorSiteContext';
 import PagcorGgrInfo from '@/components/PagcorGgrInfo';
 import {
   generatePagcorTaxReport,
   pagcorCategories,
   type PagcorCategory,
-  type PagcorTaxAmounts,
   type PagcorTaxReportRow,
 } from '@/data/pagcorMockData';
 import {
+  pagcorSiteShare,
+  scopePagcorAmounts,
   derivePagcorAmounts,
   formatPagcorAmount,
   rangeOf,
@@ -35,11 +37,6 @@ const bettorCountCategorySeeds: Record<PagcorCategory | 'all', number> = {
   'Specialty games': 0xc6ef3720,
 };
 
-type SummaryBrand = 'filbet' | 'filplay';
-const summaryBrands: Array<{ key: SummaryBrand; label: string }> = [
-  { key: 'filbet', label: 'Filbet' }, { key: 'filplay', label: 'Filplay' },
-];
-
 function hashValue(value: string): number {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index++) {
@@ -49,7 +46,7 @@ function hashValue(value: string): number {
   return hash >>> 0;
 }
 
-function deriveBettorCount(seed: number, brand: SummaryBrand, category: PagcorCategory | 'all' = 'all') {
+function deriveBettorCount(seed: number, brand: PagcorDataSite, category: PagcorCategory | 'all' = 'all') {
   let mixed = (seed ^ bettorCountCategorySeeds[category] ^ hashValue(brand)) >>> 0;
   mixed = Math.imul(mixed ^ (mixed >>> 16), 0x7feb352d);
   mixed = Math.imul(mixed ^ (mixed >>> 15), 0x846ca68b);
@@ -58,17 +55,8 @@ function deriveBettorCount(seed: number, brand: SummaryBrand, category: PagcorCa
   return category === 'all' ? 100 + (mixed % 31) : 50 + (mixed % 17);
 }
 
-function splitAmounts(amounts: PagcorTaxAmounts, share: number, brand: SummaryBrand): PagcorTaxAmounts {
-  const result = { ...amounts };
-  for (const key of Object.keys(amounts) as Array<keyof PagcorTaxAmounts>) {
-    const cents = Math.round(amounts[key] * 100);
-    const filbetCents = Math.round(cents * share);
-    result[key] = (brand === 'filbet' ? filbetCents : cents - filbetCents) / 100;
-  }
-  return result;
-}
-
 export default function ReportSummaryPage() {
+  const { site } = usePagcorSite();
   const [form] = Form.useForm<SummaryFilters>();
   const [filters, setFilters] = useState<SummaryFilters>({});
   const [activeQuick, setActiveQuick] = useState<PagcorQuickRange | null>('month');
@@ -90,12 +78,12 @@ export default function ReportSummaryPage() {
     if (mounted) setReportRows(generatePagcorTaxReport(reportSeed));
   }, [mounted, reportSeed]);
 
-  const brandSummaries = useMemo(() => summaryBrands.map((brand) => {
-    const totals = reportRows.reduce((result, row, index) => {
+  const summary = useMemo(() => {
+    const totals = reportRows.reduce((result, row) => {
       if (filters.category && filters.category !== 'all' && row.pagcorCategory !== filters.category) return result;
-      const share = 0.68 + (hashValue(`${reportSeed}:${index}:${row.provider}`) / 4294967295) * 0.14;
+      const share = pagcorSiteShare(reportSeed, row.id);
       for (const amounts of [row.onsite, row.online]) {
-        const values = splitAmounts(amounts, share, brand.key);
+        const values = scopePagcorAmounts(amounts, share, site);
         result.validBet += values.validBet;
         result.payout += values.payout;
         result.ggr += derivePagcorAmounts(values, row.rate).ggr;
@@ -104,18 +92,24 @@ export default function ReportSummaryPage() {
       }
       return result;
     }, { validBet: 0, payout: 0, ggr: 0, jpContribution: 0, jpPayout: 0 });
+    const category = filters.category ?? 'all';
+    const filbetCount = deriveBettorCount(reportSeed, 'filbet', category);
+    const filplayCount = deriveBettorCount(reportSeed, 'filplay', category);
+    const smallerCount = Math.min(filbetCount, filplayCount);
+    const minOverlap = Math.ceil(smallerCount * 0.08);
+    const maxOverlap = Math.floor(smallerCount * 0.15);
+    const overlap = minOverlap + hashValue(`${reportSeed}:${category}:overlap`) % (maxOverlap - minOverlap + 1);
     return {
-      ...brand,
-      bettorCount: deriveBettorCount(reportSeed, brand.key, filters.category ?? 'all'),
+      bettorCount: site === 'filbet' ? filbetCount : site === 'filplay' ? filplayCount : filbetCount + filplayCount - overlap,
       statCards: [
         { key: 'valid-bet', label: '有效投注金额', value: totals.validBet, color: '#1890ff' },
         { key: 'payout', label: '有效派彩金额', value: totals.payout, color: '#faad14' },
         { key: 'ggr', label: 'GGR', value: totals.ggr, color: '#52c41a', info: true },
-        { key: 'jp-contribution', label: 'JP 貢獻總額', value: totals.jpContribution, color: '#722ed1' },
-        { key: 'jp-payout', label: 'JP 派彩總額', value: totals.jpPayout, color: '#eb2f96' },
+        { key: 'jp-contribution', label: 'JP 贡献总额', value: totals.jpContribution, color: '#722ed1' },
+        { key: 'jp-payout', label: 'JP 派彩总额', value: totals.jpPayout, color: '#eb2f96' },
       ],
     };
-  }), [filters.category, reportRows, reportSeed]);
+  }, [filters.category, reportRows, reportSeed, site]);
 
   const applyQuick = (key: PagcorQuickRange) => {
     const dateRange = rangeOf(key);
@@ -175,37 +169,37 @@ export default function ReportSummaryPage() {
         </Form>
       </Card>
 
-      {brandSummaries.map((brand) => (
-        <Card key={brand.key} data-e2e-id={`report-summary-${brand.key}-card`} style={{ marginBottom: 16 }} title={<Title level={5} style={{ margin: 0 }}>{brand.label}</Title>}>
-          <Title level={5} style={{ marginTop: 0 }}>金额统计</Title>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-            {brand.statCards.map((stat) => (
-              <Card
-                key={stat.key}
-                data-e2e-id={`report-summary-${brand.key}-stat-${stat.key}`}
-                variant="borderless"
-                style={{ background: stat.color, flex: '1 1 230px', minWidth: 0 }}
-                styles={{ body: { padding: '20px 22px' } }}
-              >
-                <Text style={{ color: '#fff', fontSize: 14 }}>
-                  {stat.label}
-                  {stat.info && <PagcorGgrInfo dataE2eId={`report-summary-${brand.key}-ggr-info`} color="#fff" />}
-                </Text>
-                <div style={{ marginTop: 10, color: '#fff', fontSize: 24, whiteSpace: 'nowrap', fontWeight: 600, lineHeight: 1.2 }}>
-                  {mounted ? formatPagcorAmount(stat.value) : '0.00'}
-                </div>
-              </Card>
-            ))}
+      <Card data-e2e-id="report-summary-amount-card" style={{ marginBottom: 16 }}>
+        <Title level={5} style={{ marginTop: 0 }}>金额统计</Title>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+          {summary.statCards.map((stat) => (
+            <Card
+              key={stat.key}
+              data-e2e-id={`report-summary-${site}-stat-${stat.key}`}
+              variant="borderless"
+              style={{ background: stat.color, flex: '1 1 230px', minWidth: 0 }}
+              styles={{ body: { padding: '20px 22px' } }}
+            >
+              <Text style={{ color: '#fff', fontSize: 14 }}>
+                {stat.label}
+                {stat.info && <PagcorGgrInfo dataE2eId={`report-summary-${site}-ggr-info`} color="#fff" />}
+              </Text>
+              <div style={{ marginTop: 10, color: '#fff', fontSize: 24, whiteSpace: 'nowrap', fontWeight: 600, lineHeight: 1.2 }}>
+                {mounted ? formatPagcorAmount(stat.value) : '0.00'}
+              </div>
+            </Card>
+          ))}
+        </div>
+      </Card>
+      <Card data-e2e-id="report-summary-count-card">
+        <Title level={5} style={{ marginTop: 0 }}>数量统计</Title>
+        <Card data-e2e-id={`report-summary-${site}-stat-bettor-count`} variant="borderless" style={{ background: '#13c2c2', flex: '1 1 230px', maxWidth: 320 }} styles={{ body: { padding: '20px 22px' } }}>
+          <Text style={{ color: '#fff', fontSize: 14 }}>投注用户数</Text>
+          <div style={{ marginTop: 10, color: '#fff', fontSize: 24, whiteSpace: 'nowrap', fontWeight: 600, lineHeight: 1.2 }}>
+            {mounted ? summary.bettorCount.toLocaleString('en-US') : '0'}
           </div>
-          <Title level={5}>数量统计</Title>
-          <Card data-e2e-id={`report-summary-${brand.key}-stat-bettor-count`} variant="borderless" style={{ background: '#13c2c2', flex: '1 1 230px', maxWidth: 320 }} styles={{ body: { padding: '20px 22px' } }}>
-            <Text style={{ color: '#fff', fontSize: 14 }}>投注用户数</Text>
-            <div style={{ marginTop: 10, color: '#fff', fontSize: 24, whiteSpace: 'nowrap', fontWeight: 600, lineHeight: 1.2 }}>
-              {mounted ? brand.bettorCount.toLocaleString('en-US') : '0'}
-            </div>
-          </Card>
         </Card>
-      ))}
+      </Card>
     </div>
   );
 }
