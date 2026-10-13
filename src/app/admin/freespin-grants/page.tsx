@@ -32,6 +32,7 @@ const providers = [
   { code: 'PG', name: 'PG SOFT' },
   { code: 'PP', name: 'Pragmatic Play' },
   { code: 'GEMINI', name: 'Gemini' },
+  { code: 'PT', name: 'Playtech' },
 ];
 
 const activityOptions = ['春節首存活動', 'VIP月禮', '週年慶活動', '新遊戲推廣'];
@@ -81,6 +82,11 @@ const providerGames: Record<string, { code: string; name: string }[]> = {
     { code: 'sweet_bonanza', name: 'Sweet Bonanza' },
     { code: 'gates_olympus', name: 'Gates of Olympus' },
     { code: 'starlight_princess', name: 'Starlight Princess' },
+  ],
+  PT: [
+    { code: 'age_of_gods', name: 'Age of the Gods' },
+    { code: 'buffalo_blitz', name: 'Buffalo Blitz' },
+    { code: 'great_blue', name: 'Great Blue' },
   ],
 };
 
@@ -529,6 +535,7 @@ const filteredData = useMemo(() => {
       providerCode,
       providerName: values.grantType === 'open' ? null : providers.find((provider) => provider.code === providerCode)?.name || null,
       providerActivityCode: (values.providerCodes || []).includes('GEMINI') ? (values.providerActivityCode || null) : null,
+      providerTemplateCode: (values.providerCodes || []).includes('PT') ? (values.providerTemplateCode || null) : null,
       grantedGames: getGrantedGames(values.grantType, values.providerCodes, values.gameCodes),
       selectedGame: null,
       totalSpins: values.totalSpins,
@@ -829,7 +836,7 @@ const filteredData = useMemo(() => {
               const nextValue = event.target.value as GrantTypeValue;
               setGrantType(nextValue);
               setProviders([]);
-              formInstance.setFieldsValue({ providerCodes: undefined, gameCodes: undefined, providerActivityCode: undefined });
+              formInstance.setFieldsValue({ providerCodes: undefined, gameCodes: undefined, providerActivityCode: undefined, providerTemplateCode: undefined });
             }}
           >
             <Radio.Button value="open">OPEN</Radio.Button>
@@ -843,8 +850,13 @@ const filteredData = useMemo(() => {
           name="providerCodes"
           label="廠商"
           rules={currentGrantType === 'provider' || currentGrantType === 'game' ? [{ required: true, message: '請選擇廠商' }] : []}
-          extra={currentProviders.includes('GEMINI')
-            ? <span style={{ color: '#d46b08' }}>Gemini 除次數外，其他參數以廠商後台為準</span>
+          extra={currentProviders.includes('GEMINI') || currentProviders.includes('PT')
+            ? (
+              <>
+                {currentProviders.includes('GEMINI') && <div style={{ color: '#d46b08' }}>Gemini 除次數外，其他參數以廠商後台為準</div>}
+                {currentProviders.includes('PT') && <div style={{ color: '#d46b08' }}>PT 單次投注額依模板設定，不支援最低／最高提款</div>}
+              </>
+            )
             : undefined}
         >
           <Select
@@ -857,6 +869,7 @@ const filteredData = useMemo(() => {
               formInstance.setFieldsValue({
                 gameCodes: undefined,
                 ...(vals.includes('GEMINI') ? {} : { providerActivityCode: undefined }),
+                ...(vals.includes('PT') ? {} : { providerTemplateCode: undefined }),
               });
             }}
           >
@@ -876,6 +889,22 @@ const filteredData = useMemo(() => {
             <Input
               data-e2e-id={isBatch ? 'freespin-grants-batch-form-provider-activity-code-input' : 'freespin-grants-form-provider-activity-code-input'}
               placeholder="請輸入 Gemini 活動代碼"
+            />
+          </Form.Item>
+        </Col>
+      )}
+
+      {currentProviders.includes('PT') && (
+        <Col span={24}>
+          <Form.Item
+            name="providerTemplateCode"
+            label="模板代碼"
+            rules={[{ required: true, message: '請輸入模板代碼' }]}
+            tooltip="PT 需先於 Playtech 端建立免費旋轉模板（FREESPIN1），將模板代碼填入此處"
+          >
+            <Input
+              data-e2e-id={isBatch ? 'freespin-grants-batch-form-provider-template-code-input' : 'freespin-grants-form-provider-template-code-input'}
+              placeholder="請輸入 PT 模板代碼"
             />
           </Form.Item>
         </Col>
@@ -911,7 +940,13 @@ const filteredData = useMemo(() => {
         </Form.Item>
       </Col>
       <Col span={12}>
-        <Form.Item name="betAmount" label="單次投注額">
+        <Form.Item
+          name="betAmount"
+          label="單次投注額"
+          extra={currentProviders.includes('PT')
+            ? <span style={{ color: '#d46b08' }}>PT 依模板設定，此欄對 PT 不生效</span>
+            : undefined}
+        >
           <InputNumber data-e2e-id={isBatch ? 'freespin-grants-batch-form-bet-amount-input' : 'freespin-grants-form-bet-amount-input'} min={0} step={0.1} style={{ width: '100%' }} placeholder="例：0.20" />
         </Form.Item>
       </Col>
@@ -939,12 +974,24 @@ const filteredData = useMemo(() => {
       <Col span={24}>
         <Row gutter={[24, 12]}>
           <Col span={12}>
-            <Form.Item name="minWithdraw" label="最低提款">
+            <Form.Item
+              name="minWithdraw"
+              label="最低提款"
+              extra={currentProviders.includes('PT')
+                ? <span style={{ color: '#d46b08' }}>PT 不支援，此欄對 PT 不生效</span>
+                : undefined}
+            >
               <InputNumber data-e2e-id={isBatch ? 'freespin-grants-batch-form-min-withdraw-input' : 'freespin-grants-form-min-withdraw-input'} min={0} style={{ width: '100%' }} placeholder="不限" />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="maxWithdraw" label="最高提款">
+            <Form.Item
+              name="maxWithdraw"
+              label="最高提款"
+              extra={currentProviders.includes('PT')
+                ? <span style={{ color: '#d46b08' }}>PT 不支援，此欄對 PT 不生效</span>
+                : undefined}
+            >
               <InputNumber data-e2e-id={isBatch ? 'freespin-grants-batch-form-max-withdraw-input' : 'freespin-grants-form-max-withdraw-input'} min={0} style={{ width: '100%' }} placeholder="不限" />
             </Form.Item>
           </Col>
@@ -1362,6 +1409,9 @@ const filteredData = useMemo(() => {
               <Descriptions.Item label="廠商">{drawerGrant.providerName || '—'}</Descriptions.Item>
               {drawerGrant.providerActivityCode && (
                 <Descriptions.Item label="活動代碼">{drawerGrant.providerActivityCode}</Descriptions.Item>
+              )}
+              {drawerGrant.providerTemplateCode && (
+                <Descriptions.Item label="模板代碼">{drawerGrant.providerTemplateCode}</Descriptions.Item>
               )}
               <Descriptions.Item label="贈送遊戲" span={2}>
                 {drawerGrant.grantedGames && drawerGrant.grantedGames.length > 0

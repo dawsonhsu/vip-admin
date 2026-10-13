@@ -138,6 +138,7 @@ export interface FreeSpinGrantItem {
   providerCode: string | null;
   providerName: string | null;
   providerActivityCode?: string | null;
+  providerTemplateCode?: string | null;
   grantedGames: { code: string; name: string }[] | null;
   selectedGame: { code: string; name: string } | null;
   totalSpins: number;
@@ -340,6 +341,14 @@ const providers = [
       { code: 'PP_STARLIGHT', name: 'Starlight Princess' },
     ],
   },
+  {
+    code: 'PT', name: 'Playtech',
+    games: [
+      { code: 'PT_AOG', name: 'Age of the Gods' },
+      { code: 'PT_BUFFALO', name: 'Buffalo Blitz' },
+      { code: 'PT_GREATBLUE', name: 'Great Blue' },
+    ],
+  },
 ];
 
 const activities = ['春節首存活動', 'VIP月禮', '週年慶活動', '新遊戲推廣', null];
@@ -447,6 +456,15 @@ export const freeSpinRestrictionCatalog: Record<GameType, RestrictionProvider[]>
         { code: 'sweet_bonanza', name: 'Sweet Bonanza' },
         { code: 'gates_olympus', name: 'Gates of Olympus' },
         { code: 'starlight_princess', name: 'Starlight Princess' },
+      ],
+    },
+    {
+      code: 'PT',
+      name: 'Playtech',
+      games: [
+        { code: 'PT_AOG', name: 'Age of the Gods' },
+        { code: 'PT_BUFFALO', name: 'Buffalo Blitz' },
+        { code: 'PT_GREATBLUE', name: 'Great Blue' },
       ],
     },
   ],
@@ -689,9 +707,10 @@ const buildDispatchSummary = (
 
 export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] {
   const grants: FreeSpinGrantItem[] = [];
+  const ptProvider = providers.find((provider) => provider.code === 'PT')!;
   for (let i = 0; i < count; i++) {
-    const grantType = pick<FreeSpinGrantItem['grantType']>(['open', 'provider', 'game']);
-    const provider = pick(providers);
+    const grantType = i < 2 ? 'game' : pick<FreeSpinGrantItem['grantType']>(['open', 'provider', 'game']);
+    const provider = i < 2 ? ptProvider : pick(providers);
     const claimStatus: FreeSpinGrantItem['claimStatus'] = Math.random() < 0.05 ? 'voided' : pick(claimStatuses);
     const sourceType: FreeSpinGrantItem['sourceType'] = Math.random() < 0.7 ? 'activity' : 'manual';
     const activityName = sourceType === 'activity' ? pick(activities.filter(a => a !== null) as string[]) : null;
@@ -744,7 +763,7 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
     } else if (grantType === 'game') {
       providerCode = provider.code;
       providerName = provider.name;
-      const numGames = rand(1, provider.games.length);
+      const numGames = i < 2 ? i + 1 : rand(1, provider.games.length);
       grantedGames = provider.games.slice(0, numGames);
     }
 
@@ -781,6 +800,7 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
       grantType,
       providerCode,
       providerName,
+      providerTemplateCode: providerCode === 'PT' ? '67183' : null,
       grantedGames,
       selectedGame,
       totalSpins,
@@ -793,8 +813,8 @@ export function generateFreeSpinGrants(count: number = 60): FreeSpinGrantItem[] 
       dispatchSummary,
       vendorEventId: hasSuccessAttempt ? `VE${rand(100000, 999999)}` : null,
       currency: 'PHP',
-      minWithdraw: Math.random() > 0.4 ? randDec(100, 500) : null,
-      maxWithdraw: Math.random() > 0.4 ? randDec(1000, 5000) : null,
+      minWithdraw: providerCode !== 'PT' && Math.random() > 0.4 ? randDec(100, 500) : null,
+      maxWithdraw: providerCode !== 'PT' && Math.random() > 0.4 ? randDec(1000, 5000) : null,
       expireAt,
       usedAt,
       settledAt: claimStatus === 'completed'
