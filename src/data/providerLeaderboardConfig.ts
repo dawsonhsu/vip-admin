@@ -16,6 +16,7 @@ export interface LeaderboardProviderRow {
   key: string;
   providerCode: string;
   minBet: number;
+  recommendedGames: string[];
   excludedGameTypes: GameType[];
   excludedGames: string[];
 }
@@ -91,10 +92,10 @@ const providerByCode = (code: string) =>
   LEADERBOARD_PROVIDER_CATALOG.find((provider) => provider.code === code);
 
 export const DEFAULT_LEADERBOARD_PROVIDERS: LeaderboardProviderRow[] = [
-  { key: 'provider-pg', providerCode: 'PG', minBet: 1000, excludedGameTypes: [], excludedGames: [] },
-  { key: 'provider-jili', providerCode: 'JILI', minBet: 1000, excludedGameTypes: ['Arcade'], excludedGames: ['golden_empire'] },
-  { key: 'provider-pp', providerCode: 'PP', minBet: 2000, excludedGameTypes: [], excludedGames: [] },
-  { key: 'provider-fc', providerCode: 'FC', minBet: 500, excludedGameTypes: [], excludedGames: [] },
+  { key: 'provider-pg', providerCode: 'PG', minBet: 1000, recommendedGames: ['mahjong_ways', 'fortune_tiger'], excludedGameTypes: [], excludedGames: [] },
+  { key: 'provider-jili', providerCode: 'JILI', minBet: 1000, recommendedGames: ['super_ace', 'fortune_gems'], excludedGameTypes: ['Arcade'], excludedGames: ['golden_empire'] },
+  { key: 'provider-pp', providerCode: 'PP', minBet: 2000, recommendedGames: ['sweet_bonanza', 'gates_olympus'], excludedGameTypes: [], excludedGames: [] },
+  { key: 'provider-fc', providerCode: 'FC', minBet: 500, recommendedGames: ['golden_shark'], excludedGameTypes: [], excludedGames: [] },
 ];
 
 const defaultPgGame = LEADERBOARD_FREE_SPIN_GAME_OPTIONS.find(
@@ -193,6 +194,14 @@ export function validateProviders(rows: LeaderboardProviderRow[] = []): string[]
     if (used.has(row.providerCode)) errors.push('參與廠商不可重複');
     used.add(row.providerCode);
     const provider = providerByCode(row.providerCode);
+    const hasExcludedRecommendation = row.recommendedGames.some((gameCode) => {
+      const gameType = provider?.games.find((game) => game.code === gameCode)?.gameType;
+      return row.excludedGames.includes(gameCode)
+        || (gameType !== undefined && row.excludedGameTypes.includes(gameType));
+    });
+    if (hasExcludedRecommendation) {
+      errors.push(`${provider?.name ?? row.providerCode} 的推薦遊戲不可同時為排除遊戲`);
+    }
     const hasIncludedGame = provider?.games.some(
       (game) => !row.excludedGameTypes.includes(game.gameType) && !row.excludedGames.includes(game.code),
     );

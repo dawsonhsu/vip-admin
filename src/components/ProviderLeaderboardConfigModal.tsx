@@ -20,7 +20,7 @@ import {
   TreeSelect,
   Typography,
 } from 'antd';
-import { DeleteOutlined, FolderOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
+import { DeleteOutlined, FolderOutlined, InfoCircleOutlined, PlusOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import type { FormInstance } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
@@ -93,7 +93,7 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
     {
       title: '廠商',
       dataIndex: 'providerCode',
-      width: 180,
+      width: 150,
       render: (providerCode: string, row) => (
         <Select
           data-e2e-id={`${e2ePrefix}-provider-select-${row.key}`}
@@ -108,6 +108,7 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
           onChange={(nextCode) => {
             updateRow(row.key, {
               providerCode: nextCode,
+              recommendedGames: [],
               excludedGameTypes: [],
               excludedGames: [],
             });
@@ -125,7 +126,7 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
         </Space>
       ),
       dataIndex: 'minBet',
-      width: 190,
+      width: 160,
       render: (minBet: number, row) => (
         <InputNumber
           data-e2e-id={`${e2ePrefix}-provider-min-bet-input-${row.key}`}
@@ -141,6 +142,47 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
     {
       title: (
         <Space size={4}>
+          推薦遊戲
+          <Tooltip title="前台該廠商榜推薦給玩家的遊戲，依選取順序顯示；已排除的遊戲不可推薦">
+            <InfoCircleOutlined />
+          </Tooltip>
+        </Space>
+      ),
+      dataIndex: 'recommendedGames',
+      width: 295,
+      render: (recommendedGames: string[], row) => {
+        const provider = catalogProvider(row.providerCode);
+        return (
+          <Select
+            data-e2e-id={`${e2ePrefix}-recommended-games-select-${row.key}`}
+            className="provider-leaderboard-game-select"
+            mode="multiple"
+            value={recommendedGames}
+            showSearch
+            optionFilterProp="label"
+            placeholder="選擇推薦遊戲"
+            allowClear
+            disabled={!row.providerCode}
+            style={{ width: '100%' }}
+            options={provider?.gameTypes.map((gameType) => ({
+              label: gameType,
+              options: provider.games
+                .filter((game) => game.gameType === gameType)
+                .map((game) => ({
+                  value: game.code,
+                  label: game.name,
+                  disabled: row.excludedGameTypes.includes(gameType)
+                    || row.excludedGames.includes(game.code),
+                })),
+            }))}
+            onChange={(nextGames: string[]) => updateRow(row.key, { recommendedGames: nextGames })}
+          />
+        );
+      },
+    },
+    {
+      title: (
+        <Space size={4}>
           排除遊戲
           <Tooltip title="勾選「遊戲類型」= 排除該廠商此類型全部遊戲（含之後新上架的該類型遊戲）；勾選「遊戲」= 只排除該款遊戲">
             <QuestionCircleOutlined />
@@ -148,7 +190,7 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
         </Space>
       ),
       key: 'exclusions',
-      width: 420,
+      width: 295,
       render: (_, row) => {
         const provider = catalogProvider(row.providerCode);
         const selectedTypes = row.excludedGameTypes ?? [];
@@ -183,6 +225,7 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
         return (
           <TreeSelect
             data-e2e-id={`${e2ePrefix}-excluded-games-select-${row.key}`}
+            className="provider-leaderboard-game-select"
             treeCheckable
             treeCheckStrictly
             showSearch
@@ -190,7 +233,6 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
             value={selectedValues}
             disabled={!row.providerCode}
             placeholder="選擇要排除的遊戲類型或遊戲"
-            maxTagCount="responsive"
             treeData={treeData}
             style={{ width: '100%' }}
             tagRender={({ value: selectedValue, closable, onClose }) => {
@@ -207,7 +249,13 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
                   closable={closable}
                   onClose={onClose}
                   icon={isType ? <FolderOutlined /> : undefined}
-                  style={{ marginInlineEnd: 4 }}
+                  style={{
+                    maxWidth: '100%',
+                    marginInlineEnd: 4,
+                    marginBlock: 2,
+                    whiteSpace: 'normal',
+                    overflowWrap: 'anywhere',
+                  }}
                 >
                   {tagText}
                 </Tag>
@@ -225,7 +273,12 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
                   const gameType = provider?.games.find((game) => game.code === gameCode)?.gameType;
                   return !gameType || !excludedGameTypes.includes(gameType);
                 });
-              updateRow(row.key, { excludedGameTypes, excludedGames });
+              const recommendedGames = row.recommendedGames.filter((gameCode) => {
+                const gameType = provider?.games.find((game) => game.code === gameCode)?.gameType;
+                return !excludedGames.includes(gameCode)
+                  && (gameType === undefined || !excludedGameTypes.includes(gameType));
+              });
+              updateRow(row.key, { excludedGameTypes, excludedGames, recommendedGames });
             }}
           />
         );
@@ -234,7 +287,7 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
     {
       title: '操作',
       key: 'action',
-      width: 70,
+      width: 80,
       render: (_, row) => (
         <Button
           data-e2e-id={`${e2ePrefix}-provider-delete-btn-${row.key}`}
@@ -252,6 +305,19 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
 
   return (
     <div>
+      <style jsx global>{`
+        .provider-leaderboard-game-select .ant-select-selection-overflow-item > span {
+          min-width: 0;
+          max-width: 100%;
+        }
+        .provider-leaderboard-game-select .ant-select-selection-item {
+          height: auto;
+        }
+        .provider-leaderboard-game-select .ant-select-selection-item-content {
+          white-space: normal;
+          overflow-wrap: anywhere;
+        }
+      `}</style>
       <Table
         data-e2e-id={`${e2ePrefix}-provider-table`}
         rowKey="key"
@@ -259,7 +325,8 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
         dataSource={value}
         pagination={false}
         size="small"
-        scroll={{ x: 860 }}
+        tableLayout="fixed"
+        scroll={{ x: 980 }}
       />
       <Button
         data-e2e-id={`${e2ePrefix}-provider-add-btn`}
@@ -273,6 +340,7 @@ function ProviderTable({ value = [], onChange }: ProviderTableProps) {
               key: `provider-${Date.now()}`,
               providerCode: '',
               minBet: 1000,
+              recommendedGames: [],
               excludedGameTypes: [],
               excludedGames: [],
             },
@@ -684,6 +752,7 @@ export default function ProviderLeaderboardConfigModal({ open, onClose }: Props)
     wagerVenueRestriction: ALL_RESTRICTION_PATHS,
     providers: DEFAULT_LEADERBOARD_PROVIDERS.map((row) => ({
       ...row,
+      recommendedGames: [...row.recommendedGames],
       excludedGameTypes: [...row.excludedGameTypes],
       excludedGames: [...row.excludedGames],
     })),
