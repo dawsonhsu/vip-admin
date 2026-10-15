@@ -2,7 +2,7 @@ import dayjs from 'dayjs';
 import { agencyEventTime, agencySeed, createRng, rngInt, rngPick } from '@/lib/agencyUtils';
 import { agencyBonusCashTypes, agencyMembers, agencyMonthProfile, AGENCY_DATA_NOW, AGENCY_MEMBER_SEED } from './shared';
 
-// 首頁看板與會員日統計共用的禮金資料來源。
+// 首页看板与会员日统计共用的礼金数据来源。
 export const AGENCY_BONUS_SEED = agencySeed('agency-bonus', 20260916);
 
 export interface AgencyBonusRow {
@@ -27,7 +27,7 @@ export interface AgencyBonusRow {
 const cents = (value: number | string) => Math.round(Number(value) * 100);
 const decimal = (value: number) => (value / 100).toFixed(2);
 
-// 以分為單位分攤，最後一筆承接尾差，避免明細加總和主表差一分。
+// 以分为单位分摊，最后一笔承接尾差，避免明细加总和主表差一分。
 function allocate(total: number, weights: number[]): number[] {
   const denominator = weights.reduce((sum, value) => sum + value, 0) || 1;
   let allocated = 0;
@@ -54,7 +54,7 @@ export function generateAgencyBonuses(seed: number, count = 300): AgencyBonusRow
   });
   const rows = Array.from({ length: Math.max(0, Math.floor(count)) }, (_, index) => {
     const { period, end, eligibleMembers } = periods[index % periods.length];
-    // 各月共用該月行為輪廓；尚未註冊或三項行為皆無的會員不發禮金。
+    // 各月共用该月行为轮廓；尚未注册或三项行为皆无的会员不发礼金。
     if (!eligibleMembers.length) return null;
     const member = rngPick(rng, eligibleMembers);
     const createdAt = agencyEventTime(rng, Math.max(period.unix(), member.created_at), end);
@@ -68,14 +68,14 @@ export function generateAgencyBonuses(seed: number, count = 300): AgencyBonusRow
       bonus: decimal(rngInt(rng, 1000, cashType === 4012 ? 500000 : 150000)),
       multiple: String(rngPick(rng, [1, 3, 5, 10, 15, 20])), created_at: createdAt,
       review_state: reviewState, review_at: reviewState === 1 ? 0 : Math.min(now.unix(), createdAt + rngInt(rng, 60, 3600)),
-      review_name: reviewState === 1 ? '' : rngPick(rng, ['活動審核員', '禮金系統']),
-      remark: reviewState === 3 ? '活動條件未符合（展示）' : reviewState === 1 ? '等待活動資格審核（展示）' : `${agencyBonusCashTypes[cashType]}發放（展示）`,
-      created_name: '活動系統',
+      review_name: reviewState === 1 ? '' : rngPick(rng, ['活动审核员', '礼金系统']),
+      remark: reviewState === 3 ? '活动条件未符合（展示）' : reviewState === 1 ? '等待活动资格审核（展示）' : `${agencyBonusCashTypes[cashType]}发放（展示）`,
+      created_name: '活动系统',
     };
   }).filter((row): row is AgencyBonusRow => row !== null)
     .sort((a, b) => b.created_at - a.created_at || a.id.localeCompare(b.id));
 
-  // 當月總額精確等於會員列表；歷史月依活躍人數與該月確定性係數正規化。
+  // 当月总额精确等于会员列表；历史月依活跃人数与该月确定性系数正规化。
   const target = agencyMembers.reduce((sum, member) => sum + cents(member.stat.bonus), 0);
   periods.forEach(({ period, eligibleMembers }, offset) => {
     const monthRows = rows.filter((row) => dayjs.unix(row.created_at).isSame(period, 'month'));

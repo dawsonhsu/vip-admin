@@ -40,15 +40,15 @@ function matches(value: string, query?: string): boolean {
 }
 
 const exportColumns: Array<[string, (row: AgencyMember, index: number) => string]> = [
-  ['序號', (_r, index) => String(index + 1)],
-  ['在線狀態', (r) => r.is_online ? '在線' : '離線'],
-  ['會員帳號', (r) => r.username],
-  ['暱稱', (r) => r.nick_name],
-  ['真實姓名', (r) => maskName(Object.values(r.real_usernames).filter(Boolean).join(' '))],
-  ['會員手機', (r) => maskPhone(r.phone)],
-  ['會員狀態', (r) => memberStateLabels[r.state] ?? '-'],
-  ['註冊時間', (r) => formatTs(r.created_at)],
-  ['最後登入時間', (r) => formatTs(r.last_login_at)],
+  ['序号', (_r, index) => String(index + 1)],
+  ['在线状态', (r) => r.is_online ? '在线' : '离线'],
+  ['会员账号', (r) => r.username],
+  ['昵称', (r) => r.nick_name],
+  ['真实姓名', (r) => maskName(Object.values(r.real_usernames).filter(Boolean).join(' '))],
+  ['会员手机', (r) => maskPhone(r.phone)],
+  ['会员状态', (r) => memberStateLabels[r.state] ?? '-'],
+  ['注册时间', (r) => formatTs(r.created_at)],
+  ['最后登录时间', (r) => formatTs(r.last_login_at)],
 ];
 
 export default function AgencyMembersPage() {
@@ -61,8 +61,8 @@ export default function AgencyMembersPage() {
   const [density, setDensity] = useState<TableProps<AgencyMember>['size']>('small');
   const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
 
-  // 註冊時間預設不帶條件，進頁即可看到完整下線名單；
-  // 真實 API 預設抓最近 7 天，但本示範的註冊時間散佈一年以上，帶預設值會開場空白。
+  // 注册时间默认不带条件，进页即可看到完整下线名单；
+  // 真实 API 默认抓最近 7 天，但本示例的注册时间散布一年以上，带默认值会开场空白。
   useEffect(() => {
     setFilters({});
     setAllRows([...agencyMembers]);
@@ -91,26 +91,26 @@ export default function AgencyMembersPage() {
       exportColumns.map(([label]) => toCsvCell(label)).join(','),
       ...rows.map((row, index) => exportColumns.map(([, read]) => toCsvCell(read(row, index))).join(',')),
     ];
-    downloadCsv(`會員列表_${dayjs().format('YYYYMMDD_HHmmss')}.csv`, lines.join('\n'));
+    downloadCsv(`会员列表_${dayjs().format('YYYYMMDD_HHmmss')}.csv`, lines.join('\n'));
   };
 
   const columns: ColumnsType<AgencyMember> = [
-    { title: '序號', key: 'index', width: 80, fixed: 'left', align: 'center', render: (_v, _r, index) => (pagination.current - 1) * pagination.pageSize + index + 1 },
-    { title: '在線狀態', key: 'is_online', width: 110, render: (_v, r) => <Space size={6}><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: r.is_online ? '#52c41a' : '#8c8c8c' }} /><span style={{ color: r.is_online ? '#52c41a' : '#8c8c8c' }}>{r.is_online ? '在線' : '離線'}</span></Space> },
+    { title: '序号', key: 'index', width: 80, fixed: 'left', align: 'center', render: (_v, _r, index) => (pagination.current - 1) * pagination.pageSize + index + 1 },
+    { title: '在线状态', key: 'is_online', width: 110, render: (_v, r) => <Space size={6}><span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: r.is_online ? '#52c41a' : '#8c8c8c' }} /><span style={{ color: r.is_online ? '#52c41a' : '#8c8c8c' }}>{r.is_online ? '在线' : '离线'}</span></Space> },
     {
-      title: '會員資訊', key: 'username', width: 280,
+      title: '会员信息', key: 'username', width: 280,
       render: (_v, r) => (
         <div style={{ lineHeight: 1.8 }}>
-          <Text strong copyable={{ text: r.username, tooltips: ['複製會員帳號', '已複製'] }} data-e2e-id={`agency-members-username-${r.uid}-copy`}>{r.username}</Text>
-          <div style={secondaryStyle}>暱稱：{r.nick_name}</div>
-          <div style={secondaryStyle}>真實姓名：{maskName([r.real_usernames.first_name, r.real_usernames.middle_name, r.real_usernames.last_name].filter(Boolean).join(' '))}</div>
+          <Text strong copyable={{ text: r.username, tooltips: ['复制会员账号', '已复制'] }} data-e2e-id={`agency-members-username-${r.uid}-copy`}>{r.username}</Text>
+          <div style={secondaryStyle}>昵称：{r.nick_name}</div>
+          <div style={secondaryStyle}>真实姓名：{maskName([r.real_usernames.first_name, r.real_usernames.middle_name, r.real_usernames.last_name].filter(Boolean).join(' '))}</div>
           <div style={secondaryStyle}>{maskPhone(r.phone)}</div>
         </div>
       ),
     },
-    { title: '會員狀態', key: 'state', width: 120, render: (_v, r) => <span style={{ color: stateColors[r.state] }}>{memberStateLabels[r.state] ?? '-'}</span> },
-    { title: '註冊時間', key: 'created_at', width: 180, render: (_v, r) => formatTs(r.created_at) },
-    { title: '最後登入時間', key: 'last_login_at', width: 180, render: (_v, r) => formatTs(r.last_login_at) },
+    { title: '会员状态', key: 'state', width: 120, render: (_v, r) => <span style={{ color: stateColors[r.state] }}>{memberStateLabels[r.state] ?? '-'}</span> },
+    { title: '注册时间', key: 'created_at', width: 180, render: (_v, r) => formatTs(r.created_at) },
+    { title: '最后登录时间', key: 'last_login_at', width: 180, render: (_v, r) => formatTs(r.last_login_at) },
   ];
   const visibleColumns = columns.filter((column) => !hiddenColumns.includes(String(column.key)));
 
@@ -121,23 +121,23 @@ export default function AgencyMembersPage() {
         <Form form={form} onFinish={search} layout="horizontal" colon={false} labelCol={{ flex: '0 0 84px' }} wrapperCol={{ flex: 1 }}>
           <Row gutter={[16, 0]}>
             {([
-              // 代理端固定只看自己的下線，代理帳號／代理手機篩選沒有意義，故不提供。
-              ['username', '會員帳號'], ['phone', '會員手機'],
+              // 代理端固定只看自己的下线，代理账号／代理手机筛选没有意义，故不提供。
+              ['username', '会员账号'], ['phone', '会员手机'],
             ] as const).map(([name, label]) => (
               <Col key={name} xs={24} sm={12} xl={6}>
-                <Form.Item name={name} label={label}><Input allowClear placeholder={`請輸入${label}`} data-e2e-id={`agency-members-filter-${name}-input`} /></Form.Item>
+                <Form.Item name={name} label={label}><Input allowClear placeholder={`请输入${label}`} data-e2e-id={`agency-members-filter-${name}-input`} /></Form.Item>
               </Col>
             ))}
             <Col xs={24} sm={12} xl={6}>
-              <Form.Item name="created_at" label="註冊時間">
-                <RangePicker allowClear format="YYYY-MM-DD" placeholder={['開始日期', '結束日期']} style={{ width: '100%' }} data-e2e-id="agency-members-filter-created_at-range" />
+              <Form.Item name="created_at" label="注册时间">
+                <RangePicker allowClear format="YYYY-MM-DD" placeholder={['开始日期', '结束日期']} style={{ width: '100%' }} data-e2e-id="agency-members-filter-created_at-range" />
               </Form.Item>
             </Col>
           </Row>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Space>
               <Button data-e2e-id="agency-members-filter-reset-btn" onClick={reset} style={{ background: '#e6a23c', borderColor: '#e6a23c', color: '#fff' }}>重置</Button>
-              <Button data-e2e-id="agency-members-filter-search-btn" htmlType="submit" style={{ background: '#67c23a', borderColor: '#67c23a', color: '#fff' }}>搜尋</Button>
+              <Button data-e2e-id="agency-members-filter-search-btn" htmlType="submit" style={{ background: '#67c23a', borderColor: '#67c23a', color: '#fff' }}>搜索</Button>
             </Space>
           </div>
         </Form>
@@ -145,21 +145,21 @@ export default function AgencyMembersPage() {
 
       <Card data-e2e-id="agency-members-table-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-          <Title level={5} style={{ margin: 0 }}>會員列表 <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>示範資料</Text></Title>
+          <Title level={5} style={{ margin: 0 }}>会员列表 <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>示例数据</Text></Title>
           <Space wrap>
-            <Button type="primary" icon={<FolderOpenOutlined />} onClick={onExport} disabled={!mounted} data-e2e-id="agency-members-toolbar-export-btn">匯出</Button>
-            <Button icon={<ReloadOutlined />} data-e2e-id="agency-members-toolbar-refresh-btn" onClick={() => { setAllRows([...agencyMembers]); void messageApi.success('會員列表已重新整理'); }}>重新整理</Button>
+            <Button type="primary" icon={<FolderOpenOutlined />} onClick={onExport} disabled={!mounted} data-e2e-id="agency-members-toolbar-export-btn">导出</Button>
+            <Button icon={<ReloadOutlined />} data-e2e-id="agency-members-toolbar-refresh-btn" onClick={() => { setAllRows([...agencyMembers]); void messageApi.success('会员列表已刷新'); }}>刷新</Button>
             <Dropdown trigger={['click']} menu={{
               selectable: true, selectedKeys: [density ?? 'small'],
-              items: [{ key: 'small', label: <span data-e2e-id="agency-members-density-small-option">緊湊</span> }, { key: 'middle', label: <span data-e2e-id="agency-members-density-middle-option">適中</span> }, { key: 'large', label: <span data-e2e-id="agency-members-density-large-option">寬鬆</span> }],
+              items: [{ key: 'small', label: <span data-e2e-id="agency-members-density-small-option">紧凑</span> }, { key: 'middle', label: <span data-e2e-id="agency-members-density-middle-option">适中</span> }, { key: 'large', label: <span data-e2e-id="agency-members-density-large-option">宽松</span> }],
               onClick: ({ key }) => setDensity(key as TableProps<AgencyMember>['size']),
             }}><Button icon={<ColumnHeightOutlined />} data-e2e-id="agency-members-toolbar-density-btn">密度</Button></Dropdown>
-            <Popover trigger="click" placement="bottomRight" title="顯示欄位" content={
+            <Popover trigger="click" placement="bottomRight" title="显示字段" content={
               <Space direction="vertical" style={{ maxHeight: 360, overflowY: 'auto' }}>
                 {columns.map((column) => <Checkbox key={String(column.key)} checked={!hiddenColumns.includes(String(column.key))} disabled={column.key === 'index'} data-e2e-id={`agency-members-settings-${column.key}-checkbox`} onChange={(event) => setHiddenColumns((current) => event.target.checked ? current.filter((key) => key !== column.key) : [...current, String(column.key)])}>{String(column.title)}</Checkbox>)}
-                <Button size="small" onClick={() => setHiddenColumns([])} data-e2e-id="agency-members-settings-reset-btn">還原欄位</Button>
+                <Button size="small" onClick={() => setHiddenColumns([])} data-e2e-id="agency-members-settings-reset-btn">还原字段</Button>
               </Space>
-            }><Button icon={<SettingOutlined />} data-e2e-id="agency-members-toolbar-settings-btn">設定</Button></Popover>
+            }><Button icon={<SettingOutlined />} data-e2e-id="agency-members-toolbar-settings-btn">设置</Button></Popover>
           </Space>
         </div>
 
@@ -170,12 +170,12 @@ export default function AgencyMembersPage() {
           rowKey="uid"
           size={density}
           scroll={{ x: visibleColumns.reduce((sum, column) => sum + Number(column.width), 0) }}
-          locale={{ emptyText: '沒有符合條件的會員' }}
+          locale={{ emptyText: '没有符合条件的会员' }}
           onRow={(record) => ({ 'data-e2e-id': `agency-members-table-row-${record.uid}` } as React.HTMLAttributes<HTMLTableRowElement>)}
           pagination={{
             ...pagination, showSizeChanger: true, showQuickJumper: true,
             onChange: (current, pageSize) => setPagination({ current, pageSize }),
-            showTotal: (total, range) => `當前：第 ${total ? Math.ceil(range[0] / pagination.pageSize) : 0} 頁, 共 ${total} 筆資料`,
+            showTotal: (total, range) => `当前：第 ${total ? Math.ceil(range[0] / pagination.pageSize) : 0} 页, 共 ${total} 笔数据`,
           }}
         />
       </Card>

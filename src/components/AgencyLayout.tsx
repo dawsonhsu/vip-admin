@@ -29,61 +29,61 @@ const { Title, Text } = Typography;
 
 type MenuItem = Required<MenuProps>['items'][number];
 
-// 選單依後端 ~/claudeproject/agency 的 /agency/* 路由分組。
+// 菜单依后端 ~/claudeproject/agency 的 /agency/* 路由分组。
 const menuItems: MenuItem[] = [
   {
     key: '/agency/home',
     icon: <DashboardOutlined />,
-    label: <span data-e2e-id="agency-menu-home">首頁看板</span>,
+    label: <span data-e2e-id="agency-menu-home">首页看板</span>,
   },
   {
     key: 'member',
     icon: <TeamOutlined />,
-    label: <span data-e2e-id="agency-menu-member">會員管理</span>,
+    label: <span data-e2e-id="agency-menu-member">会员管理</span>,
     children: [
       {
         key: '/agency/members',
         icon: <UnorderedListOutlined />,
-        label: <span data-e2e-id="agency-menu-members">會員列表</span>,
+        label: <span data-e2e-id="agency-menu-members">会员列表</span>,
       },
       {
         key: '/agency/member-stats',
         icon: <BarChartOutlined />,
-        label: <span data-e2e-id="agency-menu-member-stats">會員日統計</span>,
+        label: <span data-e2e-id="agency-menu-member-stats">会员日统计</span>,
       },
     ],
   },
   {
     key: '/agency/promotion',
     icon: <LinkOutlined />,
-    label: <span data-e2e-id="agency-menu-promotion">推廣鏈接</span>,
+    label: <span data-e2e-id="agency-menu-promotion">推广链接</span>,
   },
   {
     key: '/agency/rates',
     icon: <PercentageOutlined />,
-    label: <span data-e2e-id="agency-menu-rates">費率查詢</span>,
+    label: <span data-e2e-id="agency-menu-rates">费率查询</span>,
   },
   {
     key: 'account',
     icon: <SettingOutlined />,
-    label: <span data-e2e-id="agency-menu-account">帳號設定</span>,
+    label: <span data-e2e-id="agency-menu-account">账号设置</span>,
     children: [
       {
         key: '/agency/password',
         icon: <LockOutlined />,
-        label: <span data-e2e-id="agency-menu-password">修改密碼</span>,
+        label: <span data-e2e-id="agency-menu-password">修改密码</span>,
       },
     ],
   },
 ];
 
 const breadcrumbMap: Record<string, string[]> = {
-  '/agency/home': ['首頁看板'],
-  '/agency/members': ['會員管理', '會員列表'],
-  '/agency/member-stats': ['會員管理', '會員日統計'],
-  '/agency/promotion': ['推廣鏈接'],
-  '/agency/rates': ['費率查詢'],
-  '/agency/password': ['帳號設定', '修改密碼'],
+  '/agency/home': ['首页看板'],
+  '/agency/members': ['会员管理', '会员列表'],
+  '/agency/member-stats': ['会员管理', '会员日统计'],
+  '/agency/promotion': ['推广链接'],
+  '/agency/rates': ['费率查询'],
+  '/agency/password': ['账号设置', '修改密码'],
 };
 
 interface AgencyLayoutProps {
@@ -117,7 +117,7 @@ export default function AgencyLayout({ children, isDark, onThemeChange }: Agency
     {
       key: 'password',
       icon: <LockOutlined />,
-      label: <span data-e2e-id="agency-user-password">修改密碼</span>,
+      label: <span data-e2e-id="agency-user-password">修改密码</span>,
       onClick: () => router.push('/agency/password'),
     },
     { type: 'divider' },
@@ -173,7 +173,7 @@ export default function AgencyLayout({ children, isDark, onThemeChange }: Agency
           }}
         >
           <Title level={5} style={{ color: logoColor, margin: 0, whiteSpace: 'nowrap' }}>
-            {collapsed ? 'F' : 'Filbet 代理後台'}
+            {collapsed ? 'F' : 'Filbet 代理后台'}
           </Title>
         </div>
         <Menu

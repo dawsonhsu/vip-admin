@@ -3,7 +3,7 @@ import { AGENCY_BONUS_SEED, generateAgencyBonuses, type AgencyBonusRow } from '.
 import { AGENCY_DATA_NOW, AGENCY_MEMBER_SEED, agencyHistoricFirstDepositAt, agencyMembers, agencyMonthProfile } from './shared';
 import { agencyEventTime, agencySeed, createRng, rngInt } from '@/lib/agencyUtils';
 
-// 事件金額一律整數「分」；篩選只切同一份事件，絕不因區間重新抽樣。
+// 事件金额一律整数「分」；筛选只切同一份事件，绝不因区间重新抽样。
 export interface AgencyCashEvent {
   id: string;
   uid: string;
@@ -24,7 +24,7 @@ export interface AgencyDailyEvents {
   deposits: AgencyCashEvent[];
   withdrawals: AgencyCashEvent[];
   bets: AgencyBetDay[];
-  // 首存是存款事件的引用，不會再計入存款總額。
+  // 首存是存款事件的引用，不会再计入存款总额。
   firstDeposits: AgencyCashEvent[];
   bonuses: AgencyBonusRow[];
 }
@@ -32,7 +32,7 @@ export interface AgencyDailyEvents {
 export const AGENCY_DAILY_SEED = agencySeed('agency-daily', 20260916);
 const cents = (value: string) => Math.round(Number(value) * 100);
 
-// 以分分攤，尾差歸最後一筆；現金／有效投注每筆至少一分，GGR 可為負數。
+// 以分分摊，尾差归最后一笔；现金／有效投注每笔至少一分，GGR 可为负数。
 function allocateCents(total: number, weights: number[], minimum = 0): number[] {
   if (!weights.length) return [];
   const sign = total < 0 ? -1 : 1;
@@ -62,7 +62,7 @@ export function generateAgencyDailyEvents(seed = AGENCY_DAILY_SEED): AgencyDaily
     let historicFirst: AgencyCashEvent | undefined;
     if (!isNew && member.first_deposit === 1) {
       const rng = createRng(agencySeed(seed, member.uid, 'first-deposit'));
-      // 首存可延後最多 30 天；月底註冊者夾到本月月初前一秒，不污染本月加總。
+      // 首存可延后最多 30 天；月底注册者夹到本月月初前一秒，不污染本月加总。
       const createdAt = agencyHistoricFirstDepositAt(AGENCY_MEMBER_SEED, member.uid, member.created_at);
       historicFirst = {
         id: `${member.uid}-first-deposit`, uid: member.uid, created_at: createdAt,
@@ -82,7 +82,7 @@ export function generateAgencyDailyEvents(seed = AGENCY_DAILY_SEED): AgencyDaily
       const rng = createRng(agencySeed(seed, member.uid, month.format('YYYY-MM')));
       const current = offset === 0;
       const profile = agencyMonthProfile(AGENCY_MEMBER_SEED, member.uid, month.format('YYYY-MM'));
-      // 各歷史月先判定行為資格，再依年資與當月可活動天數推算金額。
+      // 各历史月先判定行为资格，再依年资与当月可活动天数推算金额。
       const ageMonths = Math.max(1, now.diff(dayjs.unix(member.created_at), 'month', true));
       const days = dayjs.unix(end).startOf('day').diff(dayjs.unix(start).startOf('day'), 'day') + 1;
       const scale = (0.65 + rng() * 0.6) / ageMonths * days / month.daysInMonth();
@@ -117,7 +117,7 @@ export function generateAgencyDailyEvents(seed = AGENCY_DAILY_SEED): AgencyDaily
       const availableDays = Array.from({ length: days }, (_, index) => firstDay.add(index, 'day').unix());
       const dayCount = rngInt(betRng, 1, Math.min(availableDays.length, validBet, 20));
       const selectedDays: number[] = [];
-      // 不依賴存提款日期；按每日已經過的秒數加權、不放回抽樣。
+      // 不依赖存提款日期；按每日已经过的秒数加权、不放回抽样。
       for (let index = 0; index < dayCount; index++) {
         const weights = availableDays.map((day) => Math.min(end, dayjs.unix(day).endOf('day').unix()) - Math.max(start, day) + 1);
         let draw = betRng() * weights.reduce((sum, weight) => sum + weight, 0);
@@ -138,7 +138,7 @@ export function generateAgencyDailyEvents(seed = AGENCY_DAILY_SEED): AgencyDaily
   return {
     start_time: windowStart, end_time: AGENCY_DATA_NOW,
     deposits, withdrawals, bets, firstDeposits,
-    // 直接複用禮金列表同一 generator 和 seed；包含列表所有審核狀態，保持同口徑。
+    // 直接复用礼金列表同一 generator 和 seed；包含列表所有审核状态，保持同口径。
     bonuses: generateAgencyBonuses(AGENCY_BONUS_SEED)
       .filter((row) => row.created_at >= windowStart && row.created_at <= AGENCY_DATA_NOW),
   };

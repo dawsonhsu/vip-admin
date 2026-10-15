@@ -17,24 +17,24 @@ export default function AgencyPasswordPage() {
   const [messageApi, contextHolder] = message.useMessage();
 
   const submit = () => {
-    messageApi.success('密碼已更新（demo 不會真的變更）');
+    messageApi.success('密码已更新（demo 不会真的变更）');
     form.resetFields();
   };
 
   const visibilityIcon = (field: string, visible: boolean) => visible
-    ? <EyeOutlined data-e2e-id={`agency-password-${field}-visibility-btn`} aria-label="隱藏密碼" />
-    : <EyeInvisibleOutlined data-e2e-id={`agency-password-${field}-visibility-btn`} aria-label="顯示密碼" />;
+    ? <EyeOutlined data-e2e-id={`agency-password-${field}-visibility-btn`} aria-label="隐藏密码" />
+    : <EyeInvisibleOutlined data-e2e-id={`agency-password-${field}-visibility-btn`} aria-label="显示密码" />;
 
   return (
     <div style={{ width: '100%', maxWidth: 520, margin: '24px auto' }}>
       {contextHolder}
       <Card data-e2e-id="agency-password-form-card">
-        <Typography.Title level={5} style={{ marginTop: 0 }}>修改密碼</Typography.Title>
+        <Typography.Title level={5} style={{ marginTop: 0 }}>修改密码</Typography.Title>
         <Alert
           type="info"
           showIcon
-          message="密碼規則"
-          description="新密碼至少 8 個字元，且須同時包含英文字母與數字。此為示範環境，送出後不會實際變更密碼。"
+          message="密码规则"
+          description="新密码至少 8 个字符，且须同时包含英文字母与数字。此为演示环境，提交后不会实际变更密码。"
           style={{ marginBottom: 24 }}
         />
         <Form<PasswordFormValues>
@@ -45,48 +45,48 @@ export default function AgencyPasswordPage() {
           onFinish={submit}
           requiredMark={false}
         >
-          <Form.Item name="phone" label="手機號碼">
+          <Form.Item name="phone" label="手机号码">
             <Input data-e2e-id="agency-password-phone-input" prefix={<MobileOutlined />} disabled autoComplete="tel" />
           </Form.Item>
-          <Form.Item name="password" label="目前密碼" rules={[{ required: true, message: '請輸入目前密碼' }]}>
+          <Form.Item name="password" label="当前密码" rules={[{ required: true, message: '请输入当前密码' }]}>
             <Input.Password
               data-e2e-id="agency-password-current-input"
               prefix={<LockOutlined />}
-              placeholder="請輸入目前密碼"
+              placeholder="请输入当前密码"
               autoComplete="current-password"
               iconRender={(visible) => visibilityIcon('current', visible)}
             />
           </Form.Item>
           <Form.Item
             name="new_password"
-            label="新密碼"
+            label="新密码"
             validateFirst
             rules={[
-              { required: true, message: '請輸入新密碼' },
-              { min: 8, message: '新密碼至少需要 8 個字元' },
-              { pattern: /^(?=.*[A-Za-z])(?=.*\d)[\s\S]+$/, message: '新密碼須同時包含英文字母與數字' },
+              { required: true, message: '请输入新密码' },
+              { min: 8, message: '新密码至少需要 8 个字符' },
+              { pattern: /^(?=.*[A-Za-z])(?=.*\d)[\s\S]+$/, message: '新密码须同时包含英文字母与数字' },
             ]}
           >
             <Input.Password
               data-e2e-id="agency-password-new-input"
               prefix={<LockOutlined />}
-              placeholder="至少 8 個字元，包含英文字母與數字"
+              placeholder="至少 8 个字符，包含英文字母与数字"
               autoComplete="new-password"
               iconRender={(visible) => visibilityIcon('new', visible)}
             />
           </Form.Item>
           <Form.Item
             name="confirm_password"
-            label="確認新密碼"
+            label="确认新密码"
             dependencies={['new_password']}
             validateFirst
             rules={[
-              { required: true, message: '請再次輸入新密碼' },
+              { required: true, message: '请再次输入新密码' },
               ({ getFieldValue }) => ({
                 validator(_, value: string) {
                   return !value || value === getFieldValue('new_password')
                     ? Promise.resolve()
-                    : Promise.reject(new Error('兩次輸入的新密碼不一致'));
+                    : Promise.reject(new Error('两次输入的新密码不一致'));
                 },
               }),
             ]}
@@ -94,12 +94,12 @@ export default function AgencyPasswordPage() {
             <Input.Password
               data-e2e-id="agency-password-confirm-input"
               prefix={<LockOutlined />}
-              placeholder="請再次輸入新密碼"
+              placeholder="请再次输入新密码"
               autoComplete="new-password"
               iconRender={(visible) => visibilityIcon('confirm', visible)}
             />
           </Form.Item>
-          <Button data-e2e-id="agency-password-submit-btn" type="primary" htmlType="submit" block>更新密碼</Button>
+          <Button data-e2e-id="agency-password-submit-btn" type="primary" htmlType="submit" block>更新密码</Button>
         </Form>
       </Card>
     </div>

@@ -5,7 +5,6 @@ import { Button, Card, Col, Empty, message, Popover, QRCode, Row, Space, Table, 
 import { CopyOutlined, DownloadOutlined, InfoCircleOutlined, QrcodeOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { agencyAccount, agencyDomains, type AgencyDomain } from '@/data/agency/shared';
-import { formatTs } from '@/lib/agencyUtils';
 
 const { Text } = Typography;
 
@@ -25,7 +24,7 @@ function QrBlock({ id, value, size, fileName }: { id: string; value: string; siz
         <QRCode data-e2e-id={`${id}-qrcode`} value={value} size={size} bordered={false} bgColor="#fff" type="canvas" />
       </div>
       <Button data-e2e-id={`${id}-download-btn`} size="small" icon={<DownloadOutlined />} onClick={() => downloadQr(id, fileName)}>
-        下載 QR Code
+        下载 QR Code
       </Button>
     </Space>
   );
@@ -39,9 +38,9 @@ export default function AgencyPromotionPage() {
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      messageApi.success('已複製');
+      messageApi.success('已复制');
     } catch {
-      messageApi.error('複製失敗，請手動選取');
+      messageApi.error('复制失败，请手动选取');
     }
   };
 
@@ -49,15 +48,9 @@ export default function AgencyPromotionPage() {
 
   const columns: ColumnsType<AgencyDomain> = [
     {
-      title: '推廣鏈接',
+      title: '链接',
       dataIndex: 'domain',
       render: (domain: string) => <Text data-e2e-id={`agency-promotion-domain-${domain}-link`}>{`https://${domain}`}</Text>,
-    },
-    {
-      title: '開通時間',
-      dataIndex: 'created_at',
-      width: 180,
-      render: (ts: number) => formatTs(ts),
     },
     {
       title: '操作',
@@ -67,7 +60,7 @@ export default function AgencyPromotionPage() {
         const url = `https://${row.domain}`;
         return (
           <Space size={0}>
-            <Button data-e2e-id={`agency-promotion-domain-${row.domain}-copy-btn`} type="link" icon={<CopyOutlined />} onClick={() => copy(url)}>複製</Button>
+            <Button data-e2e-id={`agency-promotion-domain-${row.domain}-copy-btn`} type="link" icon={<CopyOutlined />} onClick={() => copy(url)}>复制</Button>
             <Popover
               trigger="click"
               placement="left"
@@ -84,22 +77,22 @@ export default function AgencyPromotionPage() {
   return (
     <div>
       {contextHolder}
-      <Card data-e2e-id="agency-promotion-default-card" title="預設推廣鏈接" style={{ marginBottom: 16 }}>
+      <Card data-e2e-id="agency-promotion-default-card" title="推广信息" style={{ marginBottom: 16 }}>
         <Row gutter={[24, 24]} align="middle">
           <Col xs={24} md={16}>
             <Space direction="vertical" size={20} style={{ width: '100%' }}>
               <div>
-                <Text type="secondary">邀請碼</Text>
+                <Text type="secondary">邀请码</Text>
                 <Space style={{ display: 'flex', marginTop: 4 }}>
                   <Text data-e2e-id="agency-promotion-invite-code" strong style={{ fontSize: 20, letterSpacing: 2 }}>{code}</Text>
-                  <Button data-e2e-id="agency-promotion-invite-code-copy-btn" type="link" icon={<CopyOutlined />} onClick={() => copy(code)}>複製</Button>
+                  <Button data-e2e-id="agency-promotion-invite-code-copy-btn" type="link" icon={<CopyOutlined />} onClick={() => copy(code)}>复制</Button>
                 </Space>
               </div>
               <div>
-                <Text type="secondary">推廣鏈接</Text>
+                <Text type="secondary">推广链接</Text>
                 <Space style={{ display: 'flex', marginTop: 4 }} wrap>
                   <Text data-e2e-id="agency-promotion-invite-link" style={{ fontSize: 16, overflowWrap: 'anywhere' }}>{link}</Text>
-                  <Button data-e2e-id="agency-promotion-invite-link-copy-btn" type="link" icon={<CopyOutlined />} onClick={() => copy(link)}>複製</Button>
+                  <Button data-e2e-id="agency-promotion-invite-link-copy-btn" type="link" icon={<CopyOutlined />} onClick={() => copy(link)}>复制</Button>
                 </Space>
               </div>
             </Space>
@@ -114,8 +107,8 @@ export default function AgencyPromotionPage() {
         data-e2e-id="agency-promotion-domain-card"
         title={(
           <Space>
-            專屬域名
-            <Tooltip title="透過專屬域名註冊的會員會自動歸屬於你，不需輸入邀請碼。如需開通請聯繫客服。">
+            专属域名
+            <Tooltip title="通过专属域名注册的会员会自动归属于你，不需输入邀请码。如需开通请联系客服。">
               <InfoCircleOutlined data-e2e-id="agency-promotion-domain-info-icon" style={{ color: '#999' }} />
             </Tooltip>
           </Space>
@@ -125,10 +118,9 @@ export default function AgencyPromotionPage() {
           data-e2e-id="agency-promotion-domain-table"
           rowKey="id"
           columns={columns}
-          dataSource={mounted ? agencyDomains : []}
-          loading={!mounted}
+          dataSource={agencyDomains}
           pagination={false}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未開通專屬域名" /> }}
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未开通专属域名" /> }}
         />
       </Card>
     </div>

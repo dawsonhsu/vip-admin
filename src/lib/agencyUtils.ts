@@ -1,11 +1,11 @@
 import dayjs, { Dayjs } from 'dayjs';
 
-// 代理推廣後台 demo 共用工具
-// 對應後端：~/claudeproject/agency（Go 服務）/agency/* 路由
+// 代理推广后台 demo 共用工具
+// 对应后端：~/claudeproject/agency（Go 服务）/agency/* 路由
 
 export type AgencyQuickRange = 'today' | 'yesterday' | 'week' | 'month' | 'lastMonth';
 
-// 兩端各自從同一時間戳獨立建構 dayjs 實例，避免 rc-util isEqual 的循環參照警告
+// 两端各自从同一时间戳独立建构 dayjs 实例，避免 rc-util isEqual 的循环参照警告
 export function agencyRangeOf(key: AgencyQuickRange): [Dayjs, Dayjs] {
   const ts = Date.now();
   const from = dayjs(ts);
@@ -24,7 +24,7 @@ export function agencyRangeOf(key: AgencyQuickRange): [Dayjs, Dayjs] {
   }
 }
 
-// 同一輸入產出同一 seed，讓假資料可重現
+// 同一输入产出同一 seed，让假数据可重现
 export function agencySeed(...parts: Array<string | number | undefined>): number {
   const value = parts.filter((p) => p !== undefined).join(':');
   let hash = 2166136261;
@@ -35,7 +35,7 @@ export function agencySeed(...parts: Array<string | number | undefined>): number
   return hash >>> 0;
 }
 
-// mulberry32：小而穩定的 PRNG，同 seed 必得同序列
+// mulberry32：小而稳定的 PRNG，同 seed 必得同序列
 export function createRng(seed: number) {
   let a = seed >>> 0;
   return () => {
@@ -54,12 +54,12 @@ export function rngPick<T>(rng: () => number, list: readonly T[]): T {
   return list[Math.floor(rng() * list.length)];
 }
 
-// 在已經過的秒數中均勻抽樣，未完整的首／末日自然按可活動時數降低權重。
+// 在已经过的秒数中均匀抽样，未完整的首／末日自然按可活动时数降低权重。
 export function agencyEventTime(rng: () => number, startTs: number, endTs: number): number {
   return rngInt(rng, startTs, endTs);
 }
 
-// 後端金額一律回 string（decimal），前端顯示加 P 前綴
+// 后端金额一律回 string（decimal），前端显示加 P 前缀
 export function formatAmount(value: number | string): string {
   const n = typeof value === 'string' ? Number(value) : value;
   if (!Number.isFinite(n)) return '0.00';
@@ -74,7 +74,7 @@ export function formatCount(value: number): string {
   return value.toLocaleString('en-US');
 }
 
-/** 手機保留前 4 後 3 碼，中間固定 4 顆星；短號碼只留前 2 碼。 */
+/** 手机保留前 4 后 3 码，中间固定 4 颗星；短号码只留前 2 码。 */
 export function maskPhone(phone?: string): string {
   const value = phone?.trim();
   if (!value) return '-';
@@ -82,7 +82,7 @@ export function maskPhone(phone?: string): string {
   return `${value.slice(0, 4)}****${value.slice(-3)}`;
 }
 
-/** 姓名每段只留首字，單字元維持原樣。 */
+/** 姓名每段只留首字，单字符维持原样。 */
 export function maskName(name?: string): string {
   const value = name?.trim();
   if (!value) return '-';
@@ -92,7 +92,7 @@ export function maskName(name?: string): string {
   }).join(' ');
 }
 
-// 後端時間戳為秒級 int64
+// 后端时间戳为秒级 int64
 export function formatTs(seconds: number): string {
   if (!seconds) return '-';
   return dayjs.unix(seconds).format('YYYY-MM-DD HH:mm:ss');
@@ -104,38 +104,38 @@ export function formatPercent(value: number | string): string {
   return `${n.toFixed(2)}%`;
 }
 
-// ---- 列舉對照 ----
+// ---- 列举对照 ----
 
 // modules.Member.state
 export const memberStateLabels: Record<number, string> = {
   1: '正常',
   2: '停用',
-  3: '刪除',
+  3: '删除',
 };
 
-// modules.GameRecord.state 結算狀態
+// modules.GameRecord.state 结算状态
 export const betStateLabels: Record<number, string> = {
-  0: '未結算',
-  1: '已結算',
-  2: '會員取消',
-  3: '無效',
+  0: '未结算',
+  1: '已结算',
+  2: '会员取消',
+  3: '无效',
 };
 
-// modules.GameRecord.bet_type 注單類型
+// modules.GameRecord.bet_type 注单类型
 export const betTypeLabels: Record<number, string> = {
-  1: '普通注單',
-  2: '免費旋轉',
+  1: '普通注单',
+  2: '免费旋转',
   3: 'Jackpot',
-  4: '紅利',
+  4: '红利',
 };
 
-// modules.Commission.state 佣金狀態
+// modules.Commission.state 佣金状态
 export const commissionStateLabels: Record<number, string> = {
-  0: '當月不達標',
-  1: '當月不達標',
-  2: '待審核',
-  3: '審核通過',
-  4: '審核拒絕',
+  0: '当月不达标',
+  1: '当月不达标',
+  2: '待审核',
+  3: '审核通过',
+  4: '审核拒绝',
 };
 
 export const commissionStateColors: Record<number, string> = {
@@ -148,21 +148,21 @@ export const commissionStateColors: Record<number, string> = {
 
 // fb_agency_setting.settle_type
 export const settleTypeLabels: Record<number, string> = {
-  1: '每週結算',
-  2: '每月結算',
+  1: '每周结算',
+  2: '每月结算',
 };
 
-// ty 參數：統計口徑
+// ty 参数：统计口径
 export const statTyLabels: Record<number, string> = {
   1: '按月',
-  2: '累計',
+  2: '累计',
 };
 
 // PromoBonusDb.review_state
 export const bonusReviewStateLabels: Record<number, string> = {
-  1: '待審核',
-  2: '已通過',
-  3: '已拒絕',
+  1: '待审核',
+  2: '已通过',
+  3: '已拒绝',
 };
 
 export function downloadCsv(filename: string, content: string) {

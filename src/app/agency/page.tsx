@@ -12,7 +12,7 @@ export default function AgencyIndexPage() {
     try {
       signedIn = Boolean(localStorage.getItem('agency-demo-session'));
     } catch {
-      // localStorage 不可用時一律導向登入頁
+      // localStorage 不可用时一律导向登录页
     }
     router.replace(signedIn ? '/agency/home' : '/agency/login');
   }, [router]);

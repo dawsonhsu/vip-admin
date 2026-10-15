@@ -2,8 +2,8 @@ import dayjs from 'dayjs';
 import { agencyDailyEvents } from './daily';
 import { agencyMembers } from './shared';
 
-// 代理端只需要資金進出、佣金基礎（有效流水）、平台輸贏（GGR）與彩金成本。
-// 手續費、總投注／排除投注額／總派獎、FS／JP 明細、佣金都不在代理端呈現，因此不再產生。
+// 代理端只需要资金进出、佣金基础（有效流水）、平台输赢（GGR）与彩金成本。
+// 手续费、总投注／排除投注额／总派奖、FS／JP 明细、佣金都不在代理端呈现，因此不再产生。
 export interface AgencyMemberDailyStat {
   uid: string;
   username: string;
@@ -46,7 +46,7 @@ const emptyMetrics = (): AgencyMemberMetrics => ({
   validBet: 0, ggr: 0, totalBonus: 0,
 });
 
-/** 只切既有事件；建列、推導及加總時，所有金額都使用整數分。 */
+/** 只切既有事件；建列、推导及加总时，所有金额都使用整数分。 */
 export function agencyMemberDailyCents(): AgencyMemberDailyCents[] {
   const members = new Map(agencyMembers.map((member) => [member.uid, member]));
   const grouped = new Map<string, AgencyMemberDailyCents>();
@@ -108,7 +108,7 @@ export function agencyMemberDailyStats(): AgencyMemberDailyStat[] {
   }));
 }
 
-/** 主表、當頁小計與總計共用，禁止直接累加浮點元金額。 */
+/** 主表、当页小计与总计共用，禁止直接累加浮点元金额。 */
 export function sumAgencyMemberStats(rows: readonly AgencyMemberMetrics[]): AgencyMemberMetrics {
   const total = emptyMetrics();
   for (const row of rows) {

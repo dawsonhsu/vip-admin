@@ -1,11 +1,11 @@
 /**
- * 後端 model/agency.go profileStat 現有：ggr / members / active_members / reg / first_deposit / bonus / bonus_list / ggr_detail
- * 本次沿用：members(→累積會員總數) / reg / first_deposit(→首存人數) / ggr / bonus
- * 本次新增，後端尚未提供，上線前需擴充 profileStat：
+ * 后端 model/agency.go profileStat 现有：ggr / members / active_members / reg / first_deposit / bonus / bonus_list / ggr_detail
+ * 本次沿用：members(→累积会员总数) / reg / first_deposit(→首存人数) / ggr / bonus
+ * 本次新增，后端尚未提供，上线前需扩充 profileStat：
  *   first_deposit_amount / deposit_users / deposit_count / deposit_amount /
  *   withdraw_users / withdraw_count / withdraw_amount / dw_diff /
  *   bet_users / valid_bet / ngr
- * 另：現有 reg / first_deposit 後端是「當月」口徑（寫死當月），本次改為依 start_time / end_time 區間，後端也需配合調整。
+ * 另：现有 reg / first_deposit 后端是「当月」口径（写死当月），本次改为依 start_time / end_time 区间，后端也需配合调整。
  */
 import dayjs from 'dayjs';
 import { agencyDailyEvents } from './daily';
@@ -63,7 +63,7 @@ export function buildAgencyRangeStat(startTs: number, endTs: number): AgencyRang
 
   return {
     members: agencyMembers.filter((member) => member.created_at <= endTs).length,
-    // 註冊是會員屬性而非事件，不受事件視窗（近 6 個月）限制，一律用原始區間比對。
+    // 注册是会员属性而非事件，不受事件视窗（近 6 个月）限制，一律用原始区间比对。
     reg: agencyMembers.filter((member) => member.created_at >= startTs && member.created_at <= endTs).length,
     first_deposit: users(firstDeposits),
     first_deposit_amount: decimal(firstDeposits.reduce((sum, event) => sum + event.amount_cents, 0)),

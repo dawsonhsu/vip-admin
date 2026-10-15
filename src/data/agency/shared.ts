@@ -1,36 +1,36 @@
-// 代理推廣後台 demo — 共用資料與型別
+// 代理推广后台 demo — 共用数据与型别
 //
-// 欄位命名 1:1 對應後端 ~/claudeproject/agency 的 JSON tag：
+// 字段命名 1:1 对应后端 ~/claudeproject/agency 的 JSON tag：
 //   /agency/profile      → ProfileResult / profileStat
 //   /agency/member/list  → MemberInfo / MemberListStat
-// 金額一律 string（後端為 decimal），時間戳一律「秒級」int64。
+// 金额一律 string（后端为 decimal），时间戳一律「秒级」int64。
 //
-// 注意：代理端前端不在已 clone 的 repo 內，以下資料為依 API 結構合成的假資料。
+// 注意：代理端前端不在已 clone 的 repo 内，以下数据为依 API 结构合成的假数据。
 
 import dayjs from 'dayjs';
 import { agencySeed, createRng, rngInt, rngPick } from '@/lib/agencyUtils';
 
-// 每小時的 demo 快照：同一小時、同 seed 跨頁或重新載入皆相同，事件不晚於現在。
+// 每小时的 demo 快照：同一小时、同 seed 跨页或重新载入皆相同，事件不晚于现在。
 export const AGENCY_DATA_NOW = dayjs().startOf('hour').unix();
 
-// ---- 遊戲分類（對應 fb_game_class，demo 取平台常見八類）----
+// ---- 游戏分类（对应 fb_game_class，demo 取平台常见八类）----
 export interface AgencyGameClass {
   game_class: number;
   name: string;
 }
 
 export const agencyGameClasses: AgencyGameClass[] = [
-  { game_class: 1, name: '電子' },
+  { game_class: 1, name: '电子' },
   { game_class: 2, name: '真人' },
-  { game_class: 3, name: '體育' },
+  { game_class: 3, name: '体育' },
   { game_class: 4, name: '彩票' },
-  { game_class: 5, name: '捕魚' },
+  { game_class: 5, name: '捕鱼' },
   { game_class: 6, name: '棋牌' },
-  { game_class: 7, name: '電競' },
-  { game_class: 8, name: '賓果' },
+  { game_class: 7, name: '电竞' },
+  { game_class: 8, name: '宾果' },
 ];
 
-// ---- 場館 / 廠商費率（/agency/vendorrate/list → VenueSettingData）----
+// ---- 场馆 / 厂商费率（/agency/vendorrate/list → VenueSettingData）----
 export interface AgencyVenueSetting {
   venue_id: string;
   name: string;
@@ -52,7 +52,7 @@ export const agencyVenues: AgencyVenueSetting[] = [
   { venue_id: 'sa', name: 'SA Gaming', fee_ratio: '14.00' },
 ];
 
-// ---- PAGCOR 稅率（/agency/taxrate/list）----
+// ---- PAGCOR 税率（/agency/taxrate/list）----
 export interface AgencyPagcorTaxRate {
   id: string;
   pagcor_name: string;
@@ -66,29 +66,29 @@ export const agencyPagcorTaxRates: AgencyPagcorTaxRate[] = [
   { id: '4', pagcor_name: 'Specialty games', pagcor_tax_ratio: '30.00' },
 ];
 
-// ---- 活動禮金類型（PromoBonusDb.cash_type）----
+// ---- 活动礼金类型（PromoBonusDb.cash_type）----
 export const agencyBonusCashTypes: Record<number, string> = {
-  4001: '註冊禮金',
-  4002: '首存禮金',
-  4003: '二存禮金',
-  4004: '三存禮金',
-  4005: '每日簽到',
+  4001: '注册礼金',
+  4002: '首存礼金',
+  4003: '二存礼金',
+  4004: '三存礼金',
+  4005: '每日签到',
   4009: '每日返水',
-  4012: 'VIP 升級禮金',
-  4015: '生日禮金',
+  4012: 'VIP 升级礼金',
+  4015: '生日礼金',
   4019: '彩金佣金',
-  4021: '免費旋轉',
-  4025: '召回禮金',
+  4021: '免费旋转',
+  4025: '召回礼金',
 };
 
-// ---- 佣金帳變類型（MemberTransaction.cash_type）----
+// ---- 佣金账变类型（MemberTransaction.cash_type）----
 export const agencyTransCashTypes: Record<number, string> = {
-  1001: '佣金發放',
-  1002: '佣金校準',
-  1003: '系統調整',
+  1001: '佣金发放',
+  1002: '佣金校准',
+  1003: '系统调整',
 };
 
-// ---- 型別：會員（/agency/member/list → MemberInfo）----
+// ---- 型别：会员（/agency/member/list → MemberInfo）----
 export interface AgencyRealUsername {
   first_name: string;
   middle_name: string;
@@ -127,7 +127,7 @@ export interface AgencyMember {
   nick_name: string;
   real_usernames: AgencyRealUsername;
   vip: number;
-  state: number; // 1 正常 2 停用 3 刪除
+  state: number; // 1 正常 2 停用 3 删除
   kyc_status: number;
   created_at: number; // 秒
   last_login_at: number; // 秒
@@ -136,20 +136,20 @@ export interface AgencyMember {
   deposit_count: number;
   withdraw_total: string;
   withdraw_count: number;
-  first_deposit: number; // 1 表示生涯曾經存款，須與存款總額及事件一致
+  first_deposit: number; // 1 表示生涯曾经存款，须与存款总额及事件一致
   balance: string;
   is_online: boolean;
   parent: AgencyParentInfo;
   stat: AgencyMemberStat;
 }
 
-// ---- 登入中的代理（/agency/profile 的身分部分）----
+// ---- 登录中的代理（/agency/profile 的身分部分）----
 export const agencyAccount = {
   uid: '80251143',
   username: 'agent_darren',
   phone: '09171234567',
-  settle_type: 2, // 1 每週 2 每月
-  // 後端 agency/model/agency.go：invite_link = AgencyUrl + "?u=" + invite_code
+  settle_type: 2, // 1 每周 2 每月
+  // 后端 agency/model/agency.go：invite_link = AgencyUrl + "?u=" + invite_code
   invite_code: 'FB8K2M',
   invite_link: 'https://www.filbet.com/?u=FB8K2M',
   invite_img: [
@@ -168,9 +168,9 @@ export const agencyAccount = {
   } as AgencyRealUsername,
 };
 
-// ---- 代理專屬域名（fb_agency_domain，由運營在管理後台配置）----
-// 會員註冊時 modules/members.go 以來源域名比對 state=1 的記錄，命中即歸屬該代理，不需帶邀請碼。
-// 代理端只看得到自己名下、啟用中的域名；後端目前沒有代理端查詢 API，上線前需新增。
+// ---- 代理专属域名（fb_agency_domain，由运营在管理后台配置）----
+// 会员注册时 modules/members.go 以来源域名比对 state=1 的记录，命中即归属该代理，不需带邀请码。
+// 代理端只看得到自己名下、启用中的域名；后端目前没有代理端查询 API，上线前需新增。
 export interface AgencyDomain {
   id: string;
   domain: string;
@@ -179,11 +179,11 @@ export interface AgencyDomain {
 }
 
 export const agencyDomains: AgencyDomain[] = [
-  { id: '1847201', domain: 'darrenwin.com', remark: 'FB 廣告投放', created_at: 1786118400 },
-  { id: '1847202', domain: 'play.darrenwin.com', remark: 'TikTok 主頁連結', created_at: 1788796800 },
+  { id: '1847201', domain: 'darrenwin.com', remark: 'FB 广告投放', created_at: 1786118400 },
+  { id: '1847202', domain: 'play.darrenwin.com', remark: 'TikTok 主页链接', created_at: 1788796800 },
 ];
 
-// ---- 姓名 / 帳號素材 ----
+// ---- 姓名 / 账号素材 ----
 const firstNames = [
   'Juan', 'Maria', 'Jose', 'Ana', 'Pedro', 'Rosa', 'Carlo', 'Liza', 'Mark', 'Grace',
   'Ramon', 'Elena', 'Nino', 'Cristina', 'Paolo', 'Jasmine', 'Rico', 'Divina', 'Allan', 'Mylene',
@@ -194,7 +194,7 @@ const lastNames = [
   'Ramos', 'Flores', 'Villanueva', 'Aquino', 'Castillo', 'Navarro', 'Domingo', 'Salazar',
 ];
 
-// 暱稱素材刻意與 firstNames 無關：暱稱不隱碼，若沿用真實名字會把 maskName 遮掉的字洩漏回去。
+// 昵称素材刻意与 firstNames 无关：昵称不隐码，若沿用真实名字会把 maskName 遮掉的字泄漏回去。
 const nickWords = [
   'Tiger', 'Lucky', 'Ocean', 'Falcon', 'Storm', 'Jade', 'Comet', 'Bamboo',
   'Panther', 'Sunrise', 'Cobalt', 'Mango', 'Thunder', 'Pearl', 'Zenith', 'Coral',
@@ -224,7 +224,7 @@ export function agencyHistoricFirstDepositAt(seed: number, uid: string, createdA
 
 type MemberIdentity = Pick<AgencyMember, 'uid' | 'created_at' | 'first_deposit'>;
 
-// 小型展示樣本採分層抽樣：用各會員自己的 seeded roll 排序，避免 2~4 位新會員全轉換。
+// 小型展示样本采分层抽样：用各会员自己的 seeded roll 排序，避免 2~4 位新会员全转换。
 function sampleMembers(members: MemberIdentity[], count: number, roll: (member: MemberIdentity) => number): Set<string> {
   return new Set([...members].sort((a, b) => roll(a) - roll(b) || a.uid.localeCompare(b.uid))
     .slice(0, Math.max(0, Math.round(count))).map((member) => member.uid));
@@ -247,14 +247,14 @@ function monthProfiles(seed: number, members: MemberIdentity[], month: string): 
   const deposits = current ? sampleMembers(newMembers, newMembers.length * 0.45, roll(0)) : new Set<string>();
   firstMembers.forEach((member) => deposits.add(member.uid));
   const repeatCandidates = eligible.filter((member) => !deposits.has(member.uid) && member.created_at < period.unix());
-  // 已有存款經驗才會續存；未曾首存者不能出現存款流水。
+  // 已有存款经验才会续存；未曾首存者不能出现存款流水。
   const repeat = sampleMembers(repeatCandidates, oldMembers.length * 0.60 - firstMembers.filter((member) => member.created_at < period.unix()).length, roll(0));
   repeat.forEach((uid) => deposits.add(uid));
   const depositMembers = alive.filter((member) => deposits.has(member.uid));
-  // 只有曾經首存的會員才可能有結餘可動用；從未首存者當月不得投注或提款。
+  // 只有曾经首存的会员才可能有结余可动用；从未首存者当月不得投注或提款。
   const nonDepositMembers = oldMembers.filter((member) => !deposits.has(member.uid) && member.first_deposit === 1);
   const bettingWithoutDeposit = sampleMembers(nonDepositMembers, alive.length * 0.10, roll(2));
-  // 58% 目標取整若剛好等於存款人數，少抽一位，保留小樣本的行為差異。
+  // 58% 目标取整若刚好等于存款人数，少抽一位，保留小样本的行为差异。
   const betTarget = Math.round(alive.length * 0.58);
   const betting = sampleMembers(depositMembers,
     betTarget - (betTarget === deposits.size ? 1 : 0) - bettingWithoutDeposit.size, roll(2));
@@ -271,7 +271,7 @@ function monthProfiles(seed: number, members: MemberIdentity[], month: string): 
 
 const monthProfileCache = new Map<string, Map<string, AgencyMonthProfile>>();
 
-// 會員列表、歷史事件、禮金共用同一月份與同一批會員的行為輪廓。
+// 会员列表、历史事件、礼金共用同一月份与同一批会员的行为轮廓。
 export function agencyMonthProfile(seed: number, uid: string, month: string): AgencyMonthProfile {
   const key = `${seed}:${month}`;
   let profiles = monthProfileCache.get(key);
@@ -282,7 +282,7 @@ export function agencyMonthProfile(seed: number, uid: string, month: string): Ag
   return profiles.get(uid) ?? { hasDeposit: false, hasWithdraw: false, hasBet: false };
 }
 
-/** 相同 seed 與小時快照必得相同會員；基本資料與月度行為分開抽樣。 */
+/** 相同 seed 与小时快照必得相同会员；基本数据与月度行为分开抽样。 */
 export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] {
   const now = AGENCY_DATA_NOW;
   const month = dayjs.unix(now).startOf('month');
@@ -292,7 +292,7 @@ export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] 
     const middle = rngPick(rng, middleNames);
     const last = rngPick(rng, lastNames);
     const uid = String(80260000 + index * 7 + rngInt(rng, 1, 6));
-    // 帳號與暱稱同源於 nickWords，與真實姓名無關：兩者都不隱碼，沿用本名會抵銷 maskName。
+    // 账号与昵称同源于 nickWords，与真实姓名无关：两者都不隐码，沿用本名会抵销 maskName。
     const nick = rngPick(rng, nickWords);
     const bet = Number(amount(rng, 20000, 4000000));
     const validBet = bet * (0.82 + rng() * 0.15);
@@ -307,7 +307,7 @@ export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] 
       last_login_at: createdAt,
       last_login_ip: `112.${rngInt(rng, 190, 210)}.${rngInt(rng, 1, 254)}.${rngInt(rng, 1, 254)}`,
       deposit_total: amount(rng, 5000, 900000), deposit_count: rngInt(rng, 3, 220),
-      // 生涯 GGR 恆為正（平台贏），所以累計提款必定小於累計存款；實際值在下方依存款推算。
+      // 生涯 GGR 恒为正（平台赢），所以累计提款必定小于累计存款；实际值在下方依存款推算。
       withdraw_total: '0.00', withdraw_count: rngInt(rng, 1, 90),
       first_deposit: 0, balance: amount(rng, 0, 45000), is_online: false,
       parent: { uid: agencyAccount.uid, username: agencyAccount.username, nick_name: 'Darren', phone: agencyAccount.phone },
@@ -320,7 +320,7 @@ export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] 
       },
     };
   });
-  // 帳號是登入身分，必須唯一；nickWords × 兩位數的組合會撞號，依固定順序遞增去重。
+  // 账号是登录身分，必须唯一；nickWords × 两位数的组合会撞号，依固定顺序递增去重。
   const usedUsernames = new Set<string>();
   members.forEach((member) => {
     let candidate = member.username;
@@ -333,7 +333,7 @@ export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] 
     usedUsernames.add(candidate);
     member.username = candidate;
   });
-  // 新近註冊仍有未轉換者；較久的會員累積較高的生涯首存率。
+  // 新近注册仍有未转换者；较久的会员累积较高的生涯首存率。
   const cohorts = new Map<string, AgencyMember[]>();
   members.forEach((member) => {
     const key = dayjs.unix(member.created_at).format('YYYY-MM');
@@ -357,10 +357,10 @@ export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] 
     const withdrawCount = profile.hasWithdraw ? rngInt(rng, 1, 12) : 0;
     const ratio = profile.hasBet ? 0.08 + rng() * 0.22 : 0;
     if (isNew) member.first_deposit = profile.hasDeposit ? 1 : 0;
-    // 從未首存者沒有任何資金進出，生涯存提、投注與 GGR 一律為 0，餘額只剩未使用的註冊禮金。
+    // 从未首存者没有任何资金进出，生涯存提、投注与 GGR 一律为 0，余额只剩未使用的注册礼金。
     const neverDeposited = member.first_deposit === 0;
-    // 累計提款＝累計存款 ×0.35~0.95：生涯 GGR 為正代表平台贏錢，提款不可能超過存款。
-    // 累計存款同時墊高到「當月提款 ÷ 比例」，確保累計提款不低於當月提款。
+    // 累计提款＝累计存款 ×0.35~0.95：生涯 GGR 为正代表平台赢钱，提款不可能超过存款。
+    // 累计存款同时垫高到「当月提款 ÷ 比例」，确保累计提款不低于当月提款。
     const payout = 0.35 + rng() * 0.6;
     const depositTotal = neverDeposited ? '0.00'
       : Math.max(Number(deposit), isNew ? 0 : Number(member.deposit_total), Number(withdraw) / payout).toFixed(2);
@@ -389,17 +389,17 @@ export function generateAgencyMembers(seed: number, count = 60): AgencyMember[] 
   });
 }
 
-// 全站共用的下線名單（固定 seed，跨頁一致）
+// 全站共用的下线名单（固定 seed，跨页一致）
 export const AGENCY_MEMBER_SEED = agencySeed('agency-members', 20260916);
 export const agencyMembers: AgencyMember[] = generateAgencyMembers(AGENCY_MEMBER_SEED);
 
-/** 活躍會員判定門檻（對應 /agency/ladder 回傳的 active_* 欄位） */
+/** 活跃会员判定门槛（对应 /agency/ladder 回传的 active_* 字段） */
 export const agencyActiveThreshold = {
   active_bet_amount: '3000.00',
   active_deposit_amount: '500.00',
 };
 
-/** 依門檻篩出活躍會員 */
+/** 依门槛筛出活跃会员 */
 export function agencyActiveMembers(members: AgencyMember[] = agencyMembers): AgencyMember[] {
   const betGate = Number(agencyActiveThreshold.active_bet_amount);
   const depositGate = Number(agencyActiveThreshold.active_deposit_amount);

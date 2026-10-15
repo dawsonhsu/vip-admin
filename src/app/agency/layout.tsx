@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { ConfigProvider, theme as antdTheme } from 'antd';
-import zhTW from 'antd/locale/zh_TW';
+import zhCN from 'antd/locale/zh_CN';
 import AgencyLayout from '@/components/AgencyLayout';
 
 const lightToken = {
@@ -38,7 +38,7 @@ export default function AgencyRootLayout({ children }: { children: React.ReactNo
       const saved = localStorage.getItem('agency-admin-theme');
       if (saved !== null) setIsDark(saved === 'dark');
     } catch {
-      // 私密模式下 localStorage 可能不可用，維持預設淺色
+      // 私密模式下 localStorage 可能不可用，维持默认浅色
     }
   }, []);
 
@@ -47,13 +47,13 @@ export default function AgencyRootLayout({ children }: { children: React.ReactNo
     try {
       localStorage.setItem('agency-admin-theme', dark ? 'dark' : 'light');
     } catch {
-      // 忽略寫入失敗
+      // 忽略写入失败
     }
   };
 
   return (
     <ConfigProvider
-      locale={zhTW}
+      locale={zhCN}
       theme={{
         token: isDark ? darkToken : lightToken,
         algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,

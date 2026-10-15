@@ -28,7 +28,7 @@ const seededRate = (uid: string, date: string, label: string, maxPermille: numbe
   agencySeed('agency-admin-stat', uid, date, label) % (maxPermille + 1)
 );
 
-/** 將代理端的整數分日事件映射成內部後台的個人日統計欄位。 */
+/** 将代理端的整数分日事件映射成内部后台的个人日统计字段。 */
 export const agencyAdminPersonalStats = agencyMemberDailyCents().map((row) => {
   const excludedBetCents = Math.round(row.validBetCents * seededRate(row.uid, row.date, 'excluded', 80) / 1000);
   const totalBetCents = row.validBetCents + excludedBetCents;

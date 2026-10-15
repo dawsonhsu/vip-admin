@@ -13,7 +13,7 @@ import { agencyRangeOf, downloadCsv, formatCount, formatPeso, maskPhone, toCsvCe
 
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
-type MemberSearchType = '手機號' | '帳號' | 'UID';
+type MemberSearchType = '手机号' | '账号' | 'UID';
 type StatSortKey = keyof AgencyMemberStat | 'dateRange';
 interface FilterValues {
   searchValue?: string;
@@ -23,19 +23,19 @@ interface Filters extends FilterValues {
   searchType: MemberSearchType;
 }
 
-// 代理端只留「能據以行動」的指標：資金進出、佣金基礎（有效流水）、平台輸贏（GGR）
-// 與成本（彩金）。手續費為平台成本、FS/JP 屬遊戲營運細節、
-// 總投注／排除投注額／總派獎皆可由有效流水與 GGR 推得，一律不在代理端呈現。
-// 佣金是代理層級按週期結算（GGR 扣稅、場館費、彩金並結轉上期結餘後乘階梯比例），
-// 無法拆到單一會員單日，故不列。
+// 代理端只留「能据以行动」的指标：资金进出、佣金基础（有效流水）、平台输赢（GGR）
+// 与成本（彩金）。手续费为平台成本、FS/JP 属游戏营运细节、
+// 总投注／排除投注额／总派奖皆可由有效流水与 GGR 推得，一律不在代理端呈现。
+// 佣金是代理层级按周期结算（GGR 扣税、场馆费、彩金并结转上期结余后乘阶梯比例），
+// 无法拆到单一会员单日，故不列。
 const metrics: Array<{ key: keyof AgencyMemberMetrics; title: string; count?: boolean; signed?: boolean }> = [
-  { key: 'depositCount', title: '存款次數', count: true },
-  { key: 'totalDeposit', title: '總存款' },
-  { key: 'withdrawCount', title: '提款次數', count: true },
-  { key: 'totalWithdraw', title: '總提款' },
+  { key: 'depositCount', title: '存款次数', count: true },
+  { key: 'totalDeposit', title: '总存款' },
+  { key: 'withdrawCount', title: '提款次数', count: true },
+  { key: 'totalWithdraw', title: '总提款' },
   { key: 'validBet', title: '有效流水' },
   { key: 'ggr', title: 'GGR', signed: true },
-  { key: 'totalBonus', title: '總彩金' },
+  { key: 'totalBonus', title: '总彩金' },
 ];
 
 function metricColumns<T extends AgencyMemberMetrics>(sortable = true): ColumnsType<T> {
@@ -50,7 +50,7 @@ function metricColumns<T extends AgencyMemberMetrics>(sortable = true): ColumnsT
 
 export default function AgencyMemberStatsPage() {
   const [form] = Form.useForm<FilterValues>();
-  const [searchType, setSearchType] = useState<MemberSearchType>('手機號');
+  const [searchType, setSearchType] = useState<MemberSearchType>('手机号');
   const [filters, setFilters] = useState<Filters | null>(null);
   const [dailyRows, setDailyRows] = useState<AgencyMemberDailyStat[]>([]);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20 });
@@ -60,7 +60,7 @@ export default function AgencyMemberStatsPage() {
   useEffect(() => {
     const dateRange = agencyRangeOf('month');
     form.setFieldsValue({ dateRange });
-    setFilters({ searchType: '手機號', dateRange });
+    setFilters({ searchType: '手机号', dateRange });
     setDailyRows(agencyMemberDailyStats());
   }, [form]);
 
@@ -71,7 +71,7 @@ export default function AgencyMemberStatsPage() {
     if (!filters || row.date < queryStart || row.date > queryEnd) return false;
     const value = filters.searchValue?.trim().toLowerCase();
     if (!value) return true;
-    const field = filters.searchType === '手機號' ? row.phone : filters.searchType === '帳號' ? row.username : row.uid;
+    const field = filters.searchType === '手机号' ? row.phone : filters.searchType === '账号' ? row.username : row.uid;
     return field.toLowerCase().includes(value);
   }), [dailyRows, filters, queryStart, queryEnd]);
   const aggregatedRows = useMemo(() => aggregateAgencyMemberStats(filteredRows), [filteredRows]);
@@ -91,8 +91,8 @@ export default function AgencyMemberStatsPage() {
     return sortedRows.slice(start, start + pagination.pageSize);
   }, [sortedRows, pagination]);
   const summaryRows = useMemo(() => [
-    { key: 'page', label: '小計', memberCount: pagedRows.length, ...sumAgencyMemberStats(pagedRows) },
-    { key: 'all', label: '總計', memberCount: aggregatedRows.length, ...sumAgencyMemberStats(aggregatedRows) },
+    { key: 'page', label: '小计', memberCount: pagedRows.length, ...sumAgencyMemberStats(pagedRows) },
+    { key: 'all', label: '总计', memberCount: aggregatedRows.length, ...sumAgencyMemberStats(aggregatedRows) },
   ], [pagedRows, aggregatedRows]);
   const detailRows = useMemo(() => filteredRows.filter((row) => row.uid === drawerTarget?.uid)
     .sort((a, b) => b.date.localeCompare(a.date)), [drawerTarget, filteredRows]);
@@ -105,32 +105,32 @@ export default function AgencyMemberStatsPage() {
   const reset = () => {
     const dateRange = agencyRangeOf('month');
     form.setFieldsValue({ searchValue: undefined, dateRange });
-    setSearchType('手機號');
-    setFilters({ searchType: '手機號', dateRange });
+    setSearchType('手机号');
+    setFilters({ searchType: '手机号', dateRange });
     setPagination((current) => ({ ...current, current: 1 }));
     setDrawerTarget(null);
   };
   const onExport = () => {
     const lines = [
-      ['UID', '帳號', '手機號', ...metrics.map(({ title }) => title)],
+      ['UID', '账号', '手机号', ...metrics.map(({ title }) => title)],
       ...sortedRows.map((row) => [
         row.uid, row.username, maskPhone(row.phone),
         ...metrics.map(({ key, count }) => count ? String(row[key]) : formatPeso(row[key])),
       ]),
     ];
-    downloadCsv(`會員日統計_${queryStart}_${queryEnd}.csv`, lines.map((line) => line.map(toCsvCell).join(',')).join('\n'));
+    downloadCsv(`会员日统计_${queryStart}_${queryEnd}.csv`, lines.map((line) => line.map(toCsvCell).join(',')).join('\n'));
   };
 
-  // 主表不放「統計日期」：整張表就是同一個查詢區間，逐列重複顯示只是噪音，
-  // 區間已顯示在篩選器與卡片標題；Drawer 的統計日期才是真正逐日的資訊。
+  // 主表不放「统计日期」：整张表就是同一个查询区间，逐列重复显示只是噪音，
+  // 区间已显示在筛选器与卡片标题；Drawer 的统计日期才是真正逐日的信息。
   const columns: ColumnsType<AgencyMemberStat> = [
     { title: 'UID', key: 'uid', dataIndex: 'uid', width: 110, sorter: (a, b) => a.uid.localeCompare(b.uid) },
     {
-      title: '帳號', key: 'username', dataIndex: 'username', width: 140,
+      title: '账号', key: 'username', dataIndex: 'username', width: 140,
       sorter: (a, b) => a.username.localeCompare(b.username),
       render: (_, record) => <a data-e2e-id={`agency-member-stats-table-member-link-${record.uid}`} onClick={() => setDrawerTarget(record)}>{record.username}</a>,
     },
-    { title: '手機號', key: 'phone', dataIndex: 'phone', width: 140, sorter: (a, b) => a.phone.localeCompare(b.phone), render: (value: string) => maskPhone(value) },
+    { title: '手机号', key: 'phone', dataIndex: 'phone', width: 140, sorter: (a, b) => a.phone.localeCompare(b.phone), render: (value: string) => maskPhone(value) },
     ...metricColumns<AgencyMemberStat>(),
     {
       title: '操作', key: 'action', width: 100, fixed: 'right',
@@ -138,12 +138,12 @@ export default function AgencyMemberStatsPage() {
     },
   ];
   const summaryColumns: ColumnsType<(typeof summaryRows)[number]> = [
-    { title: '類型', dataIndex: 'label', width: 60 },
-    { title: '總人數', dataIndex: 'memberCount', width: 90, align: 'right', render: formatCount },
+    { title: '类型', dataIndex: 'label', width: 60 },
+    { title: '总人数', dataIndex: 'memberCount', width: 90, align: 'right', render: formatCount },
     ...metricColumns<(typeof summaryRows)[number]>(false),
   ];
   const detailColumns: ColumnsType<AgencyMemberDailyStat> = [
-    { title: '統計日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
+    { title: '统计日期', dataIndex: 'date', width: 120, sorter: (a, b) => a.date.localeCompare(b.date), defaultSortOrder: 'descend' },
     ...metricColumns<AgencyMemberDailyStat>(),
   ];
   const onTableChange: TableProps<AgencyMemberStat>['onChange'] = (next, _tableFilters, sorter) => {
@@ -164,21 +164,21 @@ export default function AgencyMemberStatsPage() {
                   value={searchType}
                   onChange={(value) => { setSearchType(value); form.setFieldValue('searchValue', undefined); }}
                   variant="borderless" size="small" style={{ width: 88 }}
-                  options={['手機號', '帳號', 'UID'].map((value) => ({ label: value, value }))}
+                  options={['手机号', '账号', 'UID'].map((value) => ({ label: value, value }))}
                 />
               }>
-                <Input data-e2e-id="agency-member-stats-filter-search-value-input" placeholder={`輸入${searchType}`} allowClear />
+                <Input data-e2e-id="agency-member-stats-filter-search-value-input" placeholder={`输入${searchType}`} allowClear />
               </Form.Item>
             </Col>
             <Col xs={24} md={10}>
-              <Form.Item label="統計時間" name="dateRange" rules={[{ required: true, message: '請選擇統計時間' }]}>
+              <Form.Item label="统计时间" name="dateRange" rules={[{ required: true, message: '请选择统计时间' }]}>
                 <RangePicker data-e2e-id="agency-member-stats-filter-date-range" style={{ width: '100%' }} allowClear={false} />
               </Form.Item>
             </Col>
             <Col xs={24} md={8}>
               <Form.Item label=" ">
                 <Space>
-                  <Button data-e2e-id="agency-member-stats-filter-query-btn" type="primary" icon={<SearchOutlined />} htmlType="submit" disabled={!filters}>查詢</Button>
+                  <Button data-e2e-id="agency-member-stats-filter-query-btn" type="primary" icon={<SearchOutlined />} htmlType="submit" disabled={!filters}>查询</Button>
                   <Button data-e2e-id="agency-member-stats-filter-reset-btn" icon={<ReloadOutlined />} onClick={reset}>重置</Button>
                 </Space>
               </Form.Item>
@@ -187,7 +187,7 @@ export default function AgencyMemberStatsPage() {
         </Form>
       </Card>
 
-      <Card size="small" title="統計" data-e2e-id="agency-member-stats-summary-card">
+      <Card size="small" title="统计" data-e2e-id="agency-member-stats-summary-card">
         <Table
           dataSource={summaryRows} columns={summaryColumns} pagination={false} size="small" rowKey="key" scroll={{ x: 'max-content' }}
           onRow={(record) => ({ 'data-e2e-id': `agency-member-stats-summary-${record.key}` } as React.HTMLAttributes<HTMLTableRowElement>)}
@@ -196,8 +196,8 @@ export default function AgencyMemberStatsPage() {
 
       <Card size="small" data-e2e-id="agency-member-stats-table-card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
-          <Title level={5} style={{ margin: 0 }}>會員日統計 <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>示範資料</Text></Title>
-          <Button type="primary" icon={<DownloadOutlined />} onClick={onExport} disabled={!filters} data-e2e-id="agency-member-stats-toolbar-export-btn">匯出</Button>
+          <Title level={5} style={{ margin: 0 }}>会员日统计 <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>示例数据</Text></Title>
+          <Button type="primary" icon={<DownloadOutlined />} onClick={onExport} disabled={!filters} data-e2e-id="agency-member-stats-toolbar-export-btn">导出</Button>
         </div>
         <Table<AgencyMemberStat>
           data-e2e-id="agency-member-stats-table"
@@ -206,20 +206,20 @@ export default function AgencyMemberStatsPage() {
           onChange={onTableChange}
           onRow={(record) => ({ 'data-e2e-id': `agency-member-stats-table-row-${record.uid}` } as React.HTMLAttributes<HTMLTableRowElement>)}
           scroll={{ x: 'max-content' }} size="small"
-          pagination={{ ...pagination, total: aggregatedRows.length, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'], showTotal: (total) => `共 ${total} 筆` }}
+          pagination={{ ...pagination, total: aggregatedRows.length, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'], showTotal: (total) => `共 ${total} 笔` }}
         />
       </Card>
 
       <Drawer
         width={1200} open={!!drawerTarget} onClose={() => setDrawerTarget(null)}
-        title={drawerTarget ? `${drawerTarget.username} - 每日明細（${dateRangeText}）` : ''}
+        title={drawerTarget ? `${drawerTarget.username} - 每日明细（${dateRangeText}）` : ''}
       >
         <div data-e2e-id="agency-member-stats-drawer">
           <Table<AgencyMemberDailyStat>
             key={`${drawerTarget?.uid}-${queryStart}-${queryEnd}`}
             rowKey={(record) => `${record.uid}-${record.date}`} columns={detailColumns} dataSource={detailRows}
             onRow={(record) => ({ 'data-e2e-id': `agency-member-stats-drawer-row-${record.uid}-${record.date}` } as React.HTMLAttributes<HTMLTableRowElement>)}
-            scroll={{ x: 'max-content' }} pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 筆` }} size="small"
+            scroll={{ x: 'max-content' }} pagination={{ pageSize: 10, showTotal: (total) => `共 ${total} 笔` }} size="small"
           />
         </div>
       </Drawer>
