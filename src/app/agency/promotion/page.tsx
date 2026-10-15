@@ -125,7 +125,8 @@ export default function AgencyPromotionPage() {
           data-e2e-id="agency-promotion-domain-table"
           rowKey="id"
           columns={columns}
-          dataSource={agencyDomains}
+          dataSource={mounted ? agencyDomains : []}
+          loading={!mounted}
           pagination={false}
           locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未開通專屬域名" /> }}
         />
