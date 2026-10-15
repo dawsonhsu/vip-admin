@@ -149,9 +149,9 @@ export const agencyAccount = {
   username: 'agent_darren',
   phone: '09171234567',
   settle_type: 2, // 1 每週 2 每月
-  // 真實 /agency/profile 的邀請欄位保留，目前前端未呈現。
+  // 後端 agency/model/agency.go：invite_link = AgencyUrl + "?u=" + invite_code
   invite_code: 'FB8K2M',
-  invite_link: 'https://www.filbet.com/?c=FB8K2M',
+  invite_link: 'https://www.filbet.com/?u=FB8K2M',
   invite_img: [
     'https://cdn.filbet.com/h5/invite/poster_01.jpg',
     'https://cdn.filbet.com/h5/invite/poster_02.jpg',
@@ -167,6 +167,21 @@ export const agencyAccount = {
     last_name: 'Hsu',
   } as AgencyRealUsername,
 };
+
+// ---- 代理專屬域名（fb_agency_domain，由運營在管理後台配置）----
+// 會員註冊時 modules/members.go 以來源域名比對 state=1 的記錄，命中即歸屬該代理，不需帶邀請碼。
+// 代理端只看得到自己名下、啟用中的域名；後端目前沒有代理端查詢 API，上線前需新增。
+export interface AgencyDomain {
+  id: string;
+  domain: string;
+  remark: string;
+  created_at: number;
+}
+
+export const agencyDomains: AgencyDomain[] = [
+  { id: '1847201', domain: 'darrenwin.com', remark: 'FB 廣告投放', created_at: 1786118400 },
+  { id: '1847202', domain: 'play.darrenwin.com', remark: 'TikTok 主頁連結', created_at: 1788796800 },
+];
 
 // ---- 姓名 / 帳號素材 ----
 const firstNames = [

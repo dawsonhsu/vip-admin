@@ -18,6 +18,7 @@ import {
   FullscreenOutlined,
   LogoutOutlined,
   HomeOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { agencyAccount } from '@/data/agency/shared';
@@ -53,6 +54,11 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
+    key: '/agency/promotion',
+    icon: <LinkOutlined />,
+    label: <span data-e2e-id="agency-menu-promotion">推廣鏈接</span>,
+  },
+  {
     key: '/agency/rates',
     icon: <PercentageOutlined />,
     label: <span data-e2e-id="agency-menu-rates">費率查詢</span>,
@@ -75,6 +81,7 @@ const breadcrumbMap: Record<string, string[]> = {
   '/agency/home': ['首頁看板'],
   '/agency/members': ['會員管理', '會員列表'],
   '/agency/member-stats': ['會員管理', '會員日統計'],
+  '/agency/promotion': ['推廣鏈接'],
   '/agency/rates': ['費率查詢'],
   '/agency/password': ['帳號設定', '修改密碼'],
 };
