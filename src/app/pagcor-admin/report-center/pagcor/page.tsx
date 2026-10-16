@@ -240,7 +240,7 @@ export default function PagcorTaxReportPage() {
           rowKey="id"
           onRow={(record) => ({ 'data-e2e-id': `report-pagcor-table-row-${record.id}` } as React.HTMLAttributes<HTMLTableRowElement>)}
           scroll={{ x: 4050 }}
-          pagination={{ pageSize: 20, showSizeChanger: true, showQuickJumper: true, showTotal: (total, range) => `当前：第 ${Math.ceil(range[0] / 20)} 页, 共 ${total} 条数据` }}
+          pagination={site === 'all' ? false : { pageSize: 20, showSizeChanger: true, showQuickJumper: true, showTotal: (total, range) => `当前：第 ${Math.ceil(range[0] / 20)} 页, 共 ${total} 条数据` }}
           size="small"
         />
       </Card>
