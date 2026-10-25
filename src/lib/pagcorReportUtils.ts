@@ -1,5 +1,6 @@
 import dayjs, { Dayjs } from 'dayjs';
-import type { PagcorTaxAmounts } from '@/data/pagcorMockData';
+import type { PagcorShopReportRow, PagcorTaxAmounts } from '@/data/pagcorMockData';
+import { filplayShop } from '@/data/pagcorShopData';
 import type { PagcorSite } from '@/components/PagcorSiteContext';
 
 export function pagcorSiteShare(seed: number, rowKey: string): number {
@@ -21,6 +22,48 @@ export function scopePagcorAmounts(amounts: PagcorTaxAmounts, share: number, sit
     result[key] = (site === 'filbet' ? filbetCents : cents - filbetCents) / 100;
   }
   return result;
+}
+
+function sumPagcorAmounts(amounts: PagcorTaxAmounts[]): PagcorTaxAmounts {
+  const result: PagcorTaxAmounts = { validBet: 0, payout: 0, fsBet: 0, fsPayout: 0, jpContribution: 0, jpPayout: 0 };
+  for (const key of Object.keys(result) as Array<keyof PagcorTaxAmounts>) {
+    result[key] = amounts.reduce((cents, row) => cents + Math.round(row[key] * 100), 0) / 100;
+  }
+  return result;
+}
+
+export type PagcorShopAmountsRow = Pick<PagcorShopReportRow, 'id' | 'shop' | 'onsite' | 'online'>;
+
+// Filter source rows before calling: a Filplay shop can contain many providers/categories.
+export function scopePagcorShopReport(rows: PagcorShopReportRow[], seed: number, site: PagcorSite): PagcorShopAmountsRow[] {
+  if (!rows.length) return [];
+  const split = (brand: 'filbet' | 'filplay') => rows.map((row) => {
+    const share = pagcorSiteShare(seed, row.shop);
+    return {
+      ...row,
+      onsite: scopePagcorAmounts(row.onsite, share, brand),
+      online: scopePagcorAmounts(row.online, share, brand),
+    };
+  });
+  if (site === 'filbet') return split('filbet');
+
+  const filplayRows = split('filplay');
+  const filplayTotal: PagcorShopAmountsRow = {
+    id: `filplay-shop-${filplayShop.id}`,
+    shop: filplayShop.name,
+    onsite: sumPagcorAmounts(filplayRows.map((row) => row.onsite)),
+    online: sumPagcorAmounts(filplayRows.map((row) => row.online)),
+  };
+  if (site === 'filplay') return [filplayTotal];
+
+  const combined: PagcorShopAmountsRow[] = split('filbet').map((row) => row.shop === filplayShop.name ? {
+    ...row,
+    onsite: sumPagcorAmounts([row.onsite, filplayTotal.onsite]),
+    online: sumPagcorAmounts([row.online, filplayTotal.online]),
+  } : row);
+  // The source shop-2 row may be excluded by a provider/category filter.
+  if (!combined.some((row) => row.shop === filplayShop.name)) combined.push(filplayTotal);
+  return combined;
 }
 
 export type PagcorQuickRange = 'today' | 'yesterday' | 'week' | 'month' | 'lastMonth';

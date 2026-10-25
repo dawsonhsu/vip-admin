@@ -10,10 +10,10 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { Dayjs } from 'dayjs';
 import { usePagcorSite } from '@/components/PagcorSiteContext';
+import { filplayShop, pagcorShopNamesForSite } from '@/data/pagcorShopData';
 import { downloadCsv, rangeOf, toCsvCell, type PagcorQuickRange } from '@/lib/pagcorReportUtils';
 import {
   generatePagcorBetRecords,
-  pagcorSites,
   pagcorProviders,
   pagcorGameTypes,
   pagcorBetTypes,
@@ -69,13 +69,20 @@ export default function AllPlatRecordsPage() {
   const [jpDetailRecord, setJpDetailRecord] = useState<PagcorBetRecord | null>(null);
 
   useEffect(() => {
-    setAllRecords(generatePagcorBetRecords(400));
+    setAllRecords(generatePagcorBetRecords(400).map((record) => record.brandOwner === 'filplay'
+      ? { ...record, gamingSite: filplayShop.name, merchantNo: String(filplayShop.id) } : record));
     form.setFieldsValue({ timeType: 'bet', dateRange: rangeOf('month') });
     setFilters({ timeType: 'bet', dateRange: rangeOf('month') });
     setMounted(true);
   }, [form]);
 
-  useEffect(() => { setJpDetailRecord(null); }, [site]);
+  useEffect(() => {
+    setJpDetailRecord(null);
+    if (site === 'filplay') {
+      if (form.getFieldValue('site') !== filplayShop.name) form.setFieldsValue({ site: undefined });
+      setFilters((current) => current.site && current.site !== filplayShop.name ? { ...current, site: undefined } : current);
+    }
+  }, [site, form]);
 
   const applyQuick = (key: QuickRange) => {
     setActiveQuick(key);
@@ -218,7 +225,7 @@ export default function AllPlatRecordsPage() {
                   allowClear
                   showSearch
                   optionFilterProp="label"
-                  options={pagcorSites.map((s) => ({ label: s, value: s }))}
+                  options={pagcorShopNamesForSite(site).map((s) => ({ label: s, value: s }))}
                 />
               </Form.Item>
             </Col>

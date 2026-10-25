@@ -9,11 +9,11 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { usePagcorSite } from '@/components/PagcorSiteContext';
 import PagcorGgrInfo from '@/components/PagcorGgrInfo';
+import { filplayShop, pagcorShopNamesForSite } from '@/data/pagcorShopData';
 import {
   generatePagcorTaxReport,
   pagcorCategories,
   pagcorProviders,
-  pagcorSites,
   type PagcorTaxReportRow,
 } from '@/data/pagcorMockData';
 import {
@@ -76,6 +76,13 @@ export default function PagcorTaxReportPage() {
     setMounted(true);
   }, [form]);
 
+  useEffect(() => {
+    if (site === 'filplay') {
+      if (form.getFieldValue('site') !== filplayShop.name) form.setFieldsValue({ site: undefined });
+      setFilters((current) => current.site && current.site !== filplayShop.name ? { ...current, site: undefined } : current);
+    }
+  }, [site, form]);
+
   const allRows = useMemo(() => {
     const seed = seedForPagcorDateRange(filters.dateRange, 20260907);
     return generatePagcorTaxReport(seed).map((row) => {
@@ -86,6 +93,7 @@ export default function PagcorTaxReportPage() {
       }, share, site);
       return {
         ...row,
+        site: site === 'filplay' ? filplayShop.name : row.site,
         onsite: scopePagcorAmounts(row.onsite, share, site),
         online: scopePagcorAmounts(row.online, share, site),
         testValidBet: testAmounts.validBet,
@@ -179,7 +187,7 @@ export default function PagcorTaxReportPage() {
           <Row gutter={[16, 0]}>
             <Col xs={24} sm={12} xl={6}>
               <Form.Item name="site" label="业务归属">
-                <Select data-e2e-id="report-pagcor-filter-site-select" placeholder="请选择" allowClear showSearch optionFilterProp="label" options={pagcorSites.map((v) => ({ label: v, value: v }))} />
+                <Select data-e2e-id="report-pagcor-filter-site-select" placeholder="请选择" allowClear showSearch optionFilterProp="label" options={pagcorShopNamesForSite(site).map((v) => ({ label: v, value: v }))} />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12} xl={6}>

@@ -1,6 +1,7 @@
 import type { Dayjs } from 'dayjs';
 import type { PagcorDataSite } from '@/components/PagcorSiteContext';
 import { pagcorSites } from '@/data/pagcorMockData';
+import { filplayShop } from '@/data/pagcorShopData';
 
 export const pagcorDepositChannels: Record<PagcorDataSite, string[]> = {
   filbet: ['GCash', 'Maya', 'QRPH', 'Bank Transfer', '7-Eleven'],
@@ -110,6 +111,7 @@ export function generatePagcorDeposits(brand: PagcorDataSite, anchor: Dayjs, cou
     const fee = channel === 'Bank Transfer' || channel === '7-Eleven' ? 10 : 0;
     return {
       ...user, id: `D${randomDigits(random, 18)}`, amount,
+      site: brand === 'filplay' ? filplayShop.name : user.site,
       paidAmount: status === 'Completed' ? Math.round((amount - fee) * 100) / 100 : 0,
       channel, externalOrderId: `${externalOrderPrefixes[channel]}${randomDigits(random, 14)}`, status,
       ...timestamps(anchor, random, index),
@@ -127,8 +129,10 @@ export function generatePagcorWithdrawals(brand: PagcorDataSite, anchor: Dayjs, 
     const accountType = accountTypes[Math.floor(random() * accountTypes.length)];
     const fee = random() < 0.3 ? 15 : 0;
     const status = statuses[Math.floor(random() * statuses.length)];
+    const user = users[index % users.length];
     return {
-      ...users[index % users.length], id: `W${randomDigits(random, 18)}`, amount,
+      ...user, id: `W${randomDigits(random, 18)}`, amount,
+      site: brand === 'filplay' ? filplayShop.name : user.site,
       paidAmount: status === 'Completed' ? Math.round((amount - fee) * 100) / 100 : 0,
       fee, accountType, status, ...timestamps(anchor, random, index),
     };

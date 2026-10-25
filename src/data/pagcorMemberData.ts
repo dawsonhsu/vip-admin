@@ -1,5 +1,6 @@
 import type { Dayjs } from 'dayjs';
 import { pagcorSites } from '@/data/pagcorMockData';
+import { filplayShop } from '@/data/pagcorShopData';
 
 export type PagcorMemberBrand = 'filbet' | 'filplay';
 export interface PagcorMemberWallet {
@@ -31,6 +32,11 @@ export interface PagcorMember {
   idNumber: string;
   kycReviewedAt: string;
   kycRemark: string;
+}
+
+export function scopePagcorMembers(members: PagcorMember[], site: PagcorMemberBrand): PagcorMember[] {
+  return members.filter((member) => member.wallets[site])
+    .map((member) => site === 'filplay' ? { ...member, site: filplayShop.name } : member);
 }
 
 function mulberry32(seed: number) {

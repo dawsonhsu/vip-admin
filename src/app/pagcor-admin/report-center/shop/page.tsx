@@ -13,12 +13,10 @@ import {
   generatePagcorShopReport,
   pagcorCategories,
   pagcorProviders,
-  type PagcorShopReportRow,
   type PagcorTaxAmounts,
 } from '@/data/pagcorMockData';
 import {
-  pagcorSiteShare,
-  scopePagcorAmounts,
+  scopePagcorShopReport,
   derivePagcorAmounts,
   downloadCsv,
   formatPagcorAmount,
@@ -26,6 +24,7 @@ import {
   seedForPagcorDateRange,
   toCsvCell,
   type PagcorQuickRange,
+  type PagcorShopAmountsRow,
 } from '@/lib/pagcorReportUtils';
 
 const { Title } = Typography;
@@ -34,7 +33,7 @@ const amount = (value: number) => formatPagcorAmount(value);
 
 type AmountSide = 'onsite' | 'online';
 
-const exportColumns: Array<[string, (r: PagcorShopReportRow) => string]> = [
+const exportColumns: Array<[string, (r: PagcorShopAmountsRow) => string]> = [
   ['门店', (r) => r.shop],
   ['Onsite 有效投注', (r) => amount(r.onsite.validBet)],
   ['Onsite 有效派彩', (r) => amount(r.onsite.payout)],
@@ -54,9 +53,9 @@ const exportColumns: Array<[string, (r: PagcorShopReportRow) => string]> = [
   ['Online JP 派彩', (r) => amount(r.online.jpPayout)],
 ];
 
-function amountGroup(side: AmountSide, label: string): ColumnsType<PagcorShopReportRow>[number] {
+function amountGroup(side: AmountSide, label: string): ColumnsType<PagcorShopAmountsRow>[number] {
   const infoId = `report-shop-${side}-ggr-info`;
-  const read = (row: PagcorShopReportRow): PagcorTaxAmounts => row[side];
+  const read = (row: PagcorShopAmountsRow): PagcorTaxAmounts => row[side];
   return {
     title: label,
     align: 'center',
@@ -91,23 +90,15 @@ export default function ShopTaxReportPage() {
     setMounted(true);
   }, [form]);
 
-  const allRows = useMemo(() => {
+  const filteredData = useMemo(() => {
     const seed = seedForPagcorDateRange(filters.dateRange, 20260908);
-    return generatePagcorShopReport(seed).map((row) => {
-      const share = pagcorSiteShare(seed, row.shop);
-      return {
-        ...row,
-        onsite: scopePagcorAmounts(row.onsite, share, site),
-        online: scopePagcorAmounts(row.online, share, site),
-      };
+    const rows = generatePagcorShopReport(seed).filter((row) => {
+      if (filters.provider && row.provider !== filters.provider) return false;
+      if (filters.category && row.pagcorCategory !== filters.category) return false;
+      return true;
     });
-  }, [filters.dateRange, site]);
-
-  const filteredData = useMemo(() => allRows.filter((row) => {
-    if (filters.provider && row.provider !== filters.provider) return false;
-    if (filters.category && row.pagcorCategory !== filters.category) return false;
-    return true;
-  }), [allRows, filters]);
+    return scopePagcorShopReport(rows, seed, site);
+  }, [filters, site]);
 
   const applyQuick = (key: PagcorQuickRange) => {
     const dateRange = rangeOf(key);
@@ -131,7 +122,7 @@ export default function ShopTaxReportPage() {
     downloadCsv(`门店税收报表_${dayjs().format('YYYYMMDD_HHmmss')}.csv`, lines.join('\n'));
   };
 
-  const columns: ColumnsType<PagcorShopReportRow> = [
+  const columns: ColumnsType<PagcorShopAmountsRow> = [
     { title: '门店', dataIndex: 'shop', width: 360, align: 'center', fixed: 'left', ellipsis: true },
     amountGroup('onsite', 'Onsite'),
     amountGroup('online', 'Online'),

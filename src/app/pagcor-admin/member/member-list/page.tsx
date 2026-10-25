@@ -6,8 +6,8 @@ import { ColumnHeightOutlined, FolderOpenOutlined, InfoCircleOutlined, ReloadOut
 import type { ColumnsType } from 'antd/es/table';
 import dayjs, { type Dayjs } from 'dayjs';
 import { usePagcorSite, type PagcorDataSite } from '@/components/PagcorSiteContext';
-import { pagcorSites } from '@/data/pagcorMockData';
-import { generatePagcorMembers, pagcorMemberStates, pagcorMemberSubStates, pagcorMemberKycStatuses, type PagcorMember } from '@/data/pagcorMemberData';
+import { filplayShop, pagcorShopNamesForSite } from '@/data/pagcorShopData';
+import { generatePagcorMembers, scopePagcorMembers, pagcorMemberStates, pagcorMemberSubStates, pagcorMemberKycStatuses, type PagcorMember } from '@/data/pagcorMemberData';
 import { downloadCsv, formatPagcorAmount, rangeOf, toCsvCell, type PagcorQuickRange } from '@/lib/pagcorReportUtils';
 
 const { Title } = Typography;
@@ -51,8 +51,7 @@ export default function MemberListPage() {
     setMounted(true);
   }, []);
 
-  const filteredData = useMemo(() => records.filter((record) => {
-    if (!record.wallets[brand]) return false;
+  const filteredData = useMemo(() => scopePagcorMembers(records, brand).filter((record) => {
     for (const key of ['uid', 'username', 'phone'] as const) {
       if (filters[key] && !record[key].includes(filters[key]!.trim())) return false;
     }
@@ -67,7 +66,13 @@ export default function MemberListPage() {
     return true;
   }), [records, filters, brand]);
 
-  useEffect(() => { setDetail(null); }, [brand]);
+  useEffect(() => {
+    setDetail(null);
+    if (brand === 'filplay') {
+      if (form.getFieldValue('site') !== filplayShop.name) form.setFieldsValue({ site: undefined });
+      setFilters((current) => current.site && current.site !== filplayShop.name ? { ...current, site: undefined } : current);
+    }
+  }, [brand, form]);
 
   const onReset = () => {
     form.resetFields();
@@ -124,7 +129,7 @@ export default function MemberListPage() {
             { key: 'subState', id: 'sub-state', label: '子状态', options: pagcorMemberSubStates },
             { key: 'kycStatus', id: 'kyc-status', label: 'KYC状态', options: pagcorMemberKycStatuses },
           ].map((field) => <Col key={field.key} xs={24} sm={12} xl={6}><Form.Item name={field.key} label={field.label}><Select data-e2e-id={`member-list-filter-${field.id}-select`} placeholder="请选择" allowClear options={field.options.map((value) => ({ value, label: value }))} /></Form.Item></Col>)}
-          <Col xs={24} sm={12} xl={6}><Form.Item name="site" label="门店"><Select data-e2e-id="member-list-filter-site-select" placeholder="请选择" allowClear showSearch optionFilterProp="label" options={pagcorSites.map((value) => ({ value, label: value }))} /></Form.Item></Col>
+          <Col xs={24} sm={12} xl={6}><Form.Item name="site" label="门店"><Select data-e2e-id="member-list-filter-site-select" placeholder="请选择" allowClear showSearch optionFilterProp="label" options={pagcorShopNamesForSite(brand).map((value) => ({ value, label: value }))} /></Form.Item></Col>
           <Col xs={24}>
             <Form.Item label="注册时间"><Space wrap={false} size={8}>
               <Form.Item name="dateRange" noStyle><RangePicker data-e2e-id="member-list-filter-date-range" showTime format="YYYY-MM-DD HH:mm:ss" placeholder={['开始日期', '结束日期']} style={{ width: 380 }} onChange={() => setActiveQuick(null)} /></Form.Item>
