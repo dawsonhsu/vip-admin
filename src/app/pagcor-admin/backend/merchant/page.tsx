@@ -140,7 +140,7 @@ export default function MerchantPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Title level={5} style={{ margin: 0 }}>门店管理</Title>
         <Space>
-          {brand === 'filbet' && <Button data-e2e-id="merchant-toolbar-add-btn" type="primary" onClick={() => openEditor(null)}>新增门店</Button>}
+          <Button data-e2e-id="merchant-toolbar-add-btn" type="primary" onClick={() => openEditor(null)}>新增门店</Button>
           <Button data-e2e-id="merchant-toolbar-refresh-btn" icon={<ReloadOutlined />} />
           <Button data-e2e-id="merchant-toolbar-density-btn" icon={<ColumnHeightOutlined />} />
           <Button data-e2e-id="merchant-toolbar-settings-btn" icon={<SettingOutlined />} />
@@ -157,7 +157,7 @@ export default function MerchantPage() {
         } : { enabled: true });
       }}>
       <Form form={editForm} layout="vertical" preserve={false} initialValues={{ enabled: true }}>
-        <Form.Item name="id" label="ID" rules={[{ required: true, message: '请输入ID' }, { validator: (_, value: number | null | undefined) => value != null && records.some((record) => record.id === value && record.id !== editing?.id) ? Promise.reject(new Error('ID已存在')) : Promise.resolve() }]}><InputNumber data-e2e-id="merchant-edit-id-input" disabled={brand === 'filplay' || !!editing} precision={0} style={{ width: '100%' }} /></Form.Item>
+        <Form.Item name="id" label="ID" rules={[{ required: true, message: '请输入ID' }, { validator: (_, value: number | null | undefined) => value != null && records.some((record) => record.id === value && record.id !== editing?.id) ? Promise.reject(new Error('ID已存在')) : Promise.resolve() }]}><InputNumber data-e2e-id="merchant-edit-id-input" disabled={!!editing} precision={0} style={{ width: '100%' }} /></Form.Item>
         <Form.Item name="name" label="门店名称" rules={[{ required: true, whitespace: true, message: '请输入门店名称' }]}><Input data-e2e-id="merchant-edit-name-input" /></Form.Item>
         <Form.Item name="address" label="地址"><Input data-e2e-id="merchant-edit-address-input" /></Form.Item>
         <Form.Item name="domains" label="域名" rules={[{ validator: (_, value: string | undefined) => {
