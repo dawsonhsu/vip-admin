@@ -52,6 +52,8 @@ import LossRebateConfigModal from '@/components/LossRebateConfigModal';
 import LossRebateReportModal from '@/components/LossRebateReportModal';
 import ProviderLeaderboardConfigModal from '@/components/ProviderLeaderboardConfigModal';
 import ProviderLeaderboardReportModal from '@/components/ProviderLeaderboardReportModal';
+import AppLoginRewardConfigModal from '@/components/AppLoginRewardConfigModal';
+import AppLoginRewardReportModal from '@/components/AppLoginRewardReportModal';
 
 // 识别哪些活动是 FreeBet 类型（可拆独立配置 + 报表）
 const FREEBET_ACTIVITY_IDS = new Set<number>([29]);
@@ -64,6 +66,7 @@ const DAILY_MULTI_DEPOSIT_ID = 22;
 const CASHBACK_ID = 32;
 const LOSS_REBATE_ID = 33;
 const PROVIDER_LEADERBOARD_ID = 34;
+const APP_LOGIN_REWARD_ID = 35;
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -95,8 +98,14 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   const [lossRebateReportOpen, setLossRebateReportOpen] = useState(false);
   const [providerLeaderboardConfigOpen, setProviderLeaderboardConfigOpen] = useState(false);
   const [providerLeaderboardReportOpen, setProviderLeaderboardReportOpen] = useState(false);
+  const [appLoginRewardConfigOpen, setAppLoginRewardConfigOpen] = useState(false);
+  const [appLoginRewardReportOpen, setAppLoginRewardReportOpen] = useState(false);
 
   const handleEditConfig = (record: ActivityRecord) => {
+    if (record.id === APP_LOGIN_REWARD_ID) {
+      setAppLoginRewardConfigOpen(true);
+      return;
+    }
     if (record.id === PROVIDER_LEADERBOARD_ID) {
       setProviderLeaderboardConfigOpen(true);
       return;
@@ -141,6 +150,10 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
   };
 
   const handleViewReport = (record: ActivityRecord) => {
+    if (record.id === APP_LOGIN_REWARD_ID) {
+      setAppLoginRewardReportOpen(true);
+      return;
+    }
     if (record.id === PROVIDER_LEADERBOARD_ID) {
       setProviderLeaderboardReportOpen(true);
       return;
@@ -323,6 +336,7 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
             record.id === RECALL_MYSTERY_BOX_ID ||
             record.id === CASHBACK_ID ||
             record.id === LOSS_REBATE_ID ||
+            record.id === APP_LOGIN_REWARD_ID ||
             record.id === PROVIDER_LEADERBOARD_ID) && (
             <Button
               data-e2e-id={`activity-list-table-view-report-btn-${record.id}`}
@@ -499,6 +513,14 @@ function ActivityTable({ data }: { data: ActivityRecord[] }) {
       <ProviderLeaderboardReportModal
         open={providerLeaderboardReportOpen}
         onClose={() => setProviderLeaderboardReportOpen(false)}
+      />
+      <AppLoginRewardConfigModal
+        open={appLoginRewardConfigOpen}
+        onClose={() => setAppLoginRewardConfigOpen(false)}
+      />
+      <AppLoginRewardReportModal
+        open={appLoginRewardReportOpen}
+        onClose={() => setAppLoginRewardReportOpen(false)}
       />
     </>
   );

@@ -36,6 +36,14 @@ export interface VipTaskRecord {
 // 限时活动（有效）
 export const activeActivities: ActivityRecord[] = [
   {
+    key: 35, id: 35, type: 'App登录奖励', name: 'App登录奖励', status: '进行中',
+    introEN: '-', introTA: '-',
+    startTime: '2026-11-03 00:00:00', endTime: '2026-12-31 23:59:59',
+    cycle: '-', settleCycle: '即时',
+    report: '查看报表', budgetLimit: '-', currentPaid: '₱ 0.00',
+    updatedAt: '2026-11-10 00:00:00', updatedBy: 'darren@filbetph.com',
+  },
+  {
     key: 34, id: 34, type: '排行榜类', name: '廠商排行榜', status: '进行中',
     introEN: '-', introTA: '-',
     startTime: '2026-09-12 00:00:00', endTime: '2026-12-31 23:59:59',
