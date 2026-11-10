@@ -9,17 +9,18 @@ import { appLoginRewardRecords, type AppLoginRewardRecord } from '@/data/appLogi
 
 const E2E = 'app-login-reward-report-modal';
 interface ReportFilters {
-  searchText: string;
+  account: string;
+  phone: string;
   dispatchedRange: [Dayjs, Dayjs] | null;
   rewardType: 'all' | AppLoginRewardRecord['rewardType'];
 }
 
 const getDefaultFilters = (): ReportFilters => ({
-  searchText: '',
+  account: '',
+  phone: '',
   dispatchedRange: [dayjs('2026-11-03 00:00:00'), dayjs('2026-11-10 23:59:59')],
   rewardType: 'all',
 });
-const splitTerms = (value: string) => value.split(',').map((term) => term.trim().toLowerCase()).filter(Boolean);
 const formatCurrency = (value: number) => `₱${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const statisticCardStyle: React.CSSProperties = { height: '100%' };
@@ -76,14 +77,16 @@ export default function AppLoginRewardReportModal({ open, onClose }: { open: boo
   }, [open, form]);
 
   const filteredRows = useMemo(() => {
-    const terms = splitTerms(filters.searchText ?? '');
+    const account = (filters.account ?? '').trim().toLowerCase();
+    const phone = (filters.phone ?? '').trim();
     return appLoginRewardRecords.filter((row) => {
       if (filters.dispatchedRange) {
         const [start, end] = filters.dispatchedRange;
         // Compare GMT+8 wall-clock values independently of browser timezone.
         if (row.dispatchedAt < start.format('YYYY-MM-DD HH:mm:ss') || row.dispatchedAt > end.format('YYYY-MM-DD HH:mm:ss')) return false;
       }
-      if (terms.length && !terms.some((term) => row.account.toLowerCase().includes(term) || row.phone.includes(term))) return false;
+      if (account && !row.account.toLowerCase().includes(account)) return false;
+      if (phone && !row.phone.includes(phone)) return false;
       return filters.rewardType === 'all' || row.rewardType === filters.rewardType;
     });
   }, [filters]);
@@ -122,8 +125,11 @@ export default function AppLoginRewardReportModal({ open, onClose }: { open: boo
             <Form.Item name="dispatchedRange" label="派发时间">
               <DatePicker.RangePicker data-e2e-id={`${E2E}-filter-dispatched-range`} showTime format="YYYY-MM-DD HH:mm:ss" style={{ width: 360 }} />
             </Form.Item>
-            <Form.Item name="searchText" label="会员账号/手机号">
-              <Input data-e2e-id={`${E2E}-filter-search-input`} allowClear placeholder="输入账号或手机号，多个以逗号分隔" style={{ width: 280 }} />
+            <Form.Item name="account" label="会员账号">
+              <Input data-e2e-id={`${E2E}-filter-account-input`} allowClear placeholder="请输入会员账号" style={{ width: 180 }} />
+            </Form.Item>
+            <Form.Item name="phone" label="手机号">
+              <Input data-e2e-id={`${E2E}-filter-phone-input`} allowClear placeholder="请输入手机号" style={{ width: 180 }} />
             </Form.Item>
             <Form.Item name="rewardType" label="奖励类型">
               <Select data-e2e-id={`${E2E}-filter-reward-type-select`} style={{ width: 160 }} options={[
