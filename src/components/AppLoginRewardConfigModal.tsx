@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Card, Checkbox, Col, Form, Input, InputNumber, Row, Typography } from 'antd';
+import { Card, Col, Form, Input, InputNumber, Radio, Row, Typography } from 'antd';
 import type { FormInstance } from 'antd';
 import ActivityConfigWizardShell, { type WizardStepDef } from './activityConfigShared/ActivityConfigWizardShell';
 import { BaseConfigStep, baseConfigInitialValues, BASE_CONFIG_STEP_FIELDS } from './activityConfigShared/BaseConfigStep';
@@ -14,31 +14,31 @@ const HIDDEN_BASE_FIELDS = ['depositChannels', 'wagerVenueRestriction'];
 const cashItemProps = { labelCol: { span: 24 }, wrapperCol: { span: 24 }, colon: false };
 
 function RewardConfigStep({ form }: { form: FormInstance }) {
-  const rewardTypes: string[] = Form.useWatch('rewardTypes', form) ?? appLoginRewardDefaultConfig.rewardTypes;
+  const rewardType = Form.useWatch('rewardType', form) ?? appLoginRewardDefaultConfig.rewardType;
   const amount = Form.useWatch(['cash', 'amount'], form);
   const multiplier = Form.useWatch(['cash', 'rolloverMultiplier'], form);
   const rollover = Number(amount ?? 0) * Number(multiplier ?? 0);
 
   return (
     <>
-      <Form.Item label="奖励内容" name="rewardTypes" rules={[{ type: 'array', required: true, min: 1, message: '请至少选择一种奖励' }]}>
-        <Checkbox.Group data-e2e-id={`${E2E}-reward-types-checkbox`}>
-          <Checkbox value="cash" data-e2e-id={`${E2E}-reward-cash-checkbox`}>彩金</Checkbox>
-          <Checkbox value="freespin" data-e2e-id={`${E2E}-reward-freespin-checkbox`}>免费旋转</Checkbox>
-        </Checkbox.Group>
+      <Form.Item label="奖励类型" name="rewardType" rules={[{ required: true, message: '请选择奖励类型' }]}>
+        <Radio.Group data-e2e-id={`${E2E}-reward-type-radio`}>
+          <Radio value="cash" data-e2e-id={`${E2E}-reward-cash-radio`}>现金</Radio>
+          <Radio value="freeSpin" data-e2e-id={`${E2E}-reward-freespin-radio`}>Free Spin</Radio>
+        </Radio.Group>
       </Form.Item>
-      {rewardTypes.includes('cash') && (
-        <Card size="small" title="彩金配置" data-e2e-id={`${E2E}-cash-card`}>
+      {rewardType === 'cash' && (
+        <Card size="small" title="现金配置" data-e2e-id={`${E2E}-cash-card`}>
           <Row gutter={[16, 12]}>
             <Col span={12}>
-              <Form.Item {...cashItemProps} label="彩金金额" name={['cash', 'amount']}
-                rules={[{ required: true, type: 'number', min: 0.01, message: '请输入大于或等于 0.01 的彩金金额' }]}>
+              <Form.Item {...cashItemProps} label="现金金额" name={['cash', 'amount']}
+                rules={[{ required: true, type: 'number', min: 0.01, message: '请输入大于或等于 0.01 的现金金额' }]}>
                 <InputNumber data-e2e-id={`${E2E}-cash-amount-input`} prefix="₱" min={0.01} precision={2} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item {...cashItemProps} label="流水倍数" name={['cash', 'rolloverMultiplier']}
-                tooltip="流水要求 = 彩金金额 × 流水倍数，填 0 表示无流水要求"
+                tooltip="流水要求 = 现金金额 × 流水倍数，填 0 表示无流水要求"
                 rules={[{ required: true, type: 'number', min: 0, message: '请输入大于或等于 0 的流水倍数' }]}>
                 <InputNumber data-e2e-id={`${E2E}-cash-rollover-multiplier-input`} min={0} step={0.5} addonAfter="倍" style={{ width: '100%' }} />
               </Form.Item>
@@ -54,7 +54,7 @@ function RewardConfigStep({ form }: { form: FormInstance }) {
           </Row>
         </Card>
       )}
-      {rewardTypes.includes('freespin') && (
+      {rewardType === 'freeSpin' && (
         <FreeSpinStep form={form} e2ePrefix={E2E} showGoogleCode={false}
           hideFields={['reviewMode', 'creditMode']} gameLimitToProvider showSpinCount />
       )}

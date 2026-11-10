@@ -8,11 +8,10 @@ import type { ColumnsType } from 'antd/es/table';
 import { appLoginRewardRecords, type AppLoginRewardRecord } from '@/data/appLoginRewardData';
 
 const E2E = 'app-login-reward-report-modal';
-type RewardType = 'cash' | 'freespin' | 'both';
 interface ReportFilters {
   searchText: string;
   dispatchedRange: [Dayjs, Dayjs] | null;
-  rewardType: 'all' | RewardType;
+  rewardType: 'all' | AppLoginRewardRecord['rewardType'];
 }
 
 const getDefaultFilters = (): ReportFilters => ({
@@ -22,17 +21,6 @@ const getDefaultFilters = (): ReportFilters => ({
 });
 const splitTerms = (value: string) => value.split(',').map((term) => term.trim().toLowerCase()).filter(Boolean);
 const formatCurrency = (value: number) => `₱${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const rewardTypeLabels: Record<RewardType, string> = { cash: '彩金', freespin: '免费旋转', both: '彩金+免费旋转' };
-const getRewardType = (row: AppLoginRewardRecord): RewardType => row.cashAmount === null ? 'freespin' : row.fsCount === null ? 'cash' : 'both';
-const getRewardContent = (row: AppLoginRewardRecord) => {
-  const parts: string[] = [];
-  if (row.cashAmount !== null) {
-    const rollover = row.rolloverMultiplier === 0 ? '无流水' : `${row.rolloverMultiplier}倍流水`;
-    parts.push(`彩金 ${formatCurrency(row.cashAmount)}（${rollover}）`);
-  }
-  if (row.fsCount !== null) parts.push(`${row.fsProvider} / ${row.fsGame} ${row.fsCount} 次`);
-  return parts.join('；');
-};
 
 const statisticCardStyle: React.CSSProperties = { height: '100%' };
 const statisticValueStyle: React.CSSProperties = {
@@ -48,9 +36,10 @@ const reportFields: { key: string; title: string; width: number; value: (row: Ap
   { key: 'phone', title: '手机号', width: 135, value: (row) => row.phone },
   { key: 'uid', title: 'UID', width: 110, value: (row) => row.uid },
   { key: 'terminal', title: '登录终端', width: 100, value: (row) => row.terminal },
-  { key: 'rewardType', title: '奖励类型', width: 160, value: (row) => rewardTypeLabels[getRewardType(row)] },
-  { key: 'rewardContent', title: '奖励内容', width: 420, value: getRewardContent },
-  { key: 'dispatchStatus', title: '派发状态', width: 100, value: () => '已派发' },
+  { key: 'rewardType', title: '奖励类型', width: 160, value: (row) => row.rewardTypeLabel },
+  { key: 'rewardContent', title: '奖励内容', width: 270, value: (row) => row.rewardContent },
+  { key: 'rolloverRequirement', title: '流水要求', width: 150, value: (row) => row.rolloverRequirement },
+  { key: 'dispatchStatus', title: '派发状态', width: 100, value: (row) => row.dispatchStatus },
 ];
 
 function downloadCsv(rows: AppLoginRewardRecord[]) {
@@ -95,14 +84,14 @@ export default function AppLoginRewardReportModal({ open, onClose }: { open: boo
         if (row.dispatchedAt < start.format('YYYY-MM-DD HH:mm:ss') || row.dispatchedAt > end.format('YYYY-MM-DD HH:mm:ss')) return false;
       }
       if (terms.length && !terms.some((term) => row.account.toLowerCase().includes(term) || row.phone.includes(term))) return false;
-      return filters.rewardType === 'all' || getRewardType(row) === filters.rewardType;
+      return filters.rewardType === 'all' || row.rewardType === filters.rewardType;
     });
   }, [filters]);
 
   const stats = useMemo(() => ({
     members: new Set(filteredRows.map((row) => row.uid)).size,
-    cash: filteredRows.reduce((sum, row) => sum + (row.cashAmount ?? 0), 0),
-    spins: filteredRows.reduce((sum, row) => sum + (row.fsCount ?? 0), 0),
+    cash: filteredRows.reduce((sum, row) => sum + row.cashAmount, 0),
+    spins: filteredRows.reduce((sum, row) => sum + row.freeSpinSpins, 0),
   }), [filteredRows]);
 
   const columns: ColumnsType<AppLoginRewardRecord> = reportFields.map(({ key, title, width, value }) => ({
@@ -138,7 +127,7 @@ export default function AppLoginRewardReportModal({ open, onClose }: { open: boo
             </Form.Item>
             <Form.Item name="rewardType" label="奖励类型">
               <Select data-e2e-id={`${E2E}-filter-reward-type-select`} style={{ width: 160 }} options={[
-                { value: 'all', label: '全部' }, { value: 'cash', label: '彩金' }, { value: 'freespin', label: '免费旋转' }, { value: 'both', label: '彩金+免费旋转' },
+                { value: 'all', label: '全部' }, { value: 'cash', label: '现金' }, { value: 'freeSpin', label: 'Free Spin' },
               ]} />
             </Form.Item>
             <Form.Item>
@@ -155,10 +144,10 @@ export default function AppLoginRewardReportModal({ open, onClose }: { open: boo
             <Card style={statisticCardStyle}><Statistic data-e2e-id={`${E2E}-summary-members`} title="派发人数" value={stats.members} valueStyle={statisticValueStyle} /></Card>
           </Col>
           <Col flex="1" style={{ minWidth: 0 }}>
-            <Card style={statisticCardStyle}><Statistic data-e2e-id={`${E2E}-summary-cash`} title="彩金派发总额" value={stats.cash} formatter={() => formatCurrency(stats.cash)} valueStyle={statisticValueStyle} /></Card>
+            <Card style={statisticCardStyle}><Statistic data-e2e-id={`${E2E}-summary-cash`} title="现金派发总额" value={stats.cash} formatter={() => formatCurrency(stats.cash)} valueStyle={statisticValueStyle} /></Card>
           </Col>
           <Col flex="1" style={{ minWidth: 0 }}>
-            <Card style={statisticCardStyle}><Statistic data-e2e-id={`${E2E}-summary-spins`} title="免费旋转总次数" value={stats.spins} suffix="次" valueStyle={statisticValueStyle} /></Card>
+            <Card style={statisticCardStyle}><Statistic data-e2e-id={`${E2E}-summary-spins`} title="Free Spin 总次数" value={stats.spins} suffix="次" valueStyle={statisticValueStyle} /></Card>
           </Col>
         </Row>
 

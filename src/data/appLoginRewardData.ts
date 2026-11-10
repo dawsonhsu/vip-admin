@@ -3,7 +3,7 @@ import { gameOptions } from './newMemberTriDepositData';
 const defaultGame = gameOptions.find((game) => game.provider === 'JILI')!;
 
 export const appLoginRewardDefaultConfig = {
-  rewardTypes: ['cash', 'freespin'],
+  rewardType: 'cash',
   cash: { amount: 20, rolloverMultiplier: 1, venueRestriction: [] as string[][] },
   freeSpin: {
     provider: 'JILI',
@@ -22,23 +22,23 @@ export interface AppLoginRewardRecord {
   account: string;
   uid: string;
   terminal: 'Android' | 'iOS';
-  cashAmount: number | null;
-  rolloverMultiplier: number | null;
-  fsProvider: string | null;
-  fsGame: string | null;
-  fsCount: number | null;
+  rewardType: 'cash' | 'freeSpin';
+  rewardTypeLabel: '现金' | 'Free Spin';
+  rewardContent: string;
+  cashAmount: number;
+  freeSpinSpins: number;
+  rolloverRequirement: string;
+  dispatchStatus: '已派发';
 }
 
 const accountSeeds = ['maya_app', 'lucky_spin', 'gcash_player', 'palawan_ace', 'coin_hunter'];
 const pad = (value: number) => String(value).padStart(2, '0');
 
 export const appLoginRewardRecords: AppLoginRewardRecord[] = Array.from({ length: 40 }, (_, index) => {
-  const hasCash = index % 5 !== 4;
-  const hasFs = index % 5 !== 3;
-  const cashAmount = hasCash ? [20, 30, 50][index % 3] : null;
-  const rolloverMultiplier = hasCash ? [1, 2, 0, 1.5][index % 4] : null;
-  const game = gameOptions[index % gameOptions.length];
-  const fsCount = hasFs ? [10, 15, 20][index % 3] : null;
+  const rewardType = index % 10 < 7 ? 'cash' : 'freeSpin';
+  const cashAmount = rewardType === 'cash' ? [20, 30, 50][index % 3] : 0;
+  const freeSpinSpins = rewardType === 'freeSpin' ? [10, 15, 20][index % 3] : 0;
+  const rolloverMultiplier = [1, 2, 0, 1.5][index % 4];
   const day = pad(3 + Math.floor(index / 5));
 
   return {
@@ -48,10 +48,14 @@ export const appLoginRewardRecords: AppLoginRewardRecord[] = Array.from({ length
     account: `${accountSeeds[index % accountSeeds.length]}_${index + 1}`,
     uid: `U${910001 + index}`,
     terminal: index % 2 === 0 ? 'Android' : 'iOS',
+    rewardType,
+    rewardTypeLabel: rewardType === 'cash' ? '现金' : 'Free Spin',
+    rewardContent: rewardType === 'cash'
+      ? `₱${cashAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : `${freeSpinSpins} 次`,
     cashAmount,
-    rolloverMultiplier,
-    fsProvider: hasFs ? game.provider : null,
-    fsGame: hasFs ? game.label : null,
-    fsCount,
+    freeSpinSpins,
+    rolloverRequirement: rolloverMultiplier === 0 ? '—' : `${rolloverMultiplier} 倍`,
+    dispatchStatus: '已派发',
   };
 });
