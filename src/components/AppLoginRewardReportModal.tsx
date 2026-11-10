@@ -2,71 +2,62 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import dayjs, { type Dayjs } from 'dayjs';
-import { Button, Card, Checkbox, Col, DatePicker, Form, Input, Modal, Popover, Row, Select, Space, Statistic, Table, Tooltip, Typography, message } from 'antd';
-import { CloseOutlined, DownloadOutlined, ReloadOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons';
+import { Button, Card, Col, DatePicker, Form, Input, Modal, Row, Select, Space, Statistic, Table, Tooltip, message } from 'antd';
+import { CloseOutlined, DownloadOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { appLoginRewardRecords, type AppLoginRewardRecord } from '@/data/appLoginRewardData';
 
 const E2E = 'app-login-reward-report-modal';
-const { Text } = Typography;
-type SearchField = 'phone' | 'account' | 'uid';
+type RewardType = 'cash' | 'freespin' | 'both';
 interface ReportFilters {
-  searchField: SearchField;
   searchText: string;
   dispatchedRange: [Dayjs, Dayjs] | null;
-  terminal: 'all' | AppLoginRewardRecord['terminal'];
-  rewardType: 'all' | 'cash' | 'freespin' | 'both';
-  rolloverStatus: 'all' | NonNullable<AppLoginRewardRecord['rolloverStatus']>;
+  rewardType: 'all' | RewardType;
 }
 
 const getDefaultFilters = (): ReportFilters => ({
-  searchField: 'phone',
   searchText: '',
   dispatchedRange: [dayjs('2026-11-03 00:00:00'), dayjs('2026-11-10 23:59:59')],
-  terminal: 'all',
   rewardType: 'all',
-  rolloverStatus: 'all',
 });
 const splitTerms = (value: string) => value.split(',').map((term) => term.trim().toLowerCase()).filter(Boolean);
-const formatCurrency = (value: number) => `₱ ${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const renderOptional = (value: string | number | null) => value === null ? <Text type="secondary">—</Text> : value;
-const renderMoney = (value: number | null) => value === null ? renderOptional(null) : formatCurrency(value);
+const formatCurrency = (value: number) => `₱${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const rewardTypeLabels: Record<RewardType, string> = { cash: '彩金', freespin: '免费旋转', both: '彩金+免费旋转' };
+const getRewardType = (row: AppLoginRewardRecord): RewardType => row.cashAmount === null ? 'freespin' : row.fsCount === null ? 'cash' : 'both';
+const getRewardContent = (row: AppLoginRewardRecord) => {
+  const parts: string[] = [];
+  if (row.cashAmount !== null) {
+    const rollover = row.rolloverMultiplier === 0 ? '无流水' : `${row.rolloverMultiplier}倍流水`;
+    parts.push(`彩金 ${formatCurrency(row.cashAmount)}（${rollover}）`);
+  }
+  if (row.fsCount !== null) parts.push(`${row.fsProvider} / ${row.fsGame} ${row.fsCount} 次`);
+  return parts.join('；');
+};
 
-// One column definition list keeps the table, column picker and complete CSV in sync.
-const reportFields: { key: keyof AppLoginRewardRecord; title: string; width: number }[] = [
-  { key: 'orderId', title: '派发单号', width: 220 },
-  { key: 'dispatchedAt', title: '派发时间', width: 180 },
-  { key: 'phone', title: '手机号', width: 135 },
-  { key: 'account', title: '会员账号', width: 170 },
-  { key: 'uid', title: 'UID', width: 110 },
-  { key: 'terminal', title: '登录终端', width: 100 },
-  { key: 'appVersion', title: 'App 版本', width: 105 },
-  { key: 'cashAmount', title: '彩金金额 (₱)', width: 135 },
-  { key: 'rolloverMultiplier', title: '流水倍数', width: 100 },
-  { key: 'rolloverRequired', title: '流水要求 (₱)', width: 135 },
-  { key: 'rolloverCompleted', title: '已完成流水 (₱)', width: 150 },
-  { key: 'rolloverStatus', title: '流水状态', width: 110 },
-  { key: 'fsGame', title: '免费旋转游戏', width: 300 },
-  { key: 'fsCount', title: '旋转次数', width: 100 },
-  { key: 'fsUsed', title: '已使用次数', width: 110 },
-  { key: 'fsPayout', title: '免费旋转派彩 (₱)', width: 170 },
+const statisticCardStyle: React.CSSProperties = { height: '100%' };
+const statisticValueStyle: React.CSSProperties = {
+  fontSize: 22,
+  lineHeight: 1.25,
+  whiteSpace: 'nowrap',
+};
+
+// Share column order and displayed text between the table and CSV export.
+const reportFields: { key: string; title: string; width: number; value: (row: AppLoginRewardRecord) => string }[] = [
+  { key: 'dispatchedAt', title: '派发时间', width: 180, value: (row) => row.dispatchedAt },
+  { key: 'account', title: '会员账号', width: 170, value: (row) => row.account },
+  { key: 'phone', title: '手机号', width: 135, value: (row) => row.phone },
+  { key: 'uid', title: 'UID', width: 110, value: (row) => row.uid },
+  { key: 'terminal', title: '登录终端', width: 100, value: (row) => row.terminal },
+  { key: 'rewardType', title: '奖励类型', width: 160, value: (row) => rewardTypeLabels[getRewardType(row)] },
+  { key: 'rewardContent', title: '奖励内容', width: 420, value: getRewardContent },
+  { key: 'dispatchStatus', title: '派发状态', width: 100, value: () => '已派发' },
 ];
-const moneyFields = new Set(['cashAmount', 'rolloverRequired', 'rolloverCompleted', 'fsPayout']);
-const gameLabel = (row: AppLoginRewardRecord) => row.fsCount === null ? null : `${row.fsProvider} / ${row.fsGame}`;
 
 function downloadCsv(rows: AppLoginRewardRecord[]) {
-  const escapeCell = (value: string | number | null) => {
-    const text = value === null ? '—' : String(value);
-    return `"${text.replace(/"/g, '""')}"`;
-  };
+  const escapeCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
   const csvRows = [
     reportFields.map((field) => field.title),
-    ...rows.map((row) => reportFields.map(({ key }) => {
-      if (key === 'fsGame') return gameLabel(row);
-      if (key === 'rolloverMultiplier') return row[key] === null ? null : `${row[key]}倍`;
-      const value = row[key];
-      return moneyFields.has(key) && typeof value === 'number' ? value.toFixed(2) : value;
-    })),
+    ...rows.map((row) => reportFields.map((field) => field.value(row))),
   ];
   const blob = new Blob(['\uFEFF', csvRows.map((row) => row.map(escapeCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -83,11 +74,8 @@ function downloadCsv(rows: AppLoginRewardRecord[]) {
 
 export default function AppLoginRewardReportModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [form] = Form.useForm<ReportFilters>();
-  const searchText = Form.useWatch('searchText', form) ?? '';
-  const searchCount = splitTerms(searchText).length;
   const [filters, setFilters] = useState<ReportFilters>(getDefaultFilters);
   const [page, setPage] = useState(1);
-  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => reportFields.map((field) => field.key));
 
   useEffect(() => {
     if (open) {
@@ -99,48 +87,39 @@ export default function AppLoginRewardReportModal({ open, onClose }: { open: boo
   }, [open, form]);
 
   const filteredRows = useMemo(() => {
-    const terms = new Set(splitTerms(filters.searchText));
+    const terms = splitTerms(filters.searchText ?? '');
     return appLoginRewardRecords.filter((row) => {
-      if (terms.size && !terms.has(row[filters.searchField].toLowerCase())) return false;
       if (filters.dispatchedRange) {
         const [start, end] = filters.dispatchedRange;
-        // Both strings represent GMT+8 wall-clock values, independent of browser timezone.
+        // Compare GMT+8 wall-clock values independently of browser timezone.
         if (row.dispatchedAt < start.format('YYYY-MM-DD HH:mm:ss') || row.dispatchedAt > end.format('YYYY-MM-DD HH:mm:ss')) return false;
       }
-      if (filters.terminal !== 'all' && row.terminal !== filters.terminal) return false;
-      const rewardType = row.cashAmount === null ? 'freespin' : row.fsCount === null ? 'cash' : 'both';
-      if (filters.rewardType !== 'all' && rewardType !== filters.rewardType) return false;
-      return filters.rolloverStatus === 'all' || row.rolloverStatus === filters.rolloverStatus;
+      if (terms.length && !terms.some((term) => row.account.toLowerCase().includes(term) || row.phone.includes(term))) return false;
+      return filters.rewardType === 'all' || getRewardType(row) === filters.rewardType;
     });
   }, [filters]);
 
-  const stats = useMemo(() => {
-    const eligible = filteredRows.filter((row) => ['进行中', '已完成', '已失效'].includes(row.rolloverStatus ?? ''));
-    const completed = eligible.filter((row) => row.rolloverStatus === '已完成').length;
-    return [
-      { key: 'members', title: '派发人数', value: new Set(filteredRows.map((row) => row.uid)).size, precision: 0 },
-      { key: 'cash', title: '彩金派发总额', value: filteredRows.reduce((sum, row) => sum + (row.cashAmount ?? 0), 0), prefix: '₱', precision: 2 },
-      { key: 'spins', title: '免费旋转派发次数', value: filteredRows.reduce((sum, row) => sum + (row.fsCount ?? 0), 0), precision: 0 },
-      { key: 'payout', title: '免费旋转累计派彩', value: filteredRows.reduce((sum, row) => sum + (row.fsPayout ?? 0), 0), prefix: '₱', precision: 2 },
-      { key: 'completion', title: '流水完成率', value: eligible.length ? completed / eligible.length * 100 : 0, suffix: '%', precision: 2 },
-    ];
-  }, [filteredRows]);
+  const stats = useMemo(() => ({
+    members: new Set(filteredRows.map((row) => row.uid)).size,
+    cash: filteredRows.reduce((sum, row) => sum + (row.cashAmount ?? 0), 0),
+    spins: filteredRows.reduce((sum, row) => sum + (row.fsCount ?? 0), 0),
+  }), [filteredRows]);
 
-  const columns: ColumnsType<AppLoginRewardRecord> = reportFields.filter((field) => visibleColumns.includes(field.key)).map(({ key, title, width }) => ({
-    key, title, dataIndex: key, width,
-    fixed: key === 'orderId' ? 'left' : undefined,
-    sorter: key === 'dispatchedAt' ? (a, b) => a.dispatchedAt.localeCompare(b.dispatchedAt)
-      : key === 'cashAmount' ? (a, b) => (a.cashAmount ?? -1) - (b.cashAmount ?? -1) : undefined,
+  const columns: ColumnsType<AppLoginRewardRecord> = reportFields.map(({ key, title, width, value }) => ({
+    key, title, width,
+    fixed: key === 'dispatchedAt' ? 'left' : undefined,
+    sorter: key === 'dispatchedAt' ? (a, b) => a.dispatchedAt.localeCompare(b.dispatchedAt) : undefined,
     onHeaderCell: () => ({ 'data-e2e-id': `${E2E}-table-header-${key}` } as React.HTMLAttributes<HTMLTableCellElement>),
-    render: (value: AppLoginRewardRecord[keyof AppLoginRewardRecord], row) => {
-      if (key === 'fsGame') return renderOptional(gameLabel(row));
-      if (value === null) return renderOptional(null);
-      if (moneyFields.has(key)) return renderMoney(value as number);
-      if (key === 'rolloverMultiplier') return `${value}倍`;
-      if (key === 'rolloverStatus') return <Text type={value === '已完成' ? 'success' : value === '已失效' ? 'danger' : undefined}>{value}</Text>;
-      return value;
-    },
+    render: (_, row) => value(row),
   }));
+
+  const resetFilters = () => {
+    const defaults = getDefaultFilters();
+    form.resetFields();
+    form.setFieldsValue({ ...defaults, dispatchedRange: defaults.dispatchedRange ?? undefined });
+    setFilters(defaults);
+    setPage(1);
+  };
 
   return (
     <Modal title="App登录奖励 - 报表" open={open} onCancel={onClose} width="94%" style={{ top: 20 }}
@@ -148,80 +127,61 @@ export default function AppLoginRewardReportModal({ open, onClose }: { open: boo
       styles={{ body: { maxHeight: '78vh', overflowY: 'auto', padding: 16 } }}
       footer={<div style={{ textAlign: 'right' }}><Button data-e2e-id={`${E2E}-footer-close-btn`} onClick={onClose}>关闭</Button></div>}>
       <div data-e2e-id={`${E2E}-modal`}>
-        <Card size="small" style={{ marginBottom: 12 }}>
-          <Form form={form} layout="inline" initialValues={getDefaultFilters()} style={{ gap: 8, rowGap: 8, flexWrap: 'wrap' }}
+        <Card style={{ marginBottom: 16 }}>
+          <Form form={form} layout="inline" initialValues={getDefaultFilters()} style={{ gap: 10, rowGap: 12, flexWrap: 'wrap' }}
             onFinish={(values: ReportFilters) => { setFilters(values); setPage(1); }}>
-            <Form.Item label="搜索字段">
-              <Space direction="vertical" size={2}>
-                <Space.Compact>
-                  <Form.Item name="searchField" noStyle>
-                    <Select data-e2e-id={`${E2E}-filter-search-field-select`} style={{ width: 110 }} options={[
-                      { value: 'phone', label: '手机号' }, { value: 'account', label: '会员账号' }, { value: 'uid', label: 'UID' },
-                    ]} />
-                  </Form.Item>
-                  <Form.Item name="searchText" noStyle rules={[{
-                    validator: (_, value: string) => splitTerms(value ?? '').length <= 5000 ? Promise.resolve() : Promise.reject(new Error('最多支持 5000 个查询值')),
-                  }]}>
-                    <Input data-e2e-id={`${E2E}-filter-search-input`} allowClear placeholder="支持批量查询，以 ',' 分隔 1~5000" style={{ width: 320 }} />
-                  </Form.Item>
-                </Space.Compact>
-                <Text type={searchCount > 5000 ? 'danger' : 'secondary'} style={{ fontSize: 12 }} data-e2e-id={`${E2E}-filter-search-count-text`}>{searchCount} / 5000</Text>
-              </Space>
-            </Form.Item>
             <Form.Item name="dispatchedRange" label="派发时间">
               <DatePicker.RangePicker data-e2e-id={`${E2E}-filter-dispatched-range`} showTime format="YYYY-MM-DD HH:mm:ss" style={{ width: 360 }} />
             </Form.Item>
-            <Form.Item name="terminal" label="登录终端">
-              <Select data-e2e-id={`${E2E}-filter-terminal-select`} style={{ width: 110 }} options={['all', 'Android', 'iOS'].map((value) => ({ value, label: value === 'all' ? '全部' : value }))} />
+            <Form.Item name="searchText" label="会员账号/手机号">
+              <Input data-e2e-id={`${E2E}-filter-search-input`} allowClear placeholder="输入账号或手机号，多个以逗号分隔" style={{ width: 280 }} />
             </Form.Item>
             <Form.Item name="rewardType" label="奖励类型">
               <Select data-e2e-id={`${E2E}-filter-reward-type-select`} style={{ width: 160 }} options={[
-                { value: 'all', label: '全部' }, { value: 'cash', label: '仅彩金' }, { value: 'freespin', label: '仅免费旋转' }, { value: 'both', label: '彩金+免费旋转' },
+                { value: 'all', label: '全部' }, { value: 'cash', label: '彩金' }, { value: 'freespin', label: '免费旋转' }, { value: 'both', label: '彩金+免费旋转' },
               ]} />
-            </Form.Item>
-            <Form.Item name="rolloverStatus" label="流水状态">
-              <Select data-e2e-id={`${E2E}-filter-rollover-status-select`} style={{ width: 110 }} options={['all', '进行中', '已完成', '已失效', '无流水'].map((value) => ({ value, label: value === 'all' ? '全部' : value }))} />
             </Form.Item>
             <Form.Item>
               <Space>
-                <Button data-e2e-id={`${E2E}-filter-reset-btn`} icon={<ReloadOutlined />} onClick={() => form.resetFields()}>重置</Button>
                 <Button data-e2e-id={`${E2E}-filter-query-btn`} type="primary" htmlType="submit" icon={<SearchOutlined />}>查询</Button>
+                <Button data-e2e-id={`${E2E}-filter-reset-btn`} icon={<ReloadOutlined />} onClick={resetFilters}>重置</Button>
               </Space>
             </Form.Item>
           </Form>
         </Card>
+
         <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-          {stats.map(({ key, ...stat }) => (
-            <Col key={key} flex="1" style={{ minWidth: 0 }}>
-              <Card style={{ height: '100%' }}>
-                <Statistic {...stat} data-e2e-id={`${E2E}-summary-${key}`} valueStyle={{ fontSize: 22, lineHeight: 1.25, whiteSpace: 'nowrap' }} />
-              </Card>
-            </Col>
-          ))}
+          <Col flex="1" style={{ minWidth: 0 }}>
+            <Card style={statisticCardStyle}><Statistic data-e2e-id={`${E2E}-summary-members`} title="派发人数" value={stats.members} valueStyle={statisticValueStyle} /></Card>
+          </Col>
+          <Col flex="1" style={{ minWidth: 0 }}>
+            <Card style={statisticCardStyle}><Statistic data-e2e-id={`${E2E}-summary-cash`} title="彩金派发总额" value={stats.cash} formatter={() => formatCurrency(stats.cash)} valueStyle={statisticValueStyle} /></Card>
+          </Col>
+          <Col flex="1" style={{ minWidth: 0 }}>
+            <Card style={statisticCardStyle}><Statistic data-e2e-id={`${E2E}-summary-spins`} title="免费旋转总次数" value={stats.spins} suffix="次" valueStyle={statisticValueStyle} /></Card>
+          </Col>
         </Row>
-        <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Button data-e2e-id={`${E2E}-toolbar-export-btn`} icon={<DownloadOutlined />} onClick={() => downloadCsv(filteredRows)}>导出</Button>
-          <Tooltip title="刷新">
-            <Button data-e2e-id={`${E2E}-toolbar-refresh-btn`} aria-label="刷新" icon={<ReloadOutlined />} onClick={() => {
-              setFilters((current) => ({ ...current }));
-              message.success('已刷新');
-            }} />
-          </Tooltip>
-          <Popover trigger="click" placement="bottomRight" title="列设置" content={
-            <Space direction="vertical">
-              {reportFields.map((field) => <Checkbox key={field.key} data-e2e-id={`${E2E}-column-${field.key}-checkbox`}
-                checked={visibleColumns.includes(field.key)} disabled={field.key === 'orderId'}
-                onChange={(event) => setVisibleColumns((current) => event.target.checked ? [...current, field.key] : current.filter((key) => key !== field.key))}>{field.title}</Checkbox>)}
+
+        <Card>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+            <Space wrap>
+              <Button data-e2e-id={`${E2E}-toolbar-export-btn`} icon={<DownloadOutlined />} onClick={() => downloadCsv(filteredRows)}>导出</Button>
             </Space>
-          }>
-            <Tooltip title="列设置"><Button data-e2e-id={`${E2E}-toolbar-settings-btn`} aria-label="列设置" icon={<SettingOutlined />} /></Tooltip>
-          </Popover>
-        </div>
-        <Table data-e2e-id={`${E2E}-table`} columns={columns} dataSource={filteredRows} rowKey="orderId" size="small" scroll={{ x: 2430 }}
-          onRow={(row) => ({ 'data-e2e-id': `${E2E}-table-row-${row.orderId}` } as React.HTMLAttributes<HTMLTableRowElement>)}
-          pagination={{ current: page, pageSize: 20, showSizeChanger: false, onChange: setPage, showTotal: (total) => `共 ${total} 笔`,
-            itemRender: (pageNumber, type, originalElement) => <span data-e2e-id={`${E2E}-pagination-${type}-${pageNumber}`}>{originalElement}</span>,
-          }} />
+            <Space>
+              <Tooltip title="刷新">
+                <Button data-e2e-id={`${E2E}-toolbar-refresh-btn`} aria-label="刷新" icon={<ReloadOutlined />} onClick={() => {
+                  setFilters((current) => ({ ...current }));
+                  message.success('列表已刷新');
+                }} />
+              </Tooltip>
+            </Space>
+          </div>
+          <Table data-e2e-id={`${E2E}-table`} columns={columns} dataSource={filteredRows} rowKey="orderId" size="small" scroll={{ x: 1475 }}
+            onRow={(row) => ({ 'data-e2e-id': `${E2E}-table-row-${row.orderId}` } as React.HTMLAttributes<HTMLTableRowElement>)}
+            pagination={{ current: page, pageSize: 20, showSizeChanger: false, onChange: setPage, showTotal: (total) => `共 ${total} 笔`,
+              itemRender: (pageNumber, type, originalElement) => <span data-e2e-id={`${E2E}-pagination-${type}-${pageNumber}`}>{originalElement}</span>,
+            }} />
+        </Card>
       </div>
     </Modal>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Card, Checkbox, Col, Form, Input, InputNumber, Radio, Row, Typography } from 'antd';
+import { Card, Checkbox, Col, Form, Input, InputNumber, Row, Typography } from 'antd';
 import type { FormInstance } from 'antd';
 import ActivityConfigWizardShell, { type WizardStepDef } from './activityConfigShared/ActivityConfigWizardShell';
 import { BaseConfigStep, baseConfigInitialValues, BASE_CONFIG_STEP_FIELDS } from './activityConfigShared/BaseConfigStep';
@@ -77,34 +77,6 @@ export default function AppLoginRewardConfigModal({ open, onClose }: { open: boo
       title: '基础配置',
       validateFields: BASE_CONFIG_STEP_FIELDS.filter((field) => !HIDDEN_BASE_FIELDS.includes(field)),
       render: () => <BaseConfigStep e2ePrefix={E2E} activityId={35} activityName="App登录奖励" activityTypeDefault="other" hideFields={HIDDEN_BASE_FIELDS} />,
-    },
-    {
-      title: '领取条件',
-      validateFields: ['terminals', 'minAppVersion', 'kycRequired'],
-      render: () => (
-        <>
-          <Form.Item label="登录终端" name="terminals" tooltip="仅 App 端登录触发，H5 / PC 不触发"
-            rules={[{ type: 'array', required: true, min: 1, message: '请至少选择一个登录终端' }]}>
-            <Checkbox.Group data-e2e-id={`${E2E}-terminals-checkbox`}>
-              <Checkbox value="android" data-e2e-id={`${E2E}-terminal-android-checkbox`}>Android App</Checkbox>
-              <Checkbox value="ios" data-e2e-id={`${E2E}-terminal-ios-checkbox`}>iOS App</Checkbox>
-            </Checkbox.Group>
-          </Form.Item>
-          <Form.Item label="最低 App 版本" name="minAppVersion" tooltip="留空表示不限版本"
-            rules={[{ pattern: /^\d+(\.\d+){1,3}$/, message: '请输入有效版本号，例如 1.2.29' }]}>
-            <Input data-e2e-id={`${E2E}-min-app-version-input`} placeholder="例：1.2.29" />
-          </Form.Item>
-          <Form.Item label="KYC 要求" name="kycRequired" tooltip="选「需 KYC 已认证」时，KYC 通过后的首次 App 登录才派发"
-            rules={[{ required: true, message: '请选择 KYC 要求' }]}>
-            <Radio.Group data-e2e-id={`${E2E}-kyc-required-radio`}>
-              <Radio value="none" data-e2e-id={`${E2E}-kyc-none-radio`}>不限</Radio>
-              <Radio value="required" data-e2e-id={`${E2E}-kyc-required-option-radio`}>需 KYC 已认证</Radio>
-            </Radio.Group>
-          </Form.Item>
-          <Form.Item label="领取次数"><Typography.Text>每位会员限领 1 次（以 UID 计）</Typography.Text></Form.Item>
-          <Form.Item label="派发方式"><Typography.Text>登录成功后即时自动到账</Typography.Text></Form.Item>
-        </>
-      ),
     },
     { title: '奖励配置', render: (form) => <RewardConfigStep form={form} /> },
   ];
